@@ -1,0 +1,391 @@
+# Copyright 2025 Xanadu Quantum Technologies Inc.
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Integrated Scalene Profiler."""
+
+# As much as possible, try to lazy load the necessary modules.
+import os
+from enum import Enum
+from pathlib import Path
+
+from colours import Color
+from profiler.utils import date
+from typer import Exit
+
+# SCRATCH = Path(os.getenv("SCRATCH", ROOT_DIR / ".scratch"))
+
+
+class LogLevel(Enum):
+    """Valid Log Levels to profile."""
+
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+    def should_catch_warnings(self) -> bool:
+        """Determing whether or not the LogLevel should catch warnings too."""
+        return self.name in ["DEBUG", "INFO", "WARNING"]
+
+
+class Platform(Enum):
+    """OS Platforms."""
+
+    macOS = "darwin"
+    Linux = "linux"
+    Windows = "windows"
+
+
+class Profiler:
+    """Class for managing profiling in FlamingPy."""
+
+    def __init__(
+        self,
+        *,
+        path: Path,
+        python_script_args: list[str] = None,
+        cpu_only: bool = False,
+        precision: int = 0,
+        detailed: bool = False,
+        loglevel: LogLevel = LogLevel.CRITICAL,
+        noplots: bool = False,
+        profilename: str = None,
+        trace: bool = True,
+        **_,
+    ):
+        self.cpu_only = cpu_only
+        self.script_args = python_script_args if python_script_args is not None else []
+        self.precision = int(precision) if precision is not None else 0
+        self.detailed = detailed
+        self.loglevel = loglevel
+        self.noplots = noplots
+        self._output_file = None
+        self.cli_inputs = ""
+        self._precision_limit = 10
+        self.trace = trace
+        self.platform = None
+
+        #  Assert correct python environment.
+        self.assert_platform_os()
+
+        # Prepare the results folder.
+        if path.is_file():
+            self.python_file = path
+            self.filestem = self.python_file.stem.replace(" ", "_")
+            self.profile_root = SCRATCH / "performance" / self.filestem / date()
+            self.profile_root.mkdir(parents=True, exist_ok=True)
+            self.profile_file = self.profile_root / f"{self.filestem}.py"
+            self.output_file = self.profile_root / "profile_results.txt"
+            self.prepare_code_for_profiling()
+        elif path.is_dir():
+            self.python_file = None
+            self.filestem = None
+            self.profile_root = path
+            self.profile_file = ROOT_DIR / "flamingpy" / "cli" / "main.py"
+            self.output_file = self.profile_root / (profilename or "profile_results.txt")
+        elif not path.exists():
+            Color.print(
+                Color.RED("Error:"),
+                Color.purple(path),
+                "does not exist.",
+            )
+            raise Exit(code=127)
+
+    def assert_platform_os(self):
+        """Explain that memory profiling is not available on Windows."""
+        import platform
+
+        match platform.system().lower():
+            case Platform.macOS.value:
+                self.platform = Platform.macOS
+            case Platform.Linux.value:
+                self.platform = Platform.Linux
+            case Platform.Windows.value:
+                self.platform = Platform.Windows
+
+        if not self.cpu_only and self.platform == Platform.Windows:
+            Color.RED.print("Memory profiling is not available on Windows")
+            Color.red.print("Using --cpu")
+            self.cpu_only = True
+        if self.cpu_only and self.precision != 0:
+            Color.orange.print("--precision option is not used with --cpu")
+
+    @property
+    def excluded_folders(self) -> str:
+        """Scalene flag to exclude system python directory when profiling all modules."""
+        import platform
+        import sys
+
+        exclude_dir = None
+        if platform.system() == "Windows":
+            exclude_dir = Path(os.getenv("APPDATA"))
+        else:
+            exclude_dir = Path(sys.executable).resolve().parents[1]
+        # Do not exclude directories that are within the repo.
+        return (
+            f"--profile-exclude {exclude_dir}" if not exclude_dir.is_relative_to(ROOT_DIR) else ""
+        )
+
+    @property
+    def output_file(self) -> Path:
+        """The location of the Scalene output."""
+        return self._output_file
+
+    @output_file.setter
+    def output_file(self, value: str | Path):
+        """The location of the Scalene output."""
+        self._output_file = Path(value)
+        self._output_file.touch()
+
+    @property
+    def output_path(self) -> Path:
+        """A relative path (from repo root) to the Scalene output."""
+        try:
+            return self.output_file.relative_to(ROOT_DIR)
+        except ValueError:
+            # output_file is not in the subpath of ROOT_DIR
+            #  OR one path is relative and the other is absolute
+            return self.output_file
+
+    @property
+    def log_file(self) -> Path:
+        """The location of the logs caught during profiling."""
+        return self.profile_root / "logs.log"
+
+    @property
+    def log_path(self) -> Path:
+        """A relative path (from the repo root) of the logs caught during profiling."""
+        return self.log_file.relative_to(ROOT_DIR)
+
+    @property
+    def precision_limit(self) -> int:
+        """The precision limit on the memory allocation threshold."""
+        return self._precision_limit
+
+    @precision_limit.setter
+    def precision_limit(self, value: int):
+        """The precision limit on the memory allocation threshold."""
+        self._precision_limit = abs(int(value))
+
+    def convert_ipynb_to_py(self, file_contents: str) -> str:
+        """Convert an ipynb to a python script."""
+        import json
+
+        contents = json.loads(file_contents)
+        executable = []
+        for cell in contents["cells"]:
+            if cell["cell_type"] == "code":
+                executable.extend(cell["source"] + ["\n"])
+        executable = "".join(executable)
+        if executable == "":
+            Color.ORANGE.print(
+                Color.red_error("Error: notebook does not contain any executable code."),
+            )
+            raise Exit(code=1)
+        return executable
+
+    def get_memory_precision(self) -> str:
+        """Given an integer, return the memory allocation size to monitor for."""
+        from sympy import nextprime
+
+        verbosity = (
+            max(-self.precision_limit, self.precision)
+            if self.precision < 0
+            else min(self.precision_limit, self.precision)
+        )
+        if verbosity != self.precision:
+            Color.orange.print(
+                f"Warning: -{self.precision_limit} <= precision <= {self.precision_limit}",
+            )
+        memory_threshold = 10485767  # ~ 10 MB
+        memory_threshold = nextprime(int(memory_threshold / 2**verbosity))
+        return f"--allocation-sampling-window={memory_threshold}"
+
+    def prepare_code_for_profiling(self) -> tuple[Path, Path]:
+        """Add prefix and suffix lines to the code that will be profiled, including logging and
+        MagicMock.
+        """
+        code_to_profile = self.python_file.read_text()
+        if self.python_file.suffix == ".ipynb":
+            code_to_profile = self.convert_ipynb_to_py(code_to_profile)
+
+        code_lines = code_to_profile.split("\n")
+        divider = ["\n\n"] + ["####################################"] * 3 + ["\n\n"]
+        profile_prefix = []
+        profile_suffix = []
+        logger = [
+            "\n### Add extras for profiling. ###\n",
+            "import sys",
+            "import logging",
+            "from pathlib import Path",
+            f"log_file = Path(r'{self.log_file}')",
+            f"logging.basicConfig(filename=log_file, level=logging.{self.loglevel.name})",
+            "logging.captureWarnings(True)" if self.loglevel.should_catch_warnings() else "",
+            "sys.stdout = log_file.open(mode='a')",
+        ]
+        profile_prefix += logger
+        if self.noplots:
+            profile_prefix += [
+                "### Prevent plots from rendering for profiling. ###",
+                "from unittest.mock import patch, MagicMock",
+                "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())",
+                "patch_plotly = patch('plotly.graph_objects.Figure.show', new=MagicMock())",
+                "patch_plt.start()",
+                "patch_plotly.start()",
+            ]
+            profile_suffix += [
+                "patch_plt.stop()",
+                "patch_plotly.stop()",
+            ]
+        profile_prefix += [
+            "from scalene import scalene_profiler",
+            "scalene_profiler.start()",
+        ]
+        profile_suffix = ["scalene_profiler.stop()"] + profile_suffix
+
+        code_to_profile = "\n".join(
+            profile_prefix + divider + code_lines + divider + profile_suffix,
+        )
+        self.profile_file.write_text(code_to_profile, encoding="utf-8")
+
+        return self.profile_file, self.output_file
+
+    def get_memory_RSS(self, stderr: str) -> str:
+        """Returns the max memory resident set size (RSS) that occured while profiling."""
+        memory_usage = -1.0
+        grep = ""
+        if self.platform == Platform.macOS:
+            grep = "maximum resident set size"
+        elif self.platform == Platform.Linux:
+            grep = "Maximum resident set size (kbytes)"
+
+        for line in stderr.splitlines():
+            if grep in line:
+                for part in line.strip().split():
+                    try:
+                        memory_usage = float(part)
+                        break
+                    except ValueError:
+                        pass
+        if memory_usage > 0:
+            if memory_usage >= 1024**3:  # GB
+                memory_usage = memory_usage / 1024**3
+                unit = "GB"
+            elif memory_usage >= 1024**2:  # MB
+                memory_usage = memory_usage / 1024**2
+                unit = "MB"
+            elif memory_usage >= 1024:  # KB
+                memory_usage = memory_usage / 1024
+                unit = "KB"
+            else:
+                unit = "bytes"
+            memory_usage = f"{memory_usage:.2f} {unit}"
+        else:
+            memory_usage = ""
+        return memory_usage
+
+    def run_profiler(self, preamble: str = "\n"):
+        """Profile the python script using Scalene."""
+        import subprocess
+
+        from flamingpy.cli.profiler import ProfileParser, StackReporter
+        from typer import Exit
+
+        sampling_detail = self.get_memory_precision()
+        ncols = max(160, len(str(self.profile_file)) + 75)
+        usr_bin_time = ""
+        if self.platform == Platform.macOS:
+            usr_bin_time = "/usr/bin/time -l"
+        elif self.platform == Platform.Linux:
+            usr_bin_time = "/usr/bin/time -v"
+
+        cmd = [
+            usr_bin_time,
+            "uv run --frozen python -m scalene",
+            "--reduced-profile --cpu --cli",
+            "--json --stacks" if self.trace else "",
+            f"--profile-all {self.excluded_folders}" if self.detailed else "",
+            f"--memory {sampling_detail}" if not self.cpu_only else "",
+            f"--program-path {ROOT_DIR} --column-width={ncols}",
+            f"--profile-interval=5 --outfile={self.output_file}",
+        ]
+        cmd.append(str(self.profile_file))
+        if self.script_args != []:
+            cmd.append("---")
+            cmd.extend(self.script_args)
+        cmd_str = " ".join(cmd).strip()
+
+        try:
+            # Profile the code.
+            capture = subprocess.run(
+                cmd_str.split(),
+                check=True,
+                text=True,
+                capture_output=self.loglevel.should_catch_warnings(),
+                env=os.environ.copy()
+                | {"LINES": "320", "COLUMNS": f"{ncols}", "FLAMINGPY_PROFILE": "1"},
+            )
+        except subprocess.CalledProcessError as exc:
+            # Catch any shell errors and display them.
+            # This includes any fatal errors in Python during execution.
+            for output in [exc.stdout, exc.stderr]:
+                if output is None:
+                    continue
+                if isinstance(output, bytes):
+                    output = output.decode()
+                if output.strip():
+                    Color.RED.print("\nExecution Error:")
+                    Color.print(Color.red_error(output.strip()))
+            raise Exit(code=1)
+        except KeyboardInterrupt:
+            # Make sure to indicate in the profile_results.txt of the interruption.
+            message = "\n Profiling interrupted by user. \n"
+            self.output_file.write_text(message + self.output_file.read_text(), encoding="utf-8")
+            Color.RED.print(message)
+            raise Exit(code=1)
+        else:
+            # Gather all the details and logs and consicely present them to the user.
+            parser = ProfileParser(self.output_file)
+            summary = parser.summary()
+            memory = "" if self.cpu_only else f"using {parser.max_memory} of RAM"
+            finished = f"Finished in {parser.walltime or 0:,.3f} seconds {memory}"
+
+            results = self.output_file.read_text()
+            log_info = self.log_file.read_text() if self.log_file.exists() else ""
+            n_warns = log_info.count("WARNING")
+            warn = "warning" if n_warns == 1 else "warnings"
+            warning_str = f" ({n_warns} {warn})" if n_warns > 0 else ""
+
+            if capture.stderr is not None and self.platform != Platform.Windows:
+                rss = self.get_memory_RSS(capture.stderr)
+                rss_report = f"Max RSS Memory Usage: {rss}\n" if rss != "" else ""
+            else:
+                rss_report = ""
+
+            report = ""
+            if self.trace:
+                reporter = StackReporter(self.output_file.with_suffix(".json"))
+                report = reporter.report_stacks_for_top_functions(top_n=5)
+
+            preamble += f"{finished}.\n"
+            preamble += f"Check logs {self.log_path}{warning_str}\n" if log_info != "" else ""
+            results = f"{preamble}\n{rss_report}{summary}{results}{report}"
+            self.output_file.write_text(results, encoding="utf-8")
+
+            Color.print(f"{summary}{finished}{Color.orange(warning_str)}.")
+            Color.print(rss_report, "\n")
+            if self.trace:
+                Color.print(report)
+
+            raise Exit(code=0)
