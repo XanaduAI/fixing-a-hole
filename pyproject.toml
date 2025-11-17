@@ -3,7 +3,7 @@ name = "FixingAHole"
 version = "0.1.0"
 description = "Integrating Scalene into Python projects."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "colours",
     "scalene",
@@ -15,12 +15,8 @@ dependencies = [
 fixit = "fixingahole.cli.main:app"
 
 [tool.uv.sources]
+colours = { git = "https://github.com/XanaduAI/colours.git" }
 scalene = [
-    # Python 3.10
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55/scalene-1.5.55-cp310-cp310-macosx_15_0_universal2.whl", marker = "python_version == '3.10' and sys_platform == 'darwin' and platform_machine == 'arm64'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55/scalene-1.5.55-cp310-cp310-macosx_13_0_universal2.whl", marker = "python_version == '3.10' and sys_platform == 'darwin' and platform_machine == 'x86_64'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55/scalene-1.5.55-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", marker = "python_version == '3.10' and sys_platform == 'linux'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55/scalene-1.5.55-cp310-cp310-win_amd64.whl", marker = "python_version == '3.10' and sys_platform == 'win32'" },
     # Python 3.11
     { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55/scalene-1.5.55-cp311-cp311-macosx_15_0_universal2.whl", marker = "python_version == '3.11' and sys_platform == 'darwin' and platform_machine == 'arm64'" },
     { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55/scalene-1.5.55-cp311-cp311-macosx_13_0_universal2.whl", marker = "python_version == '3.11' and sys_platform == 'darwin' and platform_machine == 'x86_64'" },
@@ -32,7 +28,6 @@ scalene = [
     { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55/scalene-1.5.55-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", marker = "python_version == '3.12' and sys_platform == 'linux'" },
     { git = "https://github.com/zyrxvo/scalene.git", rev = "v1.5.55", marker = "python_version == '3.11' and sys_platform == 'win32'" },
 ]
-colours = { git = "https://github.com/XanaduAI/colours.git" }
 
 [dependency-groups]
 dev = [
@@ -44,13 +39,90 @@ dev = [
 default-groups = ["dev"]
 
 [tool.ruff]
-line-length = 100
+line-length = 128
 
 [tool.ruff.format]
 docstring-code-format = true
 
 [tool.ruff.lint]
-select = ["ALL"]
+preview = true
+select = [
+    "A",
+    "AIR",
+    "ANN",
+    "ARG",
+    "ASYNC",
+    "B",
+    "BLE",
+    "COM",
+    "C4",
+    "C90",
+    "D",
+    "DTZ",
+    "E",
+    "EM",
+    "ERA",
+    "EXE",
+    "F",
+    "FAST",
+    "FIX",
+    "FLY",
+    "FURB",
+    "G",
+    "I",
+    "ICN",
+    "INP",
+    "INT",
+    "LOG",
+    "N",
+    "NPY",
+    "PD",
+    "PERF",
+    "PGH",
+    "PIE",
+    "PL",
+    "PTH",
+    "PYI",
+    "PT",
+    "Q",
+    "RSE",
+    "RET",
+    "RUF",
+    "S",
+    "SIM",
+    "SLF",
+    "T10",
+    "T20",
+    "TC",
+    "TID",
+    "TRY",
+    "UP",
+    "W",
+    "YTT",
+]
+ignore = [
+    "COM812",
+    "D107",
+    "D203",
+    "D213",
+    "S404",
+    "S311",
+    "S603",
+]
+
+[tool.ruff.lint.pylint]
+max-locals = 20
+max-args = 10
+
+[tool.ruff.lint.flake8-annotations]
+mypy-init-return = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/conftest.py" = ["T201"]
+"test_*.py" = ["ANN201", "S101", "PLR6301"]
+
+[tool.fixingahole]
+root = "."
 
 [build-system]
 requires = ["hatchling"]

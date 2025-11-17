@@ -11,14 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Integrated Scalene Profiler and Parser."""
-
-from fixingahole.profiler.profile_parser import ProfileParser
-from fixingahole.profiler.profiler import Profiler
-from fixingahole.profiler.stack_reporter import StackReporter
-
-__all__ = [
-    "ProfileParser",
-    "Profiler",
-    "StackReporter",
-]
+"""Tests for the Fixing-A-Hole CLI tools."""

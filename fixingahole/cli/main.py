@@ -20,11 +20,13 @@ from typing import Annotated
 import typer
 from colours import Colour
 
-from fixingahole import ROOT_DIR
-from fixingahole.profiler import LogLevel, Profiler
+from fixingahole import ROOT_DIR, LogLevel, Profiler
 from fixingahole.profiler.utils import find_path
 
-app = typer.Typer(rich_markup_mode="markdown")
+app = typer.Typer(
+    rich_markup_mode="markdown",
+    epilog=":copyright: Xanadu Quantum Technologies",
+)
 ModuleType = type(typer)
 
 
@@ -32,6 +34,7 @@ ModuleType = type(typer)
     no_args_is_help=True,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
     rich_help_panel="Utilities",
+    epilog=":copyright: Xanadu Quantum Technologies",
 )
 def profile(
     *,
@@ -50,7 +53,7 @@ def profile(
             help="Profile the CPU runtime or the memory usage of the script or notebook.",
             show_default=True,
         ),
-    ] = False,
+    ] = True,
     detailed: Annotated[
         bool,
         typer.Option(
@@ -61,7 +64,7 @@ def profile(
         ),
     ] = False,
     precision: Annotated[
-        int,
+        int | None,
         typer.Option(
             "--precision",
             "-p",
@@ -96,10 +99,7 @@ def profile(
         ),
     ] = False,
 ) -> None:
-    """Profile a python script or Jupyter notebook.
-
-    For more details and documentation see flamingpy/cli/profiler/README.md
-    """
+    """Profile a python script or Jupyter notebook."""
     # Find and Prepare script for profiling.
     Colour.blue.print("Initializing...")
     full_path = (ROOT_DIR / filename).resolve()
@@ -139,7 +139,12 @@ def profile(
     profiler.run_profiler(preamble=preamble)
 
 
-@app.command(no_args_is_help=True, rich_help_panel="Utilities", hidden=True)
+@app.command(
+    no_args_is_help=True,
+    rich_help_panel="Utilities",
+    hidden=True,
+    epilog=":copyright: Xanadu Quantum Technologies",
+)
 def summarize(
     filename: Annotated[
         str,

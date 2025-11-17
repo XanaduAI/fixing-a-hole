@@ -18,32 +18,34 @@ results JSON file.
 """
 
 import json
+import operator
 import re
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
-from profiler import ROOT_DIR
+from fixingahole import ROOT_DIR
 
 
 class StackReporter:
-    """Reports stack traces for the most expensive function calls from a Scalene profile results
-    JSON file.
-    """
+    """Reports stack traces for expensive function calls from Scalene profile results JSON file."""
 
-    def __init__(self, profile_json_path: Path | str):
+    def __init__(self, profile_json_path: Path | str) -> None:
+        """Report stack traces for expensive function calls."""
         try:
             self.profile_json_path = Path(profile_json_path).resolve()
             self.data = self.load_profile_results(self.profile_json_path)
         except (FileNotFoundError, json.JSONDecodeError, PermissionError) as e:
-            raise StackReporterError(f"Failed to initialize StackReporter: {e}")
+            err_msg = f"Failed to initialize StackReporter: {e}"
+            raise StackReporterError(err_msg) from e
 
     @staticmethod
     def load_profile_results(json_path: Path) -> dict:
         """Load profile results from a JSON file."""
-        with open(json_path) as f:
+        with Path.open(json_path) as f:
             return json.load(f)
 
-    def get_top_functions(self, n: int = 5) -> list[dict]:
+    def get_top_functions(self, n: int = 5) -> list[dict[str, Any]]:
         """Return the top n functions by total CPU percentage."""
         funcs = []
         for file, data in self.data["files"].items():
@@ -51,17 +53,14 @@ class StackReporter:
                 total_percent = func["n_cpu_percent_c"] + func["n_cpu_percent_python"]
                 funcs.append({"file": file, "name": func["line"], "total_percent": total_percent})
         # Sort by total_percent descending
-        return sorted(funcs, key=lambda x: x["total_percent"], reverse=True)[:n]
+        return sorted(funcs, key=operator.itemgetter("total_percent"), reverse=True)[:n]
 
     def find_stack_traces(self, func_name: str) -> list[dict]:
         """Find all stack traces where the function name appears."""
-        traces = []
-        for stack in self.data["stacks"]:
-            if func_name in stack[0][-1]:
-                traces.append({"stack": stack[0], **stack[1]})
-        return traces
+        return [{"stack": stack[0], **stack[1]} for stack in self.data["stacks"] if func_name in stack[0][-1]]
 
-    def combine_stack_traces(self, traces: list[dict]) -> dict:
+    @staticmethod
+    def combine_stack_traces(traces: list[dict]) -> dict[str, Any]:
         """Gather traces into similar call stacks."""
         combined = defaultdict(
             lambda: {"count": 0, "c_time": 0.0, "python_time": 0.0, "cpu_samples": 0.0},
@@ -75,11 +74,9 @@ class StackReporter:
         return combined
 
     def report_stacks_for_top_functions(self, top_n: int = 5) -> str:
-        """Return a string report of stack traces for the top N expensive functions, rendered as a
-        combined reverse tree.
-        """
+        """Top N expensive functions, rendered as a combined reverse tree."""
         top_funcs = self.get_top_functions(n=top_n)
-        report = []
+        report: list[str] = []
         for func in top_funcs:
             report.append(f"\n{func['name']}, ({func['total_percent']:.2f}%)")
             traces = self.find_stack_traces(func["name"])
@@ -87,7 +84,7 @@ class StackReporter:
                 report.append("  No stack traces found.\n")
                 continue
             # Build combined tree from all stack traces
-            tree, call_info = self.build_combined_reverse_tree(traces)
+            tree, call_info = StackReporter.build_combined_reverse_tree(traces)
             tree_lines = self.render_combined_reverse_tree(tree, call_info, is_root=False)
             report.extend([f"  {line}" for line in tree_lines])
 
@@ -96,10 +93,12 @@ class StackReporter:
             report = [
                 f"\nStack Trace Summary ({round(self.data['elapsed_time_sec'], 3):.3f}s total)",
                 "=" * width,
-            ] + report
+                *report,
+            ]
         return "\n".join(report)
 
-    def build_combined_reverse_tree(self, traces: list[dict]) -> tuple[dict]:
+    @staticmethod
+    def build_combined_reverse_tree(traces: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
         """Build a combined reverse tree from all stack traces for a function.
 
         Returns (tree, call_info) where tree is a nested dict and call_info maps node paths to call
@@ -107,15 +106,15 @@ class StackReporter:
         """
         tree = {}
         call_info = {}
-        traces = self.combine_stack_traces(traces)
-        for stack, values in traces.items():
-            stack = list(reversed(stack))  # callers first, callee last
+        combined_traces = StackReporter.combine_stack_traces(traces)
+        for stacks, values in combined_traces.items():
+            stack = list(reversed(stacks))  # callers first, callee last
             norm_stack = []
             for frame in stack:
                 # Try to normalize file path in frame if present
                 # Assume frame format: 'filename function:line;'
                 # Rearrange to: 'relative_filepath:line; function'
-                file_path, func_name, line_no = re.split("[ :]", frame)
+                file_path, func_name, line_no = re.split(r"[ :]", frame)
                 try:
                     rel_path = str(Path(file_path).resolve().relative_to(ROOT_DIR))
                 except ValueError:
@@ -136,7 +135,14 @@ class StackReporter:
             }
         return tree, call_info
 
-    def render_combined_reverse_tree(self, tree, call_info, prefix="", path=None, is_root=True):
+    def render_combined_reverse_tree(
+        self,
+        tree: dict[str, Any],
+        call_info: dict[str, Any],
+        prefix: str = "",
+        path: list | None = None,
+        is_root: bool = True,
+    ) -> list[str]:
         """Render the combined reverse tree, merging branches for shared callers."""
         if path is None:
             path = []
@@ -149,7 +155,7 @@ class StackReporter:
             next_prefix = prefix + (blk if is_last else bar)
             lines.append(f"{current_prefix}{frame}")
             # If this is a leaf, show call info
-            new_path = path + [frame]
+            new_path = [*path, frame]
             if not subtree and tuple(new_path) in call_info:
                 info = call_info[tuple(new_path)]
                 lines.extend([f"{next_prefix}n_calls: {info['count']}", next_prefix])

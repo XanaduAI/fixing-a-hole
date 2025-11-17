@@ -1,11 +1,11 @@
-# FlamingPy Profiler
+# Fixing-A-Hole Profiler
 
 Profiling is the process of analyzing the resource usage of code to identify
 bottlenecks and potential areas of optimization and improvement. Typical types
 of resources used by code are CPU time, memory usage, and disk space. It can be
 the case that improvements in one area come at the expense of costs in another.
 
-FlamingPy uses the [scalene](https://github.com/plasma-umass/scalene) profiler which,
+Fixing-A-Hole uses the [scalene](https://github.com/plasma-umass/scalene) profiler which,
 unfortunately, has very limited support on Windows, even for single-threaded CPU usage.
 Scalene supports (single- and multi-threaded) CPU and (peak heap) memory usage on macOS,
 Linux, and WSL (Windows Subsystem for Linux).
@@ -20,16 +20,16 @@ Linux, and WSL (Windows Subsystem for Linux).
 
 Python scripts `.py` and notebooks `.ipynb` can be profiled using
 ```bash
-fpcli profile <filename>
+fixit profile <filename>
 ```
 For example, if you're working on a new method in `ft-stack/my_work/my_new_method.ipynb`
 then you can profile it using
 ```bash
-fpcli profile my_new_method.ipynb
+fixit profile my_new_method.ipynb
 ```
 and so long as `my_new_method.ipynb` is the only file in the repo with that name, it
 will run it. Otherwise, you will need to be more specific by calling
-`fpcli profile my_work/my_new_method.ipynb`.
+`fixit profile my_work/my_new_method.ipynb`.
 You can also always specify the absolute path to the script.
 
 ### MC Simulations
@@ -40,18 +40,18 @@ while profiling from an input generator.
 
 ## Options
 
-To see all the available options for the FlamingPy profiler, run
+To see all the available options for the Fixing-A-Hole profiler, run
 ```bash
-fpcli profile --help
+fixit profile --help
 ```
 
 Additional information for each option can also be found below.
 ```bash
 --cpu/--memory
 ```
-The main options are `--cpu` vs `--memory`. By default, FlamingPy will profile the
-memory usage of the script/experiment. _However_, additional CPU overhead is
-required in order to determine the memory usage of the script. The slowdown varies
+The main options are `--cpu` vs `--memory`. By default, Fixing-A-Hole will profile the
+RSS memory usage of the script/experiment. _However_, additional CPU overhead is
+required in order to determine the _heap_ memory usage of the script. The slowdown varies
 depending on the script, but may be as low as 1.2x to as much as 4x or more.
 Again, it really depends on the script itself.
 
@@ -78,14 +78,14 @@ speed depends on the script itself.
 ```bash
 --detailed
 ```
-By default, the profiler will only report CPU and memory usage within FlamingPy.
+By default, the profiler will only report CPU and memory usage within Fixing-A-Hole.
 However, if you would also like a report on the usage by imported modules,
 such as `scipy`, `numpy`, etc., then use the `--detailed` flag.
 
 ```bash
 --log-level
 ```
-By default, FlamingPy will capture warnings while profiling scripts and save them to a
+By default, Fixing-A-Hole will capture warnings while profiling scripts and save them to a
 log file. More or less detailed capture can be specified using the `--log-level` flag.
 The options are: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Each level will
 capture that level of severity _and higher_. So the default capturing `WARNING` will
@@ -95,7 +95,7 @@ your code will still crash, not run, and throw errors in the terminal.
 ```bash
 --no-plots
 ```
-By default, if your script or notebook generates plots, then FlamingPy will profile that
+By default, if your script or notebook generates plots, then Fixing-A-Hole will profile that
 too. The downside of this is that if a plot is opened and you take 5 seconds to close
 it, those 5 seconds will count towards how long it took your code to run. If you would
 like to temporarily disable generating plots, you can profile your code with the
@@ -104,8 +104,8 @@ modifying your code.
 
 ## Results
 
-Results generated from `fpcli profile` are saved in the `.scratch/performance/` directory
-of the FlamingPy repo. As such, they are not tracked by `git`. Each script or notebook that
+Results generated from `fixit profile` are saved in the `.scratch/performance/` directory
+of the Fixing-A-Hole repo. As such, they are not tracked by `git`. Each script or notebook that
 you profile in this way are saved by name and the UTC datetime when you ran the profile.
 For example, `/my_work/my_new_method.ipynb` will be saved in
 `/performance/my_new_method/20250639_123456/`. Within the folder will be a copy of the
@@ -120,7 +120,7 @@ See below for a portion of an example profile for
 ### `profile_results.txt`
 
 The first line in the results file is the command used to generate the results (if it
-was called using `fpcli`; otherwise, it was called for a specific job and is blank).
+was called using `fixit`; otherwise, it was called for a specific job and is blank).
 The second line shows the runtime and max memory usage.
 If the `logs.log` file is not empty, then a summary is printed next.
 Following that, the main Profile Summary is given (it was also printed to stdout).
@@ -149,7 +149,7 @@ copies can be computationally expensive and can significantly slow down your pro
 
 
 ```bash
-$ fpcli profile run_basics_qec.py
+$ fixit profile run_basics_qec.py
 Finished in 11.847 seconds using 150.601 MB of RAM.
 Check logs .scratch/performance/run_basics_qec/20250717_183538/logs.log (1 warning)
 
