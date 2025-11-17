@@ -13,13 +13,12 @@
 # limitations under the License.
 """Integrated Scalene Profiler and Parser."""
 
-from .config import ROOT_DIR
-from .profiler import LogLevel, ProfileParser, Profiler, StackReporter
+from fixingahole.config import ROOT_DIR
+from fixingahole.profiler.profiler import Profiler
+from fixingahole.profiler.utils import LogLevel
 
 __all__ = [
     "ROOT_DIR",
     "LogLevel",
-    "ProfileParser",
     "Profiler",
-    "StackReporter",
 ]

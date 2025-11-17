@@ -19,7 +19,7 @@ from pathlib import Path, PurePath
 from random import choice
 
 from colours import Colour
-from rich._spinners import SPINNERS
+from rich._spinners import SPINNERS  # noqa: PLC2701
 from rich.live import Live
 from rich.spinner import Spinner as rich_Spinner
 from typer import Exit
@@ -38,12 +38,12 @@ class LogLevel(Enum):
 
     def should_catch_warnings(self) -> bool:
         """Determine whether or not to catch warnings during profiling."""
-        return self.name in ["DEBUG", "INFO", "WARNING"]
+        return self.name in {"DEBUG", "INFO", "WARNING"}
 
 
 def date() -> str:
     """Return the current UTC date and time."""
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+    return datetime.datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
 
 
 def find_path(
@@ -83,27 +83,15 @@ def find_path(
     options = [
         path
         for path in in_dir.rglob("*")
-        if (
-            not any(path.is_relative_to(folder) for folder in exclude_resolved)
-            and PurePath(path).match(str(pattern))
-        )
+        if (not any(path.is_relative_to(folder) for folder in exclude_resolved) and PurePath(path).match(str(pattern)))
     ]
 
-    file_or_folder = ""
-    if Path(pattern).suffix == "":
-        file_or_folder = "folders"
-    else:
-        file_or_folder = "files"
-
+    file_or_folder = "folders" if not Path(pattern).suffix else "files"
     match len(options):
         case 1:
             result = options.pop()
             if return_suffix is not None:
-                return result, [
-                    path
-                    for path in result.rglob(f"*{return_suffix}")
-                    if "__pycache__" not in str(path)
-                ]
+                return result, [path for path in result.rglob(f"*{return_suffix}") if "__pycache__" not in str(path)]
             return result
         case 0:
             Colour.print(
