@@ -54,13 +54,13 @@ class Profiler:
         **_: dict,
     ) -> None:
         self.cpu_only = cpu_only
+        self.precision = int(precision) if precision is not None else 0
         self.platform = None
 
         #  Assert correct python environment.
         self.assert_platform_os()
 
         self.script_args = python_script_args if python_script_args is not None else []
-        self.precision = int(precision) if precision is not None else 0
         self.detailed = detailed
         self.loglevel = loglevel
         self.noplots = noplots
@@ -166,7 +166,7 @@ class Profiler:
             if cell["cell_type"] == "code":
                 executable.extend(cell["source"] + ["\n"])
         executable = "".join(executable)
-        if executable:
+        if not executable:
             Color.ORANGE.print(
                 Color.red_error("Error: notebook does not contain any executable code."),
             )

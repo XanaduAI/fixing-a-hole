@@ -19,6 +19,7 @@ from typing import Annotated
 
 import typer
 from colours import Colour
+from typer import Exit
 
 from fixingahole import ROOT_DIR, LogLevel, Profiler
 from fixingahole.profiler.utils import find_path
@@ -139,26 +140,28 @@ def profile(
     profiler.run_profiler(preamble=preamble)
 
 
-@app.command(
-    no_args_is_help=True,
-    rich_help_panel="Utilities",
-    hidden=True,
-    epilog=":copyright: Xanadu Quantum Technologies",
-)
-def summarize(
-    filename: Annotated[
-        str,
-        typer.Argument(
-            help="Path of the profile results to summarize.",
-            show_default=False,
-        ),
-    ],
-) -> None:
-    """Summarize a profile output."""
-    from fixingahole import ProfileParser  # noqa: PLC0415
+def version_callback(value: bool) -> None:
+    """Print `fixingahole --version`."""
+    if value:
+        from fixingahole import about  # noqa: PLC0415
 
-    parser = ProfileParser()
-    Colour.print(parser.summary(parser.parse_file(filename)))
+        about()
+        raise Exit(code=0)
+
+
+@app.callback()
+def main(
+    version: Annotated[
+        bool | None,
+        typer.Option(
+            "--version",
+            help="Show the current version of Fixing-A-Hole.",
+            callback=version_callback,
+            is_eager=True,
+        ),
+    ] = None,
+) -> None:
+    """Implement `fixingahole --version` callback."""
 
 
 if __name__ == "__main__":

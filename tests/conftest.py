@@ -27,7 +27,18 @@ def basic_name(suffix: str = "") -> str:
 def mock_file(tmp_path: Path) -> Path:
     """Create a basic test file for profiler testing."""
     test_file = tmp_path / basic_name(".py")
-    test_file.write_text("print('hello world')")
+    content = [
+        "import numpy as np",
+        "from sys import argv",
+        "def main():",
+        "  try:",
+        "    logging.info(' '.join(argv[1:]))",
+        "    logging.warning('This is a warning.')",
+        "  except: pass",
+        "  a = np.random.uniform(size=10**5)",
+        "main()",
+    ]
+    test_file.write_text("\n".join(content))
     return test_file
 
 
@@ -44,9 +55,13 @@ def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Create a temporary repo root directory for tests."""
     mock_root_dir = tmp_path
     mock_root_dir.mkdir(parents=True, exist_ok=True)
-    parts = ["profiler" + part for part in [".profiler", ".profile_parser", ".stack_reporter"]]
-    for part in parts:
-        monkeypatch.setattr(f"fixingahole.{part}.ROOT_DIR", mock_root_dir)
+    package_root = Path(__file__).parents[1] / "fixingahole"
+    for path in package_root.rglob("*.py"):
+        part = ".".join(path.relative_to(package_root).parts)[:-3]
+        try:
+            monkeypatch.setattr(f"fixingahole.{part}.ROOT_DIR", mock_root_dir)
+        except AttributeError:
+            continue
     return mock_root_dir
 
 
