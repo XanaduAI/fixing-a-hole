@@ -20,16 +20,16 @@ Linux, and WSL (Windows Subsystem for Linux).
 
 Python scripts `.py` and notebooks `.ipynb` can be profiled using
 ```bash
-fixit profile <filename>
+fixingahole profile <filename>
 ```
 For example, if you're working on a new method in `ft-stack/my_work/my_new_method.ipynb`
 then you can profile it using
 ```bash
-fixit profile my_new_method.ipynb
+fixingahole profile my_new_method.ipynb
 ```
 and so long as `my_new_method.ipynb` is the only file in the repo with that name, it
 will run it. Otherwise, you will need to be more specific by calling
-`fixit profile my_work/my_new_method.ipynb`.
+`fixingahole profile my_work/my_new_method.ipynb`.
 You can also always specify the absolute path to the script.
 
 ### MC Simulations
@@ -42,7 +42,7 @@ while profiling from an input generator.
 
 To see all the available options for the Fixing-A-Hole profiler, run
 ```bash
-fixit profile --help
+fixingahole profile --help
 ```
 
 Additional information for each option can also be found below.
@@ -104,7 +104,7 @@ modifying your code.
 
 ## Results
 
-Results generated from `fixit profile` are saved in the `.scratch/performance/` directory
+Results generated from `fixingahole profile` are saved in the `.scratch/performance/` directory
 of the Fixing-A-Hole repo. As such, they are not tracked by `git`. Each script or notebook that
 you profile in this way are saved by name and the UTC datetime when you ran the profile.
 For example, `/my_work/my_new_method.ipynb` will be saved in
@@ -120,7 +120,7 @@ See below for a portion of an example profile for
 ### `profile_results.txt`
 
 The first line in the results file is the command used to generate the results (if it
-was called using `fixit`; otherwise, it was called for a specific job and is blank).
+was called using `fixingahole`; otherwise, it was called for a specific job and is blank).
 The second line shows the runtime and max memory usage.
 If the `logs.log` file is not empty, then a summary is printed next.
 Following that, the main Profile Summary is given (it was also printed to stdout).
@@ -149,7 +149,7 @@ copies can be computationally expensive and can significantly slow down your pro
 
 
 ```bash
-$ fixit profile run_basics_qec.py
+$ fixingahole profile run_basics_qec.py
 Finished in 11.847 seconds using 150.601 MB of RAM.
 Check logs .scratch/performance/run_basics_qec/20250717_183538/logs.log (1 warning)
 
