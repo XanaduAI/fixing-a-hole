@@ -89,8 +89,8 @@ class ProfileParser:
     def __init__(self, filename: str | Path | None = None) -> None:
         """Parser for summarizing Scalene cli profile results files."""
         self.functions: list[FunctionProfile] = None
-        self.walltime: float = 0
-        self.max_memory: str = "an unknown amount"
+        self.walltime: float | None = None
+        self.max_memory: str | None = None
         if filename is not None and Path(filename).exists():
             self.functions = self.parse_file(filename)
 

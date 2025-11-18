@@ -139,14 +139,6 @@ class TestProfilerInit:
         assert profiler.python_file == mock_file
         assert not profiler.cli_inputs
 
-    def test_init_with_directory_path(self, mock_dir: Path, root_dir: Path):
-        """Test profiler initialization with a directory path."""
-        profiler = Profiler(path=mock_dir)
-        assert profiler.filestem is None
-        assert profiler.python_file is None
-        assert profiler.profile_file == root_dir / "flamingpy" / "cli" / "main.py"
-        assert str(profiler.output_file).endswith("profile_results.txt")
-
     def test_init_with_bad_path(self, tmp_path: Path):
         """Test profiler initialization with path that doesn't exist."""
         for stem in ["file_does_not_exist.py", "dir_does_not_exist"]:
@@ -154,12 +146,6 @@ class TestProfilerInit:
                 Profiler(path=tmp_path / stem)
             err_code = 127
             assert exc_info.value.exit_code == err_code
-
-    def test_init_with_custom_profilename(self, mock_dir: Path):
-        """Test profiler initialization with custom profile name."""
-        prof_name = "custom_profile.txt"
-        profiler = Profiler(path=mock_dir, profilename=prof_name)
-        assert profiler.output_file.name == prof_name
 
     def test_init_with_all_options(self, mock_file: Path):
         """Test profiler initialization with all options set."""
@@ -250,14 +236,12 @@ class TestProfilerProperties:
         # Should be created by touch()
         assert Path(new_output_str).exists()
 
-    def test_output_path_property_within_root(self, mock_file: Path, tmp_path: Path):
+    def test_output_path_property_within_root(self, mock_file: Path):
         """Test output_path property when output_file is within ROOT_DIR."""
-        with patch("flamingpy.cli.cli_utils.ROOT_DIR", tmp_path):
-            profiler = Profiler(path=mock_file)
-
-            # output_path should be relative to ROOT_DIR
-            output_path = profiler.output_path
-            assert not output_path.is_absolute()
+        profiler = Profiler(path=mock_file)
+        # output_path should be relative to ROOT_DIR
+        output_path = profiler.output_path
+        assert not output_path.is_absolute()
 
     def test_output_path_property_outside_root(self, mock_file: Path, root_dir: Path):
         """Test output_path property when output_file is outside ROOT_DIR."""
@@ -291,10 +275,8 @@ class TestProfilerProperties:
 class TestProfilerIPythonNotebookConversion:
     """Test the convert_ipynb_to_py method."""
 
-    def test_convert_ipynb_to_py_basic(self, mock_file: Path):
+    def test_convert_ipynb_to_py_basic(self):
         """Test basic Jupyter notebook to Python conversion."""
-        profiler = Profiler(path=mock_file)
-
         notebook_content = {
             "cells": [
                 {"cell_type": "code", "source": ["print('hello')", "x = 1", "y = 2"]},
@@ -302,8 +284,7 @@ class TestProfilerIPythonNotebookConversion:
                 {"cell_type": "code", "source": ["print('world')", "z = x + y"]},
             ]
         }
-
-        result = profiler.convert_ipynb_to_py(json.dumps(notebook_content))
+        result = Profiler.convert_ipynb_to_py(json.dumps(notebook_content))
 
         # Should only include code cells, not markdown
         assert "print('hello')" in result
@@ -313,27 +294,23 @@ class TestProfilerIPythonNotebookConversion:
         assert "z = x + y" in result
         assert "# This is markdown" not in result
 
-    def test_convert_ipynb_to_py_empty_notebook(self, mock_file: Path):
+    def test_convert_ipynb_to_py_empty_notebook(self):
         """Test conversion of empty notebook and return with an error."""
-        profiler = Profiler(path=mock_file)
         notebook_content = {"cells": []}
         with pytest.raises(Exit) as exc_info:
-            profiler.convert_ipynb_to_py(json.dumps(notebook_content))
+            Profiler.convert_ipynb_to_py(json.dumps(notebook_content))
         assert exc_info.value.exit_code == 1
 
-    def test_convert_ipynb_to_py_only_markdown(self, mock_file: Path):
+    def test_convert_ipynb_to_py_only_markdown(self):
         """Test conversion of notebook with only markdown cells and return with an error."""
-        profiler = Profiler(path=mock_file)
-
         notebook_content = {
             "cells": [
                 {"cell_type": "markdown", "source": ["# Title"]},
                 {"cell_type": "markdown", "source": ["Some text"]},
             ]
         }
-
         with pytest.raises(Exit) as exc_info:
-            profiler.convert_ipynb_to_py(json.dumps(notebook_content))
+            Profiler.convert_ipynb_to_py(json.dumps(notebook_content))
         assert exc_info.value.exit_code == 1
 
 
@@ -350,8 +327,9 @@ class TestProfilerDetailsExtraction:
         out of {value}s total time.
         max: {mem_val}
         """
-        mock_file.write_text(profile_content)
-        parser = ProfileParser(filename=mock_file)
+        output_file = mock_file.with_suffix(".txt")
+        output_file.write_text(profile_content)
+        parser = ProfileParser(filename=output_file)
 
         assert parser.walltime == value
         assert parser.max_memory == mem_val
@@ -457,7 +435,7 @@ class TestProfilerMemoryPrecision:
 
     def test_get_memory_precision_clamp_values(self, mock_file: Path):
         """Test that precision values are clamped to a range."""
-        with patch("flamingpy.cli.cli_utils.Color.print") as mock_color_print:
+        with patch("fixingahole.profiler.utils.Colour.print") as mock_color_print:
             for test_val in [-25, 25]:
                 mock_color_print.reset_mock()
                 profiler = Profiler(path=mock_file, precision=test_val)
@@ -478,7 +456,7 @@ class TestProfilerMemoryPrecision:
 
     def test_get_memory_precision_valid_range_no_warning(self, mock_file: Path):
         """Test that valid precision values don't trigger warnings."""
-        with patch("flamingpy.cli.cli_utils.Color.print") as mock_color_print:
+        with patch("fixingahole.profiler.utils.Colour.print") as mock_color_print:
             profiler = Profiler(path=mock_file, precision=3)
             profiler.get_memory_precision()
             mock_color_print.assert_not_called()

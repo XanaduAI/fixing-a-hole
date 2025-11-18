@@ -21,8 +21,8 @@ from pathlib import Path
 
 def _detect_virtualenv() -> str:
     """Find the virtual environment path for the current Python executable."""
-    # Adapted from https://github.com/astral-sh/uv/blob/44f5a14f401d5fc946acb82e111686cc6a9a7a1b/python/uv/__main__.py#L7-L23
-    # If it's already set, then just use it
+    # Adapted from https://github.com/astral-sh/uv/blob/44f5a14/python/uv/__main__.py#L7-L23
+    # If the VIRTUAL_ENV variable is already set, then just use it.
     value = os.getenv("VIRTUAL_ENV")
     if value:
         return value

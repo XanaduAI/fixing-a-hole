@@ -12,3 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for the Fixing-A-Hole CLI tools."""
+
+from pathlib import Path
+
+from typer.testing import CliRunner
+
+from fixingahole.cli import main as cli
+
+runner = CliRunner()
+
+
+class TestProfilerRunProfiler:
+    """Test the run_profiler method."""
+
+    def test_profiler_cli_call(self, mock_file: Path):
+        """Test how the MrKite CLI invokes the profiler."""
+        result = runner.invoke(cli.app, ["profile", str(mock_file)])
+        assert result.exit_code == 0
+
+    def test_profiler_cli_call_relative_path(self, mock_file: Path, root_dir: Path):
+        """Test how the MrKite CLI invokes the profiler."""
+        nested_dir = Path(root_dir / "nested" / "deeply")
+        nested_dir.mkdir(parents=True, exist_ok=True)
+        path = mock_file.rename(nested_dir / mock_file.name)
+        result = runner.invoke(cli.app, ["profile", path.name])
+        assert result.exit_code == 0

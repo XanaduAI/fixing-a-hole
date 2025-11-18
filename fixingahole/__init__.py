@@ -13,9 +13,33 @@
 # limitations under the License.
 """Integrated Scalene Profiler and Parser."""
 
+from importlib.metadata import PackageNotFoundError, version
+
+from colours import Colour as _Colour
+
 from fixingahole.config import ROOT_DIR
 from fixingahole.profiler.profiler import Profiler
 from fixingahole.profiler.utils import LogLevel
+
+try:
+    __version__ = version("fixingahole")
+except PackageNotFoundError:
+    __version__ = "unknown"
+
+
+def about() -> None:
+    """About info for Fixing-A-Hole."""
+    try:
+        scalene_version = version("scalene")
+    except PackageNotFoundError:
+        scalene_version = "unknown"
+
+    _Colour.print(
+        "Fixing-A-Hole: an integrated Scalene profiler and parser.",
+        f"\n Version: {__version__}",
+        f"\n Scalene Version: {scalene_version}",
+    )
+
 
 __all__ = [
     "ROOT_DIR",
