@@ -21,12 +21,12 @@ import sys
 from enum import Enum
 from pathlib import Path
 
-from colours import Color
+from colours import Colour
 from sympy import nextprime
 from typer import Exit
 
-from fixingahole import ROOT_DIR
-from fixingahole.profiler.utils import LogLevel, date
+from fixingahole import OUTPUT_DIR, ROOT_DIR
+from fixingahole.profiler.utils import LogLevel, Spinner, date
 
 
 class Platform(Enum):
@@ -73,7 +73,7 @@ class Profiler:
         if path.is_file():
             self.python_file = path
             self.filestem = self.python_file.stem.replace(" ", "_")
-            self.profile_root = ROOT_DIR / "performance" / self.filestem / date()
+            self.profile_root = OUTPUT_DIR / self.filestem / date()
             self.profile_root.mkdir(parents=True, exist_ok=True)
             self.profile_file = self.profile_root / f"{self.filestem}.py"
             self.output_file = self.profile_root / "profile_results.txt"
@@ -81,9 +81,9 @@ class Profiler:
         elif path.is_dir():
             pass
         elif not path.exists():
-            Color.print(
-                Color.RED("Error:"),
-                Color.purple(path),
+            Colour.print(
+                Colour.RED("Error:"),
+                Colour.purple(path),
                 "does not exist.",
             )
             raise Exit(code=127)
@@ -99,11 +99,11 @@ class Profiler:
                 self.platform = Platform.Windows
 
         if not self.cpu_only and self.platform == Platform.Windows:
-            Color.RED.print("Memory profiling is not available on Windows")
-            Color.red.print("Using --cpu")
+            Colour.RED.print("Memory profiling is not available on Windows")
+            Colour.red.print("Using --cpu")
             self.cpu_only = True
         if self.cpu_only and self.precision != 0:
-            Color.orange.print("--precision option is not used with --cpu")
+            Colour.orange.print("--precision option is not used with --cpu")
 
     @property
     def excluded_folders(self) -> str:
@@ -167,8 +167,8 @@ class Profiler:
                 executable.extend(cell["source"] + ["\n"])
         executable = "".join(executable)
         if not executable:
-            Color.ORANGE.print(
-                Color.red_error("Error: notebook does not contain any executable code."),
+            Colour.ORANGE.print(
+                Colour.red_error("Error: notebook does not contain any executable code."),
             )
             raise Exit(code=1)
         return executable
@@ -179,7 +179,7 @@ class Profiler:
             max(-self.precision_limit, self.precision) if self.precision < 0 else min(self.precision_limit, self.precision)
         )
         if verbosity != self.precision:
-            Color.orange.print(
+            Colour.orange.print(
                 f"Warning: -{self.precision_limit} <= precision <= {self.precision_limit}",
             )
         memory_threshold = 10485767  # ~ 10 MB
@@ -298,18 +298,20 @@ class Profiler:
 
     def run_profiler(self, preamble: str = "\n") -> None:
         """Profile the python script using Scalene."""
-        from fixingahole.profiler import ProfileParser, StackReporter  # noqa: PLC0415
+        from fixingahole.profiler import StackReporter  # noqa: PLC0415
+        from fixingahole.profiler.profile_json_parser import ProfileParser  # noqa: PLC0415
 
         ncols = max(160, len(str(self.profile_file)) + 75)
         try:
             # Profile the code.
-            capture = subprocess.run(
-                self._build_cmd,
-                check=True,
-                text=True,
-                capture_output=self.loglevel.should_catch_warnings(),
-                env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
-            )
+            with Spinner(f"See {Colour.purple(self.output_path)} for details."):
+                capture = subprocess.run(
+                    self._build_cmd,
+                    check=True,
+                    text=True,
+                    capture_output=self.loglevel.should_catch_warnings(),
+                    env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
+                )
         except subprocess.CalledProcessError as exc:
             # Catch any shell errors and display them.
             # This includes any fatal errors in Python during execution.
@@ -318,14 +320,14 @@ class Profiler:
                     continue
                 output = exc_output.decode() if isinstance(exc_output, bytes) else exc_output
                 if output.strip():
-                    Color.RED.print("\nExecution Error:")
-                    Color.print(Color.red_error(output.strip()))
+                    Colour.RED.print("\nExecution Error:")
+                    Colour.print(Colour.red_error(output.strip()))
             raise Exit(code=1) from exc
         except KeyboardInterrupt as ki:
             # Make sure to indicate in the profile_results.txt of the interruption.
             message = "\n Profiling interrupted by user. \n"
             self.output_file.write_text(message + self.output_file.read_text(), encoding="utf-8")
-            Color.RED.print(message)
+            Colour.RED.print(message)
             raise Exit(code=1) from ki
         else:
             # Gather all the details and logs and consicely present them to the user.
@@ -356,9 +358,9 @@ class Profiler:
             results = f"{preamble}\n{rss_report}{summary}{results}{report}"
             self.output_file.write_text(results, encoding="utf-8")
 
-            Color.print(f"{summary}{finished}{Color.orange(warning_str)}.")
-            Color.print(rss_report, "\n")
+            Colour.print(f"{summary}{finished}{Colour.orange(warning_str)}.")
+            Colour.print(rss_report, "\n")
             if self.trace:
-                Color.print(report)
+                Colour.print(report)
 
             raise Exit(code=0)

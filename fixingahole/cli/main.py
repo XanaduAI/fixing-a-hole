@@ -21,7 +21,7 @@ import typer
 from colours import Colour
 from typer import Exit
 
-from fixingahole import ROOT_DIR, LogLevel, Profiler
+from fixingahole import IGNORE_DIRS, ROOT_DIR, LogLevel, Profiler
 from fixingahole.profiler.utils import find_path
 
 app = typer.Typer(
@@ -107,11 +107,7 @@ def profile(
     if full_path.exists():
         python_file = full_path
     else:
-        excludes = [
-            ".scratch/performance",
-            "doc/**/_*/",  # Ignore all folders in "doc" starting with "_"
-        ]
-        python_file = find_path(filename, ROOT_DIR, exclude=excludes)
+        python_file = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS)
         if python_file.is_dir():
             Colour.ORANGE.print(Colour.red_error("Error: cannot profile a directory."))
             raise typer.Exit(code=1)
@@ -135,7 +131,6 @@ def profile(
         Colour.blue("Profiling:"),
         Colour.green(python_file.relative_to(python_file.parents[1])),
         "for speed." if cpu_only else "for memory usage.",
-        f"\nSee {Colour.purple(profiler.output_path)} for details.",
     )
     profiler.run_profiler(preamble=preamble)
 

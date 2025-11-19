@@ -19,10 +19,13 @@ the function summary sections at the bottom of each file's profiling table.
 
 import importlib
 import re
+import sys
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from colours import Colour
 
 from fixingahole import ROOT_DIR
 
@@ -30,7 +33,7 @@ from fixingahole import ROOT_DIR
 class FunctionProfile:
     """Represents a function's profiling information."""
 
-    def __init__(self, **kwargs: dict[str, Any]) -> None:
+    def __init__(self, **kwargs: dict[str, Any]):
         """Initialize the FunctionProfile instance."""
         self.line_number = kwargs.get("line_number", 0)
         self.function_name = kwargs.get("function_name", "")
@@ -361,4 +364,16 @@ class ProfileParser:
     @staticmethod
     def installed_modules() -> set[str]:
         """List of all installed module names in the current Python virtual environment."""
-        return {dist.metadata["Name"].lower() for dist in importlib.metadata.distributions()}
+        try:
+            return {str(dist.metadata["Name"]).lower() for dist in importlib.metadata.distributions()}
+        except KeyError:
+            Colour.print(f"Python version: {sys.version}")
+            return_set = set()
+            for dist in importlib.metadata.distributions():
+                if "Name" not in dist.metadata:
+                    Colour.print("Found a distribution with missing 'Name' metadata.")
+                    Colour.print(f"  Path hint: {dist.locate_file('')}")
+                    Colour.print(f"  Available metadata: {list(dist.metadata.keys())}")
+                else:
+                    return_set.add(str(dist.metadata["Name"]).lower())
+            return return_set

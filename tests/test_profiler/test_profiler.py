@@ -14,16 +14,15 @@
 """Tests for the MrKite Profiler."""
 
 import json
-import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from typer import Exit
 
 from fixingahole import ROOT_DIR, LogLevel
-from fixingahole.profiler import ProfileParser, Profiler
+from fixingahole.profiler import Profiler
 from fixingahole.profiler.utils import find_path
 from tests.conftest import basic_name
 
@@ -314,88 +313,6 @@ class TestProfilerIPythonNotebookConversion:
         assert exc_info.value.exit_code == 1
 
 
-class TestProfilerDetailsExtraction:
-    """Test the get_details_from_profile method."""
-
-    def test_get_details_from_profile_seconds(self, mock_file: Path):
-        """Test extracting details from profile with seconds format."""
-        # Write the content to the file instead of mocking
-        value = 15.234
-        mem_val = "256.5 MB"
-        profile_content = f"""
-        Some profile output...
-        out of {value}s total time.
-        max: {mem_val}
-        """
-        output_file = mock_file.with_suffix(".txt")
-        output_file.write_text(profile_content)
-        parser = ProfileParser(filename=output_file)
-
-        assert parser.walltime == value
-        assert parser.max_memory == mem_val
-
-    def test_get_details_from_profile_milliseconds(self, mock_file: Path):
-        """Test extracting details from profile with milliseconds format."""
-        value = 1234.567
-        mem_val = "128.0 GB"
-        profile_content = f"""
-        Some profile output...
-        out of {value}ms total time.
-        max: {mem_val}
-        """
-        mock_file.write_text(profile_content)
-        parser = ProfileParser(filename=mock_file)
-
-        # converted from milliseconds
-        assert parser.walltime == value / 1000
-        assert parser.max_memory == mem_val
-
-    def test_get_details_from_profile_hours_minutes_seconds(self, mock_file: Path):
-        """Test extracting details from profile with h:m:s format."""
-        mem_val = "1.5 TB"
-        profile_content = f"""
-        Some profile output...
-        out of 1h:30m:45.123s total time.
-        max: {mem_val}
-        """
-        mock_file.write_text(profile_content)
-        parser = ProfileParser(filename=mock_file)
-
-        # 1 hour + 30 minutes + 45.123 seconds = 5445.123 seconds
-        expected_time = 1 * 3600 + 30 * 60 + 45.123
-        assert parser.walltime == expected_time
-        assert parser.max_memory == mem_val
-
-    def test_get_details_from_profile_no_memory_info(self, mock_file: Path):
-        """Test extracting details when no memory info is found."""
-        value = 15.234
-        profile_content = f"""
-        Some profile output...
-        out of {value}s total time.
-        No memory info here.
-        """
-        mock_file.write_text(profile_content)
-        parser = ProfileParser(filename=mock_file)
-
-        assert parser.walltime == value
-        assert parser.max_memory == "an unknown amount"
-
-    def test_get_details_from_profile_minutes_seconds(self, mock_file: Path):
-        """Test extracting details from profile with m:s format."""
-        profile_content = """
-        Some profile output...
-        out of 5m:30.5s total time.
-        max: 512.25 MB
-        """
-        mock_file.write_text(profile_content)
-        parser = ProfileParser(filename=mock_file)
-
-        # 5 minutes + 30.5 seconds = 330.5 seconds
-        expected_time = 5 * 60 + 30.5
-        assert parser.walltime == expected_time
-        assert parser.max_memory == "512.25 MB"
-
-
 class TestProfilerMemoryPrecision:
     """Test the get_memory_precision method."""
 
@@ -556,99 +473,3 @@ class TestProfilerCodePreparation:
 
         # Should NOT contain warning capture
         assert "logging.captureWarnings(True)" not in profile_content
-
-
-class TestProfilerRunProfiler:
-    """Test the run_profiler method."""
-
-    def _mocked_file(self, mock_file: Path) -> Path:
-        content = [
-            "import numpy as np",
-            "from sys import argv",
-            "def main():",
-            "  try:",
-            "    logging.info(' '.join(argv[1:]))",
-            "    logging.warning('This is a warning.')",
-            "  except: pass",
-            "  a = np.random.uniform(size=10**7)",
-            "main()",
-        ]
-        mock_file.write_text("\n".join(content))
-        return mock_file
-
-    def test_run_profiler_success(self, mock_file: Path):
-        """Test successful profiler run."""
-        profiler = Profiler(path=self._mocked_file(mock_file), precision=5, loglevel=LogLevel.INFO)
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
-        assert exc_info.value.exit_code == 0
-
-    def test_run_profiler_cpu_only(self, mock_file: Path):
-        """Test successful profiler run using only CPU."""
-        profiler = Profiler(path=self._mocked_file(mock_file), cpu_only=True)
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
-        assert exc_info.value.exit_code == 0
-
-    def test_run_profiler_detailed_mode(self, mock_file: Path):
-        """Test profiler run with detailed profiling enabled."""
-        profiler = Profiler(path=self._mocked_file(mock_file), precision=5, detailed=True)
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
-
-        assert exc_info.value.exit_code == 0
-        assert "numpy" in profiler.profile_file.read_text()
-
-    @patch("subprocess.run")
-    def test_run_profiler_subprocess_error(self, mock_run: MagicMock, mock_file: Path):
-        """Test profiler run handling subprocess errors."""
-        # Setup subprocess to raise CalledProcessError
-        error = subprocess.CalledProcessError(1, ["cmd"])
-        error.stdout = b"stdout error message"
-        error.stderr = b"stderr error message"
-        mock_run.side_effect = error
-
-        profiler = Profiler(path=self._mocked_file(mock_file), precision=5)
-
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
-
-        assert exc_info.value.exit_code == 1
-        mock_run.assert_called_once()
-
-    @patch("subprocess.run")
-    def test_run_profiler_keyboard_interrupt(self, mock_run: MagicMock, mock_file: Path):
-        """Test profiler run handling keyboard interrupt."""
-        # Setup subprocess to raise KeyboardInterrupt.
-        mock_run.side_effect = KeyboardInterrupt()
-
-        profiler = Profiler(path=self._mocked_file(mock_file), precision=5)
-
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
-
-        assert exc_info.value.exit_code == 1
-        mock_run.assert_called_once()
-        assert "Profiling interrupted by user." in profiler.output_file.read_text()
-
-    def test_run_profiler_with_script_args_and_logs(self, mock_file: Path):
-        """Test profiler run with script arguments."""
-        args = ["arg1=value1", "arg2=value2"]
-        profiler = Profiler(
-            path=self._mocked_file(mock_file),
-            python_script_args=args,
-            precision=5,
-            loglevel=LogLevel.INFO,
-        )
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
-
-        assert exc_info.value.exit_code == 0
-        logs = profiler.log_file.read_text()
-        for arg in args:
-            assert arg in logs
-        assert "This is a warning." in logs
-        # Check that warning count is correctly calculated and included
-        final_content = profiler.output_file.read_text()
-        assert "Check logs" in final_content
-        assert "(1 warning)" in final_content

@@ -26,19 +26,9 @@ def basic_name(suffix: str = "") -> str:
 @pytest.fixture
 def mock_file(tmp_path: Path) -> Path:
     """Create a basic test file for profiler testing."""
+    basic_script = Path(__file__).parent / "scripts" / "basic.py"
     test_file = tmp_path / basic_name(".py")
-    content = [
-        "import numpy as np",
-        "from sys import argv",
-        "def main():",
-        "  try:",
-        "    logging.info(' '.join(argv[1:]))",
-        "    logging.warning('This is a warning.')",
-        "  except: pass",
-        "  a = np.random.uniform(size=10**5)",
-        "main()",
-    ]
-    test_file.write_text("\n".join(content))
+    test_file.write_text(basic_script.read_text())
     return test_file
 
 
