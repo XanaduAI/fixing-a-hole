@@ -48,6 +48,7 @@ dev = [
 
 [tool.uv]
 default-groups = ["dev"]
+required-version = ">=0.7.0"
 
 [tool.pytest.ini_options]
 addopts = "--cov-report term-missing --ignore=performance/"
