@@ -40,4 +40,4 @@ class TestConfig:
 
     def test_get_root_dir(self):
         """Test setting the root directory as the current working directory."""
-        assert config._get_root_dir() == Path.cwd()
+        assert config._get_root_dir(config={}) == Path.cwd()

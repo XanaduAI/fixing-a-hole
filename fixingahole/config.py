@@ -16,7 +16,9 @@
 import os
 import sys
 import tomllib
+from functools import cache
 from pathlib import Path
+from typing import Any
 
 
 def _detect_virtualenv() -> str:
@@ -58,17 +60,49 @@ def _find_pyproject() -> Path | None:
     return None
 
 
-def _get_root_dir() -> Path:
-    """Get the ROOT_DIR constant."""
+@cache
+def _get_config() -> dict[str, Any]:
+    """Get the Fixing-A-Hole config from pyproject.toml."""
     pyproject_path = _find_pyproject()
     if pyproject_path is None:
-        return Path.cwd()
+        return {}
 
     with Path.open(pyproject_path, "rb") as f:
         data = tomllib.load(f)
     tools = data.get("tool", {})
-    config = tools.get("fixingahole", {})
-    return Path(config.get("root", ".")).resolve()
+    return tools.get("fixingahole", {})
 
 
-ROOT_DIR = _get_root_dir()
+def _get_root_dir(config: dict[str, Any]) -> Path:
+    """Get the ROOT_DIR constant."""
+    return Path(config.get("root", Path.cwd())).resolve()
+
+
+def _get_output_dir(config: dict[str, Any]) -> Path:
+    """Get the OUTPUT_DIR constant.
+
+    If the given path is absolute then use it, otherwise assume it's relative to ROOT_DIR.
+    """
+    output_path = Path(config.get("output", "performance"))
+    if output_path.is_absolute():
+        return output_path
+    return (ROOT_DIR / output_path).resolve()
+
+
+def _get_ignore_directories(config: dict[str, str], output_path: Path) -> list[Path]:
+    """Get the list of directories to ignore when searching for files."""
+    ignore_dirs = config.get("ignore", [output_path])
+    if not isinstance(ignore_dirs, list):
+        if isinstance(ignore_dirs, str):
+            ignore_dirs = list(Path(ignore_dirs))
+        else:
+            return [output_path]
+    ignore_dirs = [Path(path).resolve() for path in ignore_dirs if Path(path).resolve().is_dir()]
+    if output_path not in ignore_dirs:
+        ignore_dirs.append(output_path)
+    return ignore_dirs
+
+
+ROOT_DIR = _get_root_dir(_get_config())
+OUTPUT_DIR = _get_output_dir(_get_config())
+IGNORE_DIRS = _get_ignore_directories(_get_config(), OUTPUT_DIR)
