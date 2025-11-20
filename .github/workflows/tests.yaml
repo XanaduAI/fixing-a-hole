@@ -20,11 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        config:
-          - {python-version: '3.11'}
-          - {python-version: '3.12'}
-          - {python-version: '3.13'}
-          - {python-version: '3.14'}
+        python_version: ['3.11', '3.12', '3.13', '3.14']
 
     env:
       COVERAGE_FLAGS: "--cov=fixingahole --cov-report=xml --cov-report=term-missing  --cov-fail-under=90"
@@ -35,8 +31,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          version: "0.9.5"
-          python-version: ${{ matrix.config.python-version }}
+          version: "0.9.10"
+          python-version: ${{ matrix.python_version }}
 
       - name: Install Fixing-A-Hole and dependencies
         run: uv sync
