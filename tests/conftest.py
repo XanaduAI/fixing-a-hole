@@ -16,6 +16,7 @@
 from pathlib import Path
 
 import pytest
+from click.testing import Result
 
 
 def basic_name(suffix: str = "") -> str:
@@ -26,19 +27,9 @@ def basic_name(suffix: str = "") -> str:
 @pytest.fixture
 def mock_file(tmp_path: Path) -> Path:
     """Create a basic test file for profiler testing."""
+    basic_script = Path(__file__).parent / "scripts" / "basic.py"
     test_file = tmp_path / basic_name(".py")
-    content = [
-        "import numpy as np",
-        "from sys import argv",
-        "def main():",
-        "  try:",
-        "    logging.info(' '.join(argv[1:]))",
-        "    logging.warning('This is a warning.')",
-        "  except: pass",
-        "  a = np.random.uniform(size=10**5)",
-        "main()",
-    ]
-    test_file.write_text("\n".join(content))
+    test_file.write_text(basic_script.read_text())
     return test_file
 
 
@@ -54,24 +45,28 @@ def mock_dir(tmp_path: Path) -> Path:
 def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Create a temporary repo root directory for tests."""
     mock_root_dir = tmp_path
-    mock_root_dir.mkdir(parents=True, exist_ok=True)
+    mock_output_dir = mock_root_dir / "performance"
+    mock_output_dir.mkdir(parents=True, exist_ok=True)
     package_root = Path(__file__).parents[1] / "fixingahole"
     for path in package_root.rglob("*.py"):
         part = ".".join(path.relative_to(package_root).parts)[:-3]
         try:
             monkeypatch.setattr(f"fixingahole.{part}.ROOT_DIR", mock_root_dir)
+            monkeypatch.setattr(f"fixingahole.{part}.OUTPUT_DIR", mock_output_dir)
         except AttributeError:
             continue
     return mock_root_dir
 
 
-def print_error(exc: Exception) -> Exception:
+def print_error(res: Result) -> None:
     """Trace errors thrown by the CLI."""
-    tb = exc.__traceback__
-    if tb is None:
-        return exc
-    while tb.tb_next:
+    print(res)
+    print(res.stdout)
+    exc: BaseException | None = res.exception
+    if exc is not None and (tb := exc.__traceback__) is not None:
+        print(f"{tb=}")
+        while tb.tb_next:
+            print(tb.tb_frame)
+            tb = tb.tb_next
         print(tb.tb_frame)
-        tb = tb.tb_next
-    print(tb.tb_frame)
-    return exc
+        return
