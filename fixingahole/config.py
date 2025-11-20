@@ -79,7 +79,10 @@ def _get_root_dir(config: dict[str, Any]) -> Path:
 
 
 def _get_output_dir(config: dict[str, Any]) -> Path:
-    """Get the OUTPUT_DIR constant."""
+    """Get the OUTPUT_DIR constant.
+
+    If the given path is absolute then use it, otherwise assume it's relative to ROOT_DIR.
+    """
     output_path = Path(config.get("output", "performance"))
     if output_path.is_absolute():
         return output_path

@@ -50,7 +50,7 @@ dev = [
 default-groups = ["dev"]
 
 [tool.pytest.ini_options]
-addopts = "--cov-report term-missing"
+addopts = "--cov-report term-missing --ignore=performance/"
 
 [tool.ruff]
 line-length = 128

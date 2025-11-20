@@ -298,8 +298,7 @@ class Profiler:
 
     def run_profiler(self, preamble: str = "\n") -> None:
         """Profile the python script using Scalene."""
-        from fixingahole.profiler import StackReporter  # noqa: PLC0415
-        from fixingahole.profiler.profile_json_parser import ProfileParser  # noqa: PLC0415
+        from fixingahole.profiler import ProfileParser, StackReporter  # noqa: PLC0415
 
         ncols = max(160, len(str(self.profile_file)) + 75)
         try:

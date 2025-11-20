@@ -40,9 +40,9 @@ def about() -> None:
         f"\n Version: {__version__}",
         f"\n Scalene Version: {scalene_version}",
         _Colour.blue("\nSettings:"),
-        f"\n root profiling directory: {ROOT_DIR}",
-        f"\n output directory: {OUTPUT_DIR}",
-        f"\n ignored directories: [{ignored_dirs}\n]",
+        f"\n root: {ROOT_DIR}",
+        f"\n output: {OUTPUT_DIR}",
+        f"\n ignore: [{ignored_dirs}\n]",
     )
 
 

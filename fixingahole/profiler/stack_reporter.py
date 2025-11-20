@@ -48,7 +48,7 @@ class StackReporter:
     def get_top_functions(self, n: int = 5) -> list[dict[str, Any]]:
         """Return the top n functions by total CPU percentage."""
         funcs = []
-        for file, data in self.data["files"].items():
+        for file, data in self.data.get("files", {}).items():
             for func in data["functions"]:
                 total_percent = func["n_cpu_percent_c"] + func["n_cpu_percent_python"]
                 funcs.append({"file": file, "name": func["line"], "total_percent": total_percent})

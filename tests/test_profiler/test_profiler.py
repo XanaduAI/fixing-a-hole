@@ -433,7 +433,7 @@ class TestProfilerCodePreparation:
 
     def test_prepare_code_for_profiling_with_jupyter_notebook(self, tmp_path: Path):
         """Test code preparation with Jupyter notebook file."""
-        test_file = tmp_path / "test_notebook.ipynb"
+        test_file = tmp_path / "temp_notebook.ipynb"
         notebook_content = {
             "cells": [
                 {
