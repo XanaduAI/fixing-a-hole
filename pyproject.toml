@@ -1,6 +1,6 @@
 [project]
 name = "FixingAHole"
-version = "0.1.0"
+version = "0.1.1"
 description = "Integrating Scalene into Python projects."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,7 +15,7 @@ dependencies = [
 fixingahole = "fixingahole.cli.main:app"
 
 [tool.uv.sources]
-colours = { git = "https://github.com/XanaduAI/colours.git" }
+colours = { git = "https://github.com/XanaduAI/colours.git", branch = "main"}
 scalene = [
     # Python 3.11
     { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_15_0_universal2.whl", marker = "python_version == '3.11' and sys_platform == 'darwin' and platform_machine == 'arm64'" },
