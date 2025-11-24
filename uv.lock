@@ -72,7 +72,7 @@ wheels = [
 [[package]]
 name = "colours"
 version = "0.1.0"
-source = { git = "https://github.com/XanaduAI/colours.git#36239bf6184db9e89e90a6f21b6c88acb008afc5" }
+source = { git = "https://github.com/XanaduAI/colours.git?branch=main#5064ba82a6e63583dbb6090ddf651a1e329cd5db" }
 dependencies = [
     { name = "rich" },
 ]
@@ -189,7 +189,7 @@ wheels = [
 
 [[package]]
 name = "fixingahole"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "colours" },
@@ -223,7 +223,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "colours", git = "https://github.com/XanaduAI/colours.git" },
+    { name = "colours", git = "https://github.com/XanaduAI/colours.git?branch=main" },
     { name = "scalene", marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.11' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform == 'win32') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')" },
     { name = "scalene", marker = "python_full_version == '3.11.*' and platform_machine == 'arm64' and sys_platform == 'darwin'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_15_0_universal2.whl" },
     { name = "scalene", marker = "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_15_0_universal2.whl" },
