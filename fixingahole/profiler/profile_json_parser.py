@@ -19,7 +19,6 @@ the function summary sections at the bottom of each file's profiling table.
 
 import importlib.metadata
 import json
-import re
 import sys
 from collections import defaultdict
 from collections.abc import Callable
@@ -30,6 +29,7 @@ from typing import Any
 from colours import Colour
 
 from fixingahole import ROOT_DIR
+from fixingahole.profiler.utils import memory_with_units
 
 
 @dataclass(frozen=True)
@@ -51,16 +51,7 @@ class FunctionProfile:
     @property
     def peak_memory_info(self) -> str:
         """Convert the used memory into more sensible units."""
-        byte_prefix = {
-            "KB": 1024,
-            "MB": 1024**2,
-            "GB": 1024**3,
-        }
-        memory_bytes = self.peak_memory * byte_prefix["MB"]
-        for prefix in ["GB", "MB", "KB"]:
-            if memory_bytes >= byte_prefix[prefix]:
-                return f"{memory_bytes / byte_prefix[prefix]:>3.0f} {prefix}"
-        return f"{memory_bytes:.0f} bytes"
+        return memory_with_units(self.peak_memory)
 
     @property
     def total_percentage(self) -> float:
@@ -75,14 +66,6 @@ class ProfileData:
     functions: list[FunctionProfile]
     walltime: float | None
     max_memory: str | None
-
-
-def _get_as_float(value_str: str) -> float:
-    """Parse a numeric value from a string, discarding units."""
-    try:
-        return float("".join(c for c in value_str if c.isdigit() or c in ".-"))
-    except (ValueError, TypeError):
-        return 0.0
 
 
 def create_function_profile(**kwargs: object) -> FunctionProfile:
@@ -106,48 +89,34 @@ def create_function_profile(**kwargs: object) -> FunctionProfile:
     )
 
 
-def parse_profile_file(filename: str | Path) -> ProfileData:
-    """Parse a profile results file and return profile data."""
-    file_path = Path(filename)
-    if not file_path.exists():
+def parse_json(filename: str | Path) -> ProfileData:
+    """Parse profile results provided as a JSON dictionary."""
+    profile_path = Path(filename)
+    if not profile_path.exists():
         return ProfileData(functions=[], walltime=None, max_memory=None)
 
-    text = file_path.read_text(encoding="utf-8")
-
-    # Try JSON first
-    try:
-        parsed = json.loads(text)
-        if isinstance(parsed, dict):
-            return parse_json_content(parsed)
-    except json.JSONDecodeError:
-        pass
-
-    return parse_text_content(text)
-
-
-def parse_json_content(content: dict) -> ProfileData:
-    """Parse profile results provided as a JSON dictionary."""
+    fixingahole_header = "### Add Fixing-A-Hole extras for profiling. ###"
+    content = json.loads(profile_path.read_text(encoding="utf-8"))
     functions: list[FunctionProfile] = []
 
-    # Extract walltime
-    walltime = None
-    elapsed = content.get("elapsed_time_sec")
-    if isinstance(elapsed, (int, float)):
-        walltime = float(elapsed)
-
-    # Extract max memory
-    max_memory = None
-    max_mem = content.get("max_footprint_fname") or content.get("max_memory")
-    if isinstance(max_mem, str):
-        max_memory = max_mem
+    # Extract walltime and max memory
+    walltime = content.get("elapsed_time_sec", -1)
+    max_memory = memory_with_units(content.get("max_footprint_mb", -1), digits=3)
 
     files = content.get("files", {}) if isinstance(content, dict) else {}
     for file_path, info in files.items():
-        funcs = info.get("functions") if isinstance(info, dict) else []
+        funcs = info.get("functions", []) if isinstance(info, dict) else []
         for fn in funcs:
+            line_offset = 0
+            try:
+                if Path(file_path).exists() and fixingahole_header in Path(file_path).read_text(encoding="utf-8"):
+                    line_offset = 21
+            except (OSError, UnicodeDecodeError):
+                # File doesn't exist, can't be read, or has encoding issues - skip header check
+                pass
             kwargs = {
                 "file_path": file_path,
-                "line_number": fn.get("lineno", 0) - 21,
+                "line_number": fn.get("lineno", 0) - line_offset,
                 "function_name": fn.get("line", "<unknown>"),
                 "python_percentage": fn.get("n_cpu_percent_python", 0),
                 "native_percentage": fn.get("n_cpu_percent_c", 0),
@@ -162,87 +131,11 @@ def parse_json_content(content: dict) -> ProfileData:
     return ProfileData(functions=functions, walltime=walltime, max_memory=max_memory)
 
 
-def parse_text_content(content: str) -> ProfileData:
-    """Parse profile results content and return profile data."""
-    stripped = content.lstrip()
-    if stripped.startswith(("{", "[")):
-        try:
-            parsed = json.loads(content)
-            if isinstance(parsed, dict):
-                return parse_json_content(parsed)
-        except json.JSONDecodeError:
-            pass
-
-    walltime, max_memory = _extract_details_from_text(content)
-
-    lines = content.replace(chr(0x2502), chr(0x007C)).replace(chr(0x2575), chr(0x007C)).split("\n")
-    functions = []
-    current_file = None
-    in_function_summary = False
-
-    for line in lines:
-        if r"% of time" in line:
-            current_file = line.strip().split(" ")[0]
-            in_function_summary = False
-            continue
-
-        if "function summary for" in line:
-            in_function_summary = True
-            continue
-
-        if in_function_summary and not line.strip(" |+-"):
-            in_function_summary = False
-            continue
-
-        if in_function_summary and current_file:
-            groups = [group.strip() for group in line.split("|") if group]
-            kwargs = {}
-            kwargs["line_number"] = int(groups[0])
-            kwargs["cpu_percentages"] = groups[1:4]
-            kwargs["function_name"] = groups[-1]
-            kwargs["file_path"] = current_file
-
-            remaining_cols = 4
-            if len(memory_group := groups[4:]) >= remaining_cols:
-                kwargs["memory_python_percentage"] = memory_group[0]
-                kwargs["peak_memory"] = memory_group[1]
-                kwargs["timeline_percentage"] = memory_group[2]
-                kwargs["copy_mb_per_s"] = memory_group[3]
-
-            functions.append(create_function_profile(**kwargs))
-
-    return ProfileData(functions=functions, walltime=walltime, max_memory=max_memory)
-
-
-def _extract_details_from_text(contents: str) -> tuple[float | None, str | None]:
-    """Extract walltime and memory usage from text content."""
-    walltime = None
-    max_memory = None
-
-    if contents:
-        time = re.search(r"out of ((\d+h:)?(\d+m:)?\d+\.\d+)(m)?s", contents)
-        if time is not None:
-            time_groups = time.groups()
-            sec_or_ms = 1 if time_groups[3] is None else 1e-3
-            time_string = time_groups[0].replace("h", "").replace("m", "").split(":")
-            time_string.reverse()
-            units = [sec_or_ms, 60, 3600]
-            walltime = float(
-                sum(t * u for t, u in zip(map(float, time_string), units, strict=False)),
-            )
-
-        max_mem_match = re.search(r"max:\s(\d+.\d+\s.B)", contents)
-        max_memory = str(max_mem_match[1]) if max_mem_match is not None else "an unknown amount"
-
-    return walltime, max_memory
-
-
 def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: float = 0.1) -> str:
     """Generate a summary of the profiling results."""
     functions = profile_data.functions
     if not functions:
-        msg = "Missing functions to summarize."
-        raise ValueError(msg)
+        return "No functions to summarize.\n"
 
     has_memory_info = False
     max_func_name_length = 0

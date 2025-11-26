@@ -26,7 +26,7 @@ from sympy import nextprime
 from typer import Exit
 
 from fixingahole import OUTPUT_DIR, ROOT_DIR
-from fixingahole.profiler.utils import LogLevel, Spinner, date
+from fixingahole.profiler.utils import LogLevel, Spinner, date, memory_with_units
 
 
 class Platform(Enum):
@@ -197,7 +197,7 @@ class Profiler:
         profile_prefix = []
         profile_suffix = []
         logger = [
-            "\n### Add extras for profiling. ###\n",
+            "\n### Add Fixing-A-Hole extras for profiling. ###\n",
             "import sys",
             "import logging",
             "from pathlib import Path",
@@ -233,9 +233,15 @@ class Profiler:
 
         return self.profile_file, self.output_file
 
-    def get_memory_rss(self, stderr: str) -> str:
-        """Max memory resident set size (RSS) that occured while profiling."""
+    def get_usr_bin_time_data(self, stderr: str) -> tuple[str, float]:
+        """Max memory resident set size (RSS) and wall time from /usr/bin/time output.
+
+        Returns:
+            tuple: (memory_string, walltime_seconds)
+
+        """
         memory_used = -1.0
+        walltime = -1.0
         rss_line = "Maximum resident set size (kbytes)" if self.platform == Platform.Linux else "maximum resident set size"
 
         for line in stderr.splitlines():
@@ -246,27 +252,20 @@ class Profiler:
                         break
                     except ValueError:
                         pass
-        byte_prefix = {
-            "KB": 1024,
-            "MB": 1024**2,
-            "GB": 1024**3,
-        }
-        if memory_used > 0:
-            if memory_used >= byte_prefix["GB"]:
-                memory_usage = memory_used / byte_prefix["GB"]
-                unit = "GB"
-            elif memory_used >= byte_prefix["MB"]:
-                memory_usage = memory_used / byte_prefix["MB"]
-                unit = "MB"
-            elif memory_used >= byte_prefix["KB"]:
-                memory_usage = memory_used / byte_prefix["KB"]
-                unit = "KB"
-            else:
-                unit = "bytes"
-            memory_usage = f"{memory_usage:.2f} {unit}"
-        else:
-            memory_usage = ""
-        return memory_usage
+
+            # Parse wall time based on platform
+            if self.platform == Platform.Linux and "Elapsed (wall clock) time" in line:
+                # Elapsed (wall clock) time (h:mm:ss or m:ss): 0:46.59
+                time_parts = line.strip().split()[-1].split(":")
+                time_parts.reverse()
+                units = [1, 60, 3600]
+                walltime = sum(float(t) * u for t, u in zip(time_parts, units, strict=False))
+            elif self.platform == Platform.MacOS and " real " in line:
+                # 1.55 real  0.65 user  0.32 sys
+                walltime = float(line.strip().split()[0])
+
+        memory_str = memory_with_units(memory_used, unit="KB" if self.platform == Platform.Linux else "B", digits=3)
+        return memory_str, walltime
 
     @property
     def _build_cmd(self) -> list[str]:
@@ -282,8 +281,8 @@ class Profiler:
         cmd = [
             usr_bin_time,
             "python -m scalene",
-            "--reduced-profile --cpu --cli",
-            "--json --stacks" if self.trace else "",
+            "--reduced-profile --cpu --cli --json",
+            "--stacks" if self.trace else "",
             f"--profile-all {self.excluded_folders}" if self.detailed else "",
             f"--memory {sampling_detail}" if not self.cpu_only else "",
             f"--program-path {ROOT_DIR} --column-width={ncols}",
@@ -298,7 +297,7 @@ class Profiler:
 
     def run_profiler(self, preamble: str = "\n") -> None:
         """Profile the python script using Scalene."""
-        from fixingahole.profiler import ProfileParser, StackReporter  # noqa: PLC0415
+        from fixingahole.profiler import StackReporter, generate_summary, parse_json  # noqa: PLC0415
 
         ncols = max(160, len(str(self.profile_file)) + 75)
         try:
@@ -330,10 +329,10 @@ class Profiler:
             raise Exit(code=1) from ki
         else:
             # Gather all the details and logs and consicely present them to the user.
-            parser = ProfileParser(self.output_file)
-            summary = parser.summary()
-            memory = "" if self.cpu_only else f"using {parser.max_memory} of RAM"
-            finished = f"Finished in {parser.walltime or 0:,.3f} seconds {memory}"
+            profile_data = parse_json(self.output_file.with_suffix(".json"))
+            summary = generate_summary(profile_data)
+            memory = "" if self.cpu_only else f"using {profile_data.max_memory} of RAM"
+            finished = f"Finished in {profile_data.walltime or 0:,.3f} seconds {memory}"
 
             results = self.output_file.read_text()
             log_info = self.log_file.read_text() if self.log_file.exists() else ""
@@ -342,8 +341,9 @@ class Profiler:
             warning_str = f" ({n_warns} {warn})" if n_warns > 0 else ""
 
             if capture.stderr is not None and self.platform != Platform.Windows:
-                rss = self.get_memory_rss(capture.stderr)
-                rss_report = f"Max RSS Memory Usage: {rss}\n" if rss else ""
+                ubt_rss, ubt_walltime = self.get_usr_bin_time_data(capture.stderr)
+                rss_report = f"Max RSS Memory Usage: {ubt_rss}\n" if ubt_rss else ""
+                rss_report += f"Wall Time: {ubt_walltime:.3f} seconds\n" if ubt_walltime > 0 else ""
             else:
                 rss_report = ""
 
