@@ -264,7 +264,8 @@ class Profiler:
                 # 1.55 real  0.65 user  0.32 sys
                 walltime = float(line.strip().split()[0])
 
-        memory_str = memory_with_units(memory_used, unit="KB" if self.platform == Platform.Linux else "B", digits=3)
+        unit = "KB" if self.platform == Platform.Linux else "B"
+        memory_str = memory_with_units(memory_used, unit=unit, digits=3)
         return memory_str, walltime
 
     @property
