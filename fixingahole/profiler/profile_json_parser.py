@@ -46,7 +46,47 @@ class FunctionProfile:
     system_percentage: float
     timeline_percentage: float
     copy_mb_per_s: float
-    has_memory_info: bool
+    memory_samples: list[tuple[float, float]]
+
+    @property
+    def has_memory_info(self) -> bool:
+        """Determine if a line used significant memory."""
+        return bool(
+            self.peak_memory > 0 or self.memory_python_percentage > 0 or self.timeline_percentage > 0 or self.memory_samples
+        )
+
+    @property
+    def peak_memory_info(self) -> str:
+        """Convert the used memory into more sensible units."""
+        return memory_with_units(self.peak_memory)
+
+    @property
+    def total_percentage(self) -> float:
+        """Return the total percentage of the runtime."""
+        return self.python_percentage + self.native_percentage + self.system_percentage
+
+
+@dataclass(frozen=True)
+class LineProfile:
+    """Represents a function's profiling information."""
+
+    line_name: str
+    line_number: int
+    memory_python_percentage: float
+    peak_memory: float
+    python_percentage: float
+    native_percentage: float
+    system_percentage: float
+    timeline_percentage: float
+    copy_mb_per_s: float
+    memory_samples: list[tuple[float, float]]
+
+    @property
+    def has_memory_info(self) -> bool:
+        """Determine if a line used significant memory."""
+        return bool(
+            self.peak_memory > 0 or self.memory_python_percentage > 0 or self.timeline_percentage > 0 or self.memory_samples
+        )
 
     @property
     def peak_memory_info(self) -> str:
@@ -64,71 +104,65 @@ class ProfileData:
     """Holds the parsed profile data."""
 
     functions: list[FunctionProfile]
+    lines: dict[str, list[LineProfile]]
     walltime: float | None
     max_memory: str | None
-
-
-def create_function_profile(**kwargs: object) -> FunctionProfile:
-    """Create a FunctionProfile instance from a dictionary."""
-    peak_memory = float(kwargs.get("peak_memory", 0))
-    memory_python_percentage = float(kwargs.get("memory_python_percentage", 0))
-    timeline_percentage = float(kwargs.get("timeline_percentage", 0))
-
-    return FunctionProfile(
-        line_number=kwargs.get("line_number", 0),
-        function_name=kwargs.get("function_name", ""),
-        file_path=kwargs.get("file_path", ""),
-        memory_python_percentage=memory_python_percentage,
-        peak_memory=peak_memory,
-        timeline_percentage=timeline_percentage,
-        copy_mb_per_s=kwargs.get("copy_mb_per_s", 0),
-        python_percentage=kwargs.get("python_percentage", 0),
-        native_percentage=kwargs.get("native_percentage", 0),
-        system_percentage=kwargs.get("system_percentage", 0),
-        has_memory_info=bool(peak_memory > 0 or memory_python_percentage > 0 or timeline_percentage > 0),
-    )
 
 
 def parse_json(filename: str | Path) -> ProfileData:
     """Parse profile results provided as a JSON dictionary."""
     profile_path = Path(filename)
     if not profile_path.exists():
-        return ProfileData(functions=[], walltime=None, max_memory=None)
+        Colour.print(Colour.RED("Error:"), "profile", Colour.purple(filename), "does not exist.")
+        return ProfileData(functions=[], lines={}, walltime=None, max_memory=None)
 
     fixingahole_header = "### Add Fixing-A-Hole extras for profiling. ###"
     content = json.loads(profile_path.read_text(encoding="utf-8"))
-    functions: list[FunctionProfile] = []
+    function_profs: list[FunctionProfile] = []
+    line_profs: dict[str, list[LineProfile]] = defaultdict(list)
 
     # Extract walltime and max memory
-    walltime = content.get("elapsed_time_sec", -1)
-    max_memory = memory_with_units(content.get("max_footprint_mb", -1), digits=3)
+    walltime = content.get("elapsed_time_sec", 0)
+    max_memory = memory_with_units(content.get("max_footprint_mb", 0), digits=3)
 
     files = content.get("files", {}) if isinstance(content, dict) else {}
     for file_path, info in files.items():
+        lines = info.get("lines", []) if isinstance(info, dict) else []
+        line_offset = 21 if any(fixingahole_header in line.get("line", "") for line in lines) else 0
+        for line in lines:
+            kwargs = {
+                "python_percentage": float(line.get("n_cpu_percent_python", 0)),
+                "native_percentage": float(line.get("n_cpu_percent_c", 0)),
+                "system_percentage": float(line.get("n_sys_percent", 0)),
+                "peak_memory": float(line.get("n_peak_mb", 0)),
+                "copy_mb_per_s": float(line.get("n_copy_mb_s", 0)),
+                "memory_samples": list(line.get("memory_samples", [])),
+                "memory_python_percentage": float(line.get("n_python_fraction", 0)) * 100,
+                "timeline_percentage": float(line.get("n_usage_fraction", 0)) * 100,
+            }
+            if not any(bool(val) for val in kwargs.values()):
+                continue
+            line_info = {"line_name": line.get("line", ""), "line_number": int(line.get("lineno", 0)) - line_offset}
+            line_profs[file_path].append(LineProfile(**(line_info | kwargs)))
+
         funcs = info.get("functions", []) if isinstance(info, dict) else []
         for fn in funcs:
-            line_offset = 0
-            try:
-                if Path(file_path).exists() and fixingahole_header in Path(file_path).read_text(encoding="utf-8"):
-                    line_offset = 21
-            except (OSError, UnicodeDecodeError):
-                # File doesn't exist, can't be read, or has encoding issues - skip header check
-                pass
             kwargs = {
                 "file_path": file_path,
-                "line_number": fn.get("lineno", 0) - line_offset,
-                "function_name": fn.get("line", "<unknown>"),
-                "python_percentage": fn.get("n_cpu_percent_python", 0),
-                "native_percentage": fn.get("n_cpu_percent_c", 0),
-                "system_percentage": fn.get("n_sys_percent", 0),
-                "peak_memory": fn.get("n_peak_mb", 0),
-                "copy_mb_per_s": fn.get("n_copy_mb_s", 0),
-                "memory_python_percentage": fn.get("n_python_fraction", 0) * 100,
-                "timeline_percentage": fn.get("n_usage_fraction", 0) * 100,
+                "function_name": fn.get("line", ""),
+                "line_number": int(fn.get("lineno", 0)) - line_offset,
+                "python_percentage": float(fn.get("n_cpu_percent_python", 0)),
+                "native_percentage": float(fn.get("n_cpu_percent_c", 0)),
+                "system_percentage": float(fn.get("n_sys_percent", 0)),
+                "peak_memory": float(fn.get("n_peak_mb", 0)),
+                "copy_mb_per_s": float(fn.get("n_copy_mb_s", 0)),
+                "memory_samples": list(fn.get("memory_samples", [])),
+                "memory_python_percentage": float(fn.get("n_python_fraction", 0)) * 100,
+                "timeline_percentage": float(fn.get("n_usage_fraction", 0)) * 100,
             }
-            functions.append(create_function_profile(**kwargs))
+            function_profs.append(FunctionProfile(**kwargs))
 
-    return ProfileData(functions=functions, walltime=walltime, max_memory=max_memory)
+    return ProfileData(functions=function_profs, lines=line_profs, walltime=walltime, max_memory=max_memory)
 
 
 def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: float = 0.1) -> str:

@@ -2,7 +2,7 @@
              /home/ubuntu/fixing-a-hole/performance/advanced.py: % of time =  99.65% (10.948s) out of 10.987s.
        ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
        │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/performance/advanced.…
+  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/performance/advanced.py
 ╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
    ... │       │       │       │        │       │               │       │
     40 │       │       │       │  37%   │   36M │▁              │       │    matrix_a = rng.uniform(-10, 10, size=(size, size))
@@ -30,7 +30,7 @@
    ... │       │       │       │        │       │               │       │
        │       │       │       │        │       │               │       │
 ╶──────┼───────┼───────┼───────┼────────┼───────┼───────────────┼───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────╴
-       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/performance/advanced/2025…
+       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/performance/advanced.py
     35 │       │       │       │  20%   │   36M │▁▂             │       │matrix_operations
     56 │       │       │       │        │   76M │██████         │       │monte_carlo_simulation
     72 │       │       │       │        │   76M │▇█             │       │statistical_analysis
@@ -62,73 +62,6 @@ Top PEAK memory consumption, by line:
 Top PEAK memory consumption, by line:
 (1)   863:   153 MB
 (2)    57:    76 MB
-    /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/lib/_function_base_impl.py: % of time =   0.06% (6.230ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/lib/_…
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-  2840 │       │       │       │        │   15M │▁              │    15 │    X = array(m, ndmin=2, dtype=dtype)
-   ... │       │       │       │        │       │               │       │
-  4739 │       │       │       │   1%   │  306M │▁▁▁▁           │    21 │        arr = a.flatten()
-   ... │       │       │       │        │       │               │       │
-       │       │       │       │        │       │               │       │
-╶──────┼───────┼───────┼───────┼────────┼───────┼───────────────┼───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────╴
-       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site…
-  2700 │       │       │       │        │   15M │▁              │    15 │cov
-  4715 │       │       │       │   1%   │  306M │████           │    21 │_quantile_ureduce_func
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)  4739:   306 MB
-(2)  2840:    15 MB
-        /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/fft/_pocketfft.py: % of time =   0.04% (3.969ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/fft/_…
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-    95 │       │       │       │        │  153M │▁              │       │        out = empty_like(a, shape=a.shape[:axis] + (n_out,) + a.shape[axis + 1:],
-   ... │       │       │       │        │       │               │       │
-   101 │       │       │       │        │  458M │▁▁▁▁▁▁   1%    │       │    return ufunc(a, fct, axes=[(axis,), (), (axis,)], out=out)
-   ... │       │       │       │        │       │               │       │
-       │       │       │       │        │       │               │       │
-╶──────┼───────┼───────┼───────┼────────┼───────┼───────────────┼───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────╴
-       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site…
-    58 │       │       │       │        │  458M │███████   2%   │       │_raw_fft
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)   101:   458 MB
-(2)    95:   153 MB
-        /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/linalg/_linalg.py: % of time =   0.01% (1.548ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/linal…
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-  1862 │       │       │       │        │   12M │▁              │       │            u, s, vh = gufunc(a, signature=signature)
-   ... │       │       │       │        │       │               │       │
-       │       │       │       │        │       │               │       │
-╶──────┼───────┼───────┼───────┼────────┼───────┼───────────────┼───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────╴
-       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site…
-  1689 │       │       │       │        │   12M │▁              │       │svd
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)  1862:    12 MB
-        /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core/_methods.py: % of time =   0.00% (0.448ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core…
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-   190 │       │       │       │        │  153M │▁▁             │       │    x = asanyarray(arr - arrmean)
-   ... │       │       │       │        │       │               │       │
-       │       │       │       │        │       │               │       │
-╶──────┼───────┼───────┼───────┼────────┼───────┼───────────────┼───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────╴
-       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site…
-   150 │       │       │       │        │  153M │██             │       │_var
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)   190:   153 MB
       /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core/function_base.py: % of time =   0.00% (0.140ms) out of 10.987s.
        ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
        │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
@@ -144,17 +77,6 @@ Top PEAK memory consumption, by line:
        ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
 Top PEAK memory consumption, by line:
 (1)   141:    76 MB
-              /home/ubuntu/.local/share/uv/python/cpython-linux/lib/python3.11/ast.py: % of time =   0.00% (0.000ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/.local/share/uv/python/cpython-linux/lib/python3.11/ast.py
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-    50 │       │       │       │  94%   │  951M │▁▁▁▁▁▁▁▁▁   8% │   197 │    return compile(source, filename, mode, flags,
-   ... │       │       │       │        │       │               │       │
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)    50:   951 MB
           /home/ubuntu/.local/share/uv/python/cpython-linux/lib/python3.11/json/decoder.py: % of time =   0.00% (0.000ms) out of 10.987s.
        ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
        │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
@@ -206,143 +128,3 @@ Top PEAK memory consumption, by line:
 (3)   224:   951 MB
 (4)   237:   951 MB
 (5)   401:   951 MB
-          /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/fft/_helper.py: % of time =   0.00% (0.000ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/fft/_…
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-   171 │       │       │       │        │   76M │▁              │       │    results = empty(n, int, device=device)
-   ... │       │       │       │        │       │               │       │
-   173 │       │       │       │        │   38M │▁              │       │    p1 = arange(0, N, dtype=int, device=device)
-   ... │       │       │       │        │       │               │       │
-   175 │       │       │       │        │   38M │▁              │       │    p2 = arange(-(n // 2), 0, dtype=int, device=device)
-   ... │       │       │       │        │       │               │       │
-   177 │       │       │       │        │   76M │▁              │       │    return results * val
-   ... │       │       │       │        │       │               │       │
-       │       │       │       │        │       │               │       │
-╶──────┼───────┼───────┼───────┼────────┼───────┼───────────────┼───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────╴
-       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site…
-   125 │       │       │       │        │   76M │███            │       │fftfreq
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)   177:    76 MB
-(2)   171:    76 MB
-(3)   173:    38 MB
-(4)   175:    38 MB
-     /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/lib/_shape_base_impl.py: % of time =   0.00% (0.000ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/lib/_…
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-   669 │       │       │       │        │   15M │▁              │       │    return _nx.concatenate(arrays, 1)
-   ... │       │       │       │        │       │               │       │
-       │       │       │       │        │       │               │       │
-╶──────┼───────┼───────┼───────┼────────┼───────┼───────────────┼───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────╴
-       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site…
-   628 │       │       │       │        │   15M │▁              │       │column_stack
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)   669:    15 MB
-            /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/pydantic/main.py: % of time =   0.00% (0.000ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/pydantic/ma…
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-   250 │       │       │       │  61%   │  951M │▁▁▁▁▁▁▁▁▁  24% │   543 │        validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
-   ... │       │       │       │        │       │               │       │
-       │       │       │       │        │       │               │       │
-╶──────┼───────┼───────┼───────┼────────┼───────┼───────────────┼───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────╴
-       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site…
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)   250:   951 MB
-             /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/rich/cells.py: % of time =   0.00% (0.000ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/rich/cells.…
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-    46 │       │       │       │  98%   │   10M │▁              │       │    if _is_single_cell_widths(text):
-   ... │       │       │       │        │       │               │       │
-       │       │       │       │        │       │               │       │
-╶──────┼───────┼───────┼───────┼────────┼───────┼───────────────┼───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────╴
-       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site…
-    33 │       │       │       │  98%   │   10M │▁              │       │cached_cell_len
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)    46:    10 MB
-              /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/rich/text.py: % of time =   0.00% (0.000ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/rich/text.py
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-   406 │       │       │       │  99%   │   11M │▁              │    40 │            self._text[:] = ["".join(self._text)]
-   ... │       │       │       │        │       │               │       │
-   740 │       │       │       │  99%   │   21M │▁▁             │   203 │        style_map = {index: get_style(span.style) for index, span in enumerated_spans}
-   ... │       │       │       │        │       │               │       │
-   743 │       │       │       │  99%   │  541M │▁▁▁▁▁▁▁▁▁   2% │       │        spans = [
-   ... │       │       │       │        │       │               │       │
-   745 │       │       │       │  99%   │  610M │▁▁▁▁▁▁▁▁▁   2% │       │            *((span.start, False, index) for index, span in enumerated_spans),
-   746 │       │       │       │ 100%   │  510M │▁▁▁▁▁▁▁▁▁   1% │       │            *((span.end, True, index) for index, span in enumerated_spans),
-   ... │       │       │       │        │       │               │       │
-   749 │       │       │       │  99%   │  619M │▁▁▁▁▁▁▁▁▁   2% │    22 │        spans.sort(key=itemgetter(0, 1))
-   ... │       │       │       │        │       │               │       │
-   761 │       │       │       │  98%   │   70M │▁▁▁▁▁▁▁        │    70 │            styles = tuple(style_map[_style_id] for _style_id in sorted(stack))
-   ... │       │       │       │        │       │               │       │
-   807 │       │       │       │  99%   │   10M │▁              │       │            extend_text(text._text)
-   ... │       │       │       │        │       │               │       │
-  1142 │       │       │       │  99%   │   10M │▁              │       │        _line_appends = [line._spans.append for line in new_lines._lines]
-   ... │       │       │       │        │       │               │       │
-       │       │       │       │        │       │               │       │
-╶──────┼───────┼───────┼───────┼────────┼───────┼───────────────┼───────┼─────────────────────────────────────────────────────────────────────────────────────────────────────╴
-       │       │       │       │        │       │               │       │function summary for /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site…
-   402 │       │       │       │  99%   │   11M │▁              │    40 │Text.plain
-   720 │       │       │       │  99%   │  619M │█████████   5% │   225 │Text.render
-   759 │       │       │       │  98%   │   70M │▇▅▇▆▄▅▄        │    70 │Text.render.<locals>.get_current_style
-   779 │       │       │       │  99%   │   10M │▁              │       │Text.join
-  1107 │       │       │       │  99%   │   10M │▁              │       │Text.divide
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)   749:   619 MB
-(2)   745:   610 MB
-(3)   743:   541 MB
-(4)   746:   510 MB
-(5)   761:    70 MB
-        /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/scalene/scalene_json.py: % of time =   0.00% (0.000ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/scalene/sca…
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-   232 │       │       │       │  91%   │   10M │▁              │       │        n_gpu_samples = stats.gpu_stats.gpu_samples[fname][line_no]
-   ... │       │       │       │        │       │               │       │
-   270 │       │       │       │  85%   │   10M │▁              │       │            stats.memory_stats.memory_aggregate_footprint[fname][line_no]
-   ... │       │       │       │        │       │               │       │
-   289 │       │       │       │  92%   │   10M │▁              │       │        mean_core_util = stats.cpu_stats.core_utilization[fname][line_no].mean()
-   ... │       │       │       │        │       │               │       │
-   515 │       │       │       │  97%   │   10M │▁              │   113 │                    avg_mallocs[line_no] = n_malloc_mb
-   ... │       │       │       │        │       │               │       │
-   518 │       │       │       │  98%   │   10M │▁              │       │                sorted(avg_mallocs.items(), key=itemgetter(1), reverse=True)
-   ... │       │       │       │        │       │               │       │
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)   515:    10 MB
-(2)   289:    10 MB
-(3)   270:    10 MB
-(4)   232:    10 MB
-(5)   518:    10 MB
-      /home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/scalene/scalene_profiler.py: % of time =   0.00% (0.000ms) out of 10.987s.
-       ╷       ╷       ╷       ╷        ╷       ╷               ╷       ╷
-       │Time   │–––––– │–––––– │Memory  │–––––– │–––––––––––    │Copy   │
-  Line │Python │native │system │Python  │peak   │timeline/%     │(MB/s) │/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/scalene/sca…
-╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸
-   ... │       │       │       │        │       │               │       │
-   737 │       │       │       │ 100%   │   27M │▁▁▁▁▁▁▁▁▁  16% │   520 │                f.write(json.dumps(json_output, sort_keys=True, indent=4) + "\n")
-   ... │       │       │       │        │       │               │       │
-       ╵       ╵       ╵       ╵        ╵       ╵               ╵       ╵
-Top PEAK memory consumption, by line:
-(1)   737:    27 MB

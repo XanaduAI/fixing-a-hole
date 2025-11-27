@@ -21,6 +21,15 @@ from fixingahole.profiler import ProfileParser
 from fixingahole.profiler.profile_parser import FunctionProfile
 
 
+@pytest.fixture
+def example_txt(tmp_path: Path) -> Path:
+    """Return path to the advanced profile results text file."""
+    example_text = Path(__file__).parents[1] / "scripts" / "advanced_profile_results.txt"
+    file_path = tmp_path / "example.json"
+    file_path.write_bytes(example_text.read_bytes())
+    return file_path
+
+
 class TestProfilerDetailsExtraction:
     """Test the get_details_from_profile method."""
 
@@ -101,12 +110,6 @@ class TestProfilerDetailsExtraction:
         expected_time = 5 * 60 + 30.5
         assert parser.walltime == expected_time
         assert parser.max_memory == "512.25 MB"
-
-
-@pytest.fixture
-def advanced_profile_txt() -> Path:
-    """Return path to the advanced profile results text file."""
-    return Path(__file__).parents[1] / "scripts" / "advanced_profile_results.txt"
 
 
 class TestFunctionProfile:
@@ -209,9 +212,9 @@ class TestFunctionProfile:
 class TestProfileParserParsing:
     """Test the ProfileParser parsing functionality."""
 
-    def test_parse_file_with_advanced_profile(self, advanced_profile_txt: Path):
+    def test_parse_file_with_advanced_profile(self, example_txt: Path):
         """Test parsing the real advanced profile text file."""
-        parser = ProfileParser(filename=advanced_profile_txt)
+        parser = ProfileParser(filename=example_txt)
 
         # Verify walltime was extracted
         assert parser.walltime is not None
@@ -224,9 +227,9 @@ class TestProfileParserParsing:
         assert parser.functions is not None
         assert len(parser.functions) > 0
 
-    def test_parse_content_function_extraction(self, advanced_profile_txt: Path):
+    def test_parse_content_function_extraction(self, example_txt: Path):
         """Test that functions are properly extracted from content."""
-        content = advanced_profile_txt.read_text()
+        content = example_txt.read_text()
         parser = ProfileParser()
         functions = parser.parse_content(content)
 
@@ -240,9 +243,9 @@ class TestProfileParserParsing:
         # Check we found numpy functions
         assert any("numpy" in fp for fp in file_paths)
 
-    def test_parse_content_function_details(self, advanced_profile_txt: Path):
+    def test_parse_content_function_details(self, example_txt: Path):
         """Test that function details are correctly parsed."""
-        content = advanced_profile_txt.read_text()
+        content = example_txt.read_text()
         parser = ProfileParser()
         functions = parser.parse_content(content)
 
@@ -304,9 +307,9 @@ class TestProfileParserParsing:
 class TestProfileParserSummary:
     """Test the ProfileParser summary generation."""
 
-    def test_summary_with_advanced_profile(self, advanced_profile_txt: Path):
+    def test_summary_with_advanced_profile(self, example_txt: Path):
         """Test generating summary from advanced profile."""
-        parser = ProfileParser(filename=advanced_profile_txt)
+        parser = ProfileParser(filename=example_txt)
         summary = parser.summary(top_n=5)
 
         # Check for expected sections
@@ -318,9 +321,9 @@ class TestProfileParserSummary:
         # Check that walltime is included
         assert "10.987s total" in summary
 
-    def test_summary_top_n_parameter(self, advanced_profile_txt: Path):
+    def test_summary_top_n_parameter(self, example_txt: Path):
         """Test that top_n parameter limits the output."""
-        parser = ProfileParser(filename=advanced_profile_txt)
+        parser = ProfileParser(filename=example_txt)
         summary = parser.summary(top_n=3)
 
         assert "Top 3 Functions" in summary
@@ -476,14 +479,14 @@ class TestProfileParserStaticMethods:
 class TestProfileParserRealWorldScenarios:
     """Test ProfileParser with real-world scenarios."""
 
-    def test_full_parsing_workflow(self, advanced_profile_txt: Path):
+    def test_full_parsing_workflow(self, example_txt: Path):
         """Test complete parsing workflow with advanced profile."""
         # Parse the file
-        parser = ProfileParser(filename=advanced_profile_txt)
+        parser = ProfileParser(filename=example_txt)
 
         # Verify parsing succeeded
         assert parser.functions is not None
-        assert len(parser.functions) > 10
+        assert len(parser.functions) == 8
 
         # Generate summary
         summary = parser.summary(top_n=10)
@@ -492,15 +495,15 @@ class TestProfileParserRealWorldScenarios:
         # Check for specific known functions
         func_names = [f.function_name for f in parser.functions]
         assert "data_serialization" in func_names
-        assert "_raw_fft" in func_names
+        assert "_wrapfunc" in func_names
 
-    def test_multiple_files_parsing(self, advanced_profile_txt: Path):
+    def test_multiple_files_parsing(self, example_txt: Path):
         """Test that multiple files are correctly parsed."""
-        parser = ProfileParser(filename=advanced_profile_txt)
+        parser = ProfileParser(filename=example_txt)
         by_file = ProfileParser.get_functions_by_file(parser.functions)
 
-        # Should have multiple files
-        assert len(by_file) > 5
+        # Should have multiple files with expensive functions.
+        assert len(by_file) == 3
 
         # Check for expected file patterns
         file_paths = list(by_file.keys())
@@ -509,9 +512,9 @@ class TestProfileParserRealWorldScenarios:
         # Verify we have standard library modules
         assert any("python" in fp.lower() for fp in file_paths)
 
-    def test_memory_statistics(self, advanced_profile_txt: Path):
+    def test_memory_statistics(self, example_txt: Path):
         """Test memory-related statistics from parsed data."""
-        parser = ProfileParser(filename=advanced_profile_txt)
+        parser = ProfileParser(filename=example_txt)
 
         # Find functions with memory info
         memory_funcs = [f for f in parser.functions if f.has_memory_info]
