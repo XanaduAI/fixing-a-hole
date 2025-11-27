@@ -231,7 +231,7 @@ class TestProfileParserParsing:
         functions = parser.parse_content(content)
 
         # Check we found multiple files
-        file_paths = {f.file_path for f in functions}
+        file_paths = {str(f.file_path) for f in functions}
         assert len(file_paths) > 1
 
         # Check we found the main script
