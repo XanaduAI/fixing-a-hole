@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from fixingahole.profiler import ProfileParser
-from fixingahole.profiler.profile_parser import FunctionProfile
+from fixingahole.profiler.profile_parser import ProfileDetails
 
 
 @pytest.fixture
@@ -112,14 +112,14 @@ class TestProfilerDetailsExtraction:
         assert parser.max_memory == "512.25 MB"
 
 
-class TestFunctionProfile:
-    """Test the FunctionProfile class."""
+class TestProfileDetails:
+    """Test the ProfileDetails class."""
 
     def test_function_profile_initialization_minimal(self):
-        """Test FunctionProfile with minimal kwargs."""
-        profile = FunctionProfile()
+        """Test ProfileDetails with minimal kwargs."""
+        profile = ProfileDetails()
         assert profile.line_number == 0
-        assert not profile.function_name
+        assert not profile.name
         assert not profile.file_path
         assert profile.memory_python_percentage == 0.0
         assert not profile.peak_memory
@@ -130,10 +130,10 @@ class TestFunctionProfile:
         assert not profile.has_memory_info
 
     def test_function_profile_initialization_complete(self):
-        """Test FunctionProfile with complete kwargs."""
-        profile = FunctionProfile(
+        """Test ProfileDetails with complete kwargs."""
+        profile = ProfileDetails(
             line_number=42,
-            function_name="test_func",
+            name="test_func",
             file_path="/path/to/file.py",
             memory_python_percentage="75.5%",
             peak_memory="128M",
@@ -142,7 +142,7 @@ class TestFunctionProfile:
             cpu_percentages=["45.0%", "5.0%", "2.0%"],
         )
         assert profile.line_number == 42
-        assert profile.function_name == "test_func"
+        assert profile.name == "test_func"
         assert profile.file_path == "/path/to/file.py"
         assert profile.memory_python_percentage == 75.5
         assert profile.peak_memory == "128M"
@@ -154,13 +154,13 @@ class TestFunctionProfile:
 
     def test_peak_memory_info_formatting(self):
         """Test peak_memory_info property formatting."""
-        profile1 = FunctionProfile(peak_memory="128M")
+        profile1 = ProfileDetails(peak_memory="128M")
         assert profile1.peak_memory_info == "128 MB"
 
-        profile2 = FunctionProfile(peak_memory="1.5G")
+        profile2 = ProfileDetails(peak_memory="1.5G")
         assert profile2.peak_memory_info == "1.5 GB"
 
-        profile3 = FunctionProfile(peak_memory="")
+        profile3 = ProfileDetails(peak_memory="")
         assert not profile3.peak_memory_info
 
     @pytest.mark.parametrize(
@@ -178,34 +178,34 @@ class TestFunctionProfile:
     )
     def test_parse_memory_size(self, memory_str: str, expected_bytes: float):
         """Test memory size parsing to bytes."""
-        profile = FunctionProfile(peak_memory=memory_str)
+        profile = ProfileDetails(peak_memory=memory_str)
         assert profile.memory_size == expected_bytes
 
     def test_get_as_float_various_formats(self):
         """Test _get_as_float with various input formats."""
-        assert FunctionProfile._get_as_float("45.5%") == 45.5  # noqa: SLF001
-        assert FunctionProfile._get_as_float("100") == 100.0  # noqa: SLF001
-        assert FunctionProfile._get_as_float("1.234") == 1.234  # noqa: SLF001
-        assert FunctionProfile._get_as_float("-5.5") == -5.5  # noqa: SLF001
-        assert FunctionProfile._get_as_float("invalid") == 0.0  # noqa: SLF001
-        assert FunctionProfile._get_as_float(None) == 0.0  # noqa: SLF001
+        assert ProfileDetails._get_as_float("45.5%") == 45.5  # noqa: SLF001
+        assert ProfileDetails._get_as_float("100") == 100.0  # noqa: SLF001
+        assert ProfileDetails._get_as_float("1.234") == 1.234  # noqa: SLF001
+        assert ProfileDetails._get_as_float("-5.5") == -5.5  # noqa: SLF001
+        assert ProfileDetails._get_as_float("invalid") == 0.0  # noqa: SLF001
+        assert ProfileDetails._get_as_float(None) == 0.0  # noqa: SLF001
 
     def test_has_memory_info_conditions(self):
         """Test has_memory_info with different conditions."""
         # With peak_memory
-        profile1 = FunctionProfile(peak_memory="128M")
+        profile1 = ProfileDetails(peak_memory="128M")
         assert profile1.has_memory_info
 
         # With memory_python_percentage
-        profile2 = FunctionProfile(memory_python_percentage="75%")
+        profile2 = ProfileDetails(memory_python_percentage="75%")
         assert profile2.has_memory_info
 
         # With timeline_percentage
-        profile3 = FunctionProfile(timeline_percentage="10%")
+        profile3 = ProfileDetails(timeline_percentage="10%")
         assert profile3.has_memory_info
 
         # With none of them
-        profile4 = FunctionProfile()
+        profile4 = ProfileDetails()
         assert not profile4.has_memory_info
 
 
@@ -250,7 +250,7 @@ class TestProfileParserParsing:
         functions = parser.parse_content(content)
 
         # Find a specific function we know exists
-        data_serialization = [f for f in functions if f.function_name == "data_serialization"]
+        data_serialization = [f for f in functions if f.name == "data_serialization"]
         assert len(data_serialization) > 0
 
         func = data_serialization[0]
@@ -276,7 +276,7 @@ class TestProfileParserParsing:
         functions = parser.parse_content(content)
 
         assert len(functions) == 1
-        assert functions[0].function_name == "test_function"
+        assert functions[0].name == "test_function"
         assert functions[0].line_number == 42
 
     def test_parse_empty_content(self):
@@ -360,35 +360,35 @@ class TestProfileParserStaticMethods:
     def test_get_top_functions_by_runtime(self):
         """Test getting top functions by runtime."""
         functions = [
-            FunctionProfile(function_name="func1", cpu_percentages=["50%", "5%", "2%"]),
-            FunctionProfile(function_name="func2", cpu_percentages=["30%", "3%", "1%"]),
-            FunctionProfile(function_name="func3", cpu_percentages=["20%", "2%", "1%"]),
+            ProfileDetails(name="func1", cpu_percentages=["50%", "5%", "2%"]),
+            ProfileDetails(name="func2", cpu_percentages=["30%", "3%", "1%"]),
+            ProfileDetails(name="func3", cpu_percentages=["20%", "2%", "1%"]),
         ]
         top = ProfileParser.get_top_functions(functions, n=2)
 
         assert len(top) == 2
-        assert top[0].function_name == "func1"
-        assert top[1].function_name == "func2"
+        assert top[0].name == "func1"
+        assert top[1].name == "func2"
 
     def test_get_top_functions_by_memory(self):
         """Test getting top functions by memory size."""
         functions = [
-            FunctionProfile(function_name="func1", peak_memory="100M"),
-            FunctionProfile(function_name="func2", peak_memory="500M"),
-            FunctionProfile(function_name="func3", peak_memory="50M"),
+            ProfileDetails(name="func1", peak_memory="100M"),
+            ProfileDetails(name="func2", peak_memory="500M"),
+            ProfileDetails(name="func3", peak_memory="50M"),
         ]
         top = ProfileParser.get_top_functions(functions, n=2, key=lambda f: f.memory_size)
 
         assert len(top) == 2
-        assert top[0].function_name == "func2"  # 500M
-        assert top[1].function_name == "func1"  # 100M
+        assert top[0].name == "func2"  # 500M
+        assert top[1].name == "func1"  # 100M
 
     def test_get_functions_by_file(self):
         """Test grouping functions by file path."""
         functions = [
-            FunctionProfile(function_name="func1", file_path="/path/file1.py"),
-            FunctionProfile(function_name="func2", file_path="/path/file2.py"),
-            FunctionProfile(function_name="func3", file_path="/path/file1.py"),
+            ProfileDetails(name="func1", file_path="/path/file1.py"),
+            ProfileDetails(name="func2", file_path="/path/file2.py"),
+            ProfileDetails(name="func3", file_path="/path/file1.py"),
         ]
         by_file = ProfileParser.get_functions_by_file(functions)
 
@@ -399,8 +399,8 @@ class TestProfileParserStaticMethods:
     def test_build_module_tree(self):
         """Test building hierarchical module tree."""
         by_file = {
-            "/home/user/project/module/file1.py": [FunctionProfile(function_name="func1")],
-            "/home/user/project/module/file2.py": [FunctionProfile(function_name="func2")],
+            "/home/user/project/module/file1.py": [ProfileDetails(name="func1")],
+            "/home/user/project/module/file2.py": [ProfileDetails(name="func2")],
         }
         tree = ProfileParser.build_module_tree(by_file)
 
@@ -411,14 +411,14 @@ class TestProfileParserStaticMethods:
         """Test extracting all functions from a tree structure."""
         tree = {
             "file1.py": {
-                "_functions": [FunctionProfile(function_name="func1")],
+                "_functions": [ProfileDetails(name="func1")],
                 "_children": {},
             },
             "dir": {
                 "_functions": [],
                 "_children": {
                     "file2.py": {
-                        "_functions": [FunctionProfile(function_name="func2")],
+                        "_functions": [ProfileDetails(name="func2")],
                         "_children": {},
                     }
                 },
@@ -434,7 +434,7 @@ class TestProfileParserStaticMethods:
         """Test rendering a basic tree structure."""
         tree = {
             "file.py": {
-                "_functions": [FunctionProfile(function_name="func1", cpu_percentages=["50%", "5%", "2%"])],
+                "_functions": [ProfileDetails(name="func1", cpu_percentages=["50%", "5%", "2%"])],
                 "_children": {},
             }
         }
@@ -455,8 +455,8 @@ class TestProfileParserStaticMethods:
                         "_children": {
                             "file.py": {
                                 "_functions": [
-                                    FunctionProfile(
-                                        function_name="nested_func",
+                                    ProfileDetails(
+                                        name="nested_func",
                                         cpu_percentages=["30%", "2%", "1%"],
                                     )
                                 ],
@@ -493,7 +493,7 @@ class TestProfileParserRealWorldScenarios:
         assert len(summary) > 100  # Should be substantial
 
         # Check for specific known functions
-        func_names = [f.function_name for f in parser.functions]
+        func_names = [f.name for f in parser.functions]
         assert "data_serialization" in func_names
         assert "_wrapfunc" in func_names
 

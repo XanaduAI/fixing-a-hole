@@ -18,13 +18,12 @@ from pathlib import Path
 import pytest
 
 from fixingahole.profiler.profile_json_parser import (
-    FunctionProfile,
     ProfileData,
+    ProfileDetails,
     build_module_tree,
     generate_summary,
     get_all_functions_in_tree,
-    get_functions_by_file,
-    get_top_functions,
+    get_top_usage,
     memory_with_units,
     parse_json,
     render_tree,
@@ -68,13 +67,13 @@ class TestMemoryWithUnits:
         assert memory_with_units(value, unit, precision) == expected
 
 
-class TestCreateFunctionProfile:
+class TestCreateProfileDetails:
     """Test the create_function_profile function."""
 
     def test_create_function_profile_complete(self):
         """Test creating a function profile with complete data."""
-        profile = FunctionProfile(
-            function_name="test_func",
+        profile = ProfileDetails(
+            name="test_func",
             file_path="/path/to/file.py",
             line_number=42,
             memory_python_percentage=75.5,
@@ -86,7 +85,7 @@ class TestCreateFunctionProfile:
             system_percentage=2.0,
             memory_samples=[(1.0, 2.0), (3.0, 4.0)],
         )
-        assert profile.function_name == "test_func"
+        assert profile.name == "test_func"
         assert profile.file_path == "/path/to/file.py"
         assert profile.line_number == 42
         assert profile.memory_python_percentage == 75.5
@@ -100,13 +99,13 @@ class TestCreateFunctionProfile:
         assert profile.has_memory_info
 
 
-class TestFunctionProfile:
-    """Test the FunctionProfile dataclass."""
+class TestProfileDetails:
+    """Test the ProfileDetails dataclass."""
 
     def test_function_profile_creation(self):
-        """Test direct instantiation of FunctionProfile."""
-        profile = FunctionProfile(
-            function_name="test_function",
+        """Test direct instantiation of ProfileDetails."""
+        profile = ProfileDetails(
+            name="test_function",
             file_path="/path/to/file.py",
             line_number=42,
             memory_python_percentage=75.0,
@@ -118,7 +117,7 @@ class TestFunctionProfile:
             copy_mb_per_s=50.0,
             memory_samples=[(1.0, 2.0), (3.0, 4.0)],
         )
-        assert profile.function_name == "test_function"
+        assert profile.name == "test_function"
         assert profile.file_path == "/path/to/file.py"
         assert profile.line_number == 42
         assert profile.memory_python_percentage == 75.0
@@ -131,9 +130,9 @@ class TestFunctionProfile:
         assert profile.has_memory_info
 
     def test_function_profile_immutable(self):
-        """Test that FunctionProfile is immutable (frozen=True)."""
-        profile = FunctionProfile(
-            function_name="test",
+        """Test that ProfileDetails is immutable (frozen=True)."""
+        profile = ProfileDetails(
+            name="test",
             file_path="/path",
             line_number=1,
             memory_python_percentage=0.0,
@@ -146,7 +145,7 @@ class TestFunctionProfile:
             memory_samples=[(1.0, 2.0), (3.0, 4.0)],
         )
         with pytest.raises(AttributeError):
-            profile.function_name = "modified"
+            profile.name = "modified"
 
 
 class TestParseJson:
@@ -186,8 +185,8 @@ class TestParseJson:
         assert len(result.functions) == 9
 
         # Verify some functions were parsed
-        function_names = [f.function_name for f in result.functions]
-        assert any(function_names)  # At least some functions have names
+        names = [f.name for f in result.functions]
+        assert any(names)  # At least some functions have names
 
         # Check that functions have expected fields
         for func in result.functions[:5]:  # Check first 5 functions
@@ -201,7 +200,7 @@ class TestParseJson:
         func = result.functions[0]
         assert func.file_path == "/home/ubuntu/fixing-a-hole/performance/advanced.py"
         assert func.line_number == 35
-        assert func.function_name == "matrix_operations"
+        assert func.name == "matrix_operations"
         assert func.python_percentage == 0.003940147384761709
         assert func.native_percentage == 0.009041007225759054
         assert func.system_percentage == 0.0038929610193535105
@@ -212,37 +211,37 @@ class TestParseJson:
 
 
 class TestGetTopFunctions:
-    """Test the get_top_functions function."""
+    """Test the get_top_usage function."""
 
     def test_get_top_functions_by_total_percentage(self, example_json: Path):
         """Test getting top functions by total percentage."""
         data = parse_json(example_json)
-        result = get_top_functions(data.functions, n=2)
+        result = get_top_usage(data.functions, n=2)
         assert len(result) == 2
-        assert result[0].function_name == "data_serialization"
-        assert result[1].function_name == "fourier_analysis"
+        assert result[0].name == "data_serialization"
+        assert result[1].name == "fourier_analysis"
         assert result[0].total_percentage == 99.56785634799832
         assert result[1].total_percentage == 0.03309718139989738
 
-    def test_get_top_functions_by_memory(self, example_json: Path):
+    def test_get_top_usage_by_memory(self, example_json: Path):
         """Test getting top functions by memory."""
         data = parse_json(example_json)
-        result = get_top_functions(data.functions, n=2, key=lambda f: f.peak_memory)
+        result = get_top_usage(data.functions, n=2, key=lambda f: f.peak_memory)
         assert len(result) == 2
-        assert result[0].function_name == "fourier_analysis"
-        assert result[1].function_name == "_var"
+        assert result[0].name == "fourier_analysis"
+        assert result[1].name == "_var"
         assert result[0].peak_memory_info == "153 MB"
         assert result[1].peak_memory_info == "153 MB"
 
-    def test_get_top_functions_empty_list(self):
+    def test_get_top_usage_empty_list(self):
         """Test getting top functions from empty list."""
-        result = get_top_functions([], n=5)
+        result = get_top_usage([], n=5)
         assert result == []
 
-    def test_get_top_functions_real_profile(self, example_json: Path):
+    def test_get_top_usage_real_profile(self, example_json: Path):
         """Test getting top functions from real profile data."""
         profile_data = parse_json(example_json)
-        result = get_top_functions(profile_data.functions, n=10)
+        result = get_top_usage(profile_data.functions, n=10)
 
         # Should get all 9 functions in the example.
         assert len(result) == 9
@@ -254,10 +253,10 @@ class TestGetTopFunctions:
 class TestGetFunctionsByFile:
     """Test the get_functions_by_file function."""
 
-    def test_get_functions_by_file_single_file(self, example_json: Path):
+    def test_get_functions_by_file_real_file(self, example_json: Path):
         """Test grouping functions from a single file."""
         profile_data = parse_json(example_json)
-        result = get_functions_by_file(profile_data.functions)
+        result = profile_data.get_functions_by_file
         expected_filenames = [
             "/home/ubuntu/fixing-a-hole/performance/advanced.py",
             "/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core/_methods.py",
@@ -266,19 +265,6 @@ class TestGetFunctionsByFile:
         assert list(result.keys()) == expected_filenames
         for name, n_funcs in zip(expected_filenames, [6, 3], strict=False):
             assert len(result[name]) == n_funcs
-
-    def test_get_functions_by_file_empty_list(self):
-        """Test grouping functions from empty list."""
-        result = get_functions_by_file([])
-        assert len(result) == 0
-
-    def test_get_functions_by_file_real_profile(self, example_json: Path):
-        """Test grouping functions from real profile data."""
-        profile_data = parse_json(example_json)
-        result = get_functions_by_file(profile_data.functions)
-
-        # Should have multiple files
-        assert len(result) > 0
 
         # Check that all functions are grouped correctly
         total_functions = sum(len(funcs) for funcs in result.values())
@@ -296,8 +282,7 @@ class TestBuildModuleTree:
     def test_build_module_tree_real_profile(self, example_json: Path):
         """Test building tree from real profile data."""
         profile_data = parse_json(example_json)
-        by_file = get_functions_by_file(profile_data.functions)
-        tree = build_module_tree(by_file)
+        tree = build_module_tree(profile_data.get_functions_by_file)
 
         # Should create a hierarchical structure
         assert tree is not None
@@ -317,8 +302,7 @@ class TestGetAllFunctionsInTree:
     def test_get_all_functions_in_tree_flat(self, example_json: Path):
         """Test getting functions from flat tree."""
         profile_data = parse_json(example_json)
-        by_file = get_functions_by_file(profile_data.functions)
-        tree = build_module_tree(by_file)
+        tree = build_module_tree(profile_data.get_functions_by_file)
         result = get_all_functions_in_tree(tree)
         assert len(result) == 2
         for i, n_funcs in enumerate([6, 3]):
@@ -336,8 +320,7 @@ class TestRenderTree:
     def test_render_tree_single_file(self, example_json: Path):
         """Test rendering tree with single file."""
         profile_data = parse_json(example_json)
-        by_file = get_functions_by_file(profile_data.functions)
-        tree = build_module_tree(by_file)
+        tree = build_module_tree(profile_data.get_functions_by_file)
         result = render_tree(tree)
         assert len(result) == 13
         expected_tree = [
@@ -360,8 +343,7 @@ class TestRenderTree:
     def test_render_tree_with_threshold(self, example_json: Path):
         """Test rendering tree with threshold filtering."""
         profile_data = parse_json(example_json)
-        by_file = get_functions_by_file(profile_data.functions)
-        tree = build_module_tree(by_file)
+        tree = build_module_tree(profile_data.get_functions_by_file)
         result = render_tree(tree, threshold=0.0)
         assert len(result) == 21
         expected_tree = [
@@ -395,7 +377,7 @@ class TestGenerateSummary:
 
     def test_generate_summary_empty_profile(self):
         """Test generating summary from empty profile."""
-        profile_data = ProfileData(functions=[], lines={}, walltime=None, max_memory=None)
+        profile_data = ProfileData(functions=[], lines={}, files={}, walltime=None, max_memory=None, samples=[], details={})
         result = generate_summary(profile_data)
         assert "No functions to summarize" in result
 

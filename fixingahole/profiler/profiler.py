@@ -16,6 +16,7 @@
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from enum import Enum
@@ -48,6 +49,7 @@ class Profiler:
         cpu_only: bool = False,
         precision: int | None = None,
         detailed: bool = False,
+        threshold: float = 1,
         loglevel: LogLevel = LogLevel.CRITICAL,
         noplots: bool = False,
         trace: bool = True,
@@ -62,6 +64,7 @@ class Profiler:
 
         self.script_args = python_script_args if python_script_args is not None else []
         self.detailed = detailed
+        self.threshold = threshold
         self.loglevel = loglevel
         self.noplots = noplots
         self._output_file = Path.cwd() / "profile_results.txt"
@@ -282,12 +285,12 @@ class Profiler:
         cmd = [
             usr_bin_time,
             "python -m scalene",
-            "--reduced-profile --cpu --cli --json",
+            "--reduced-profile --cpu --json",
             "--stacks" if self.trace else "",
             f"--profile-all {self.excluded_folders}" if self.detailed else "",
             f"--memory {sampling_detail}" if not self.cpu_only else "",
             f"--program-path {ROOT_DIR} --column-width={ncols}",
-            f"--profile-interval=5 --outfile={self.output_file}",
+            f"--profile-interval=5 --outfile={self.output_file.with_suffix('.json')}",
         ]
         cmd.append(str(self.profile_file))
         if self.script_args != []:
@@ -298,9 +301,12 @@ class Profiler:
 
     def run_profiler(self, preamble: str = "\n") -> None:
         """Profile the python script using Scalene."""
-        from fixingahole.profiler import StackReporter, generate_summary, parse_json  # noqa: PLC0415
+        from fixingahole.profiler import StackReporter, generate_summary, generate_text_report, parse_json  # noqa: PLC0415
 
+        # Fallback to the specified `column_width` if the terminal width cannot be obtained.
         ncols = max(160, len(str(self.profile_file)) + 75)
+        ncols = shutil.get_terminal_size(fallback=(ncols, ncols)).columns
+
         try:
             # Profile the code.
             with Spinner(f"See {Colour.purple(self.output_path)} for details."):
@@ -331,7 +337,7 @@ class Profiler:
         else:
             # Gather all the details and logs and consicely present them to the user.
             profile_data = parse_json(self.output_file.with_suffix(".json"))
-            summary = generate_summary(profile_data)
+            summary = generate_summary(profile_data, threshold=self.threshold)
             memory = "" if self.cpu_only else f"using {profile_data.max_memory} of RAM"
             finished = f"Finished in {profile_data.walltime or 0:,.3f} seconds {memory}"
 
@@ -348,10 +354,10 @@ class Profiler:
             else:
                 rss_report = ""
 
-            report = ""
+            report = generate_text_report(profile_data, threshold=self.threshold, width=ncols)
             if self.trace:
                 reporter = StackReporter(self.output_file.with_suffix(".json"))
-                report = reporter.report_stacks_for_top_functions(top_n=5)
+                report += reporter.report_stacks_for_top_functions(top_n=5)
 
             preamble += f"{finished}.\n"
             preamble += f"Check logs {self.log_path}{warning_str}\n" if log_info else ""

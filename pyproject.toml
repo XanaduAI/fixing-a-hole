@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "colours",
+    "rich>=14.2.0",
     "scalene",
     "sympy>=1.14.0",
     "typer>=0.20.0",
@@ -16,28 +17,7 @@ fixingahole = "fixingahole.cli.main:app"
 
 [tool.uv.sources]
 colours = { git = "https://github.com/XanaduAI/colours.git", branch = "main"}
-scalene = [
-    # Python 3.11
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_15_0_universal2.whl", marker = "python_version == '3.11' and sys_platform == 'darwin' and platform_machine == 'arm64'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_13_0_universal2.whl", marker = "python_version == '3.11' and sys_platform == 'darwin' and platform_machine == 'x86_64'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", marker = "python_version == '3.11' and sys_platform == 'linux'" },
-    { git = "https://github.com/zyrxvo/scalene.git", rev = "v1.5.55b", marker = "python_version == '3.11' and sys_platform == 'win32'" },
-    # Python 3.12
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_15_0_universal2.whl", marker = "python_version == '3.12' and sys_platform == 'darwin' and platform_machine == 'arm64'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_13_0_universal2.whl", marker = "python_version == '3.12' and sys_platform == 'darwin' and platform_machine == 'x86_64'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", marker = "python_version == '3.12' and sys_platform == 'linux'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-win_amd64.whl", marker = "python_version == '3.12' and sys_platform == 'win32'" },
-    # Python 3.13
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-macosx_15_0_universal2.whl", marker = "python_version == '3.13' and sys_platform == 'darwin' and platform_machine == 'arm64'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-macosx_13_0_universal2.whl", marker = "python_version == '3.13' and sys_platform == 'darwin' and platform_machine == 'x86_64'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", marker = "python_version == '3.13' and sys_platform == 'linux'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-win_amd64.whl", marker = "python_version == '3.13' and sys_platform == 'win32'" },
-    # Python 3.14
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-macosx_15_0_universal2.whl", marker = "python_version == '3.14' and sys_platform == 'darwin' and platform_machine == 'arm64'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-macosx_13_0_universal2.whl", marker = "python_version == '3.14' and sys_platform == 'darwin' and platform_machine == 'x86_64'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", marker = "python_version == '3.14' and sys_platform == 'linux'" },
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-win_amd64.whl", marker = "python_version == '3.14' and sys_platform == 'win32'" },
-]
+
 
 [dependency-groups]
 dev = [

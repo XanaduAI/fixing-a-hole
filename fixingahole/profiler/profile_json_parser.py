@@ -17,26 +17,50 @@ This module parses profile results files and extracts function names and runtime
 the function summary sections at the bottom of each file's profiling table.
 """
 
+import contextlib
 import importlib.metadata
 import json
+import operator
 import sys
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
+from string import printable
 from typing import Any
 
 from colours import Colour
+from rich import box
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.table import Table
 
 from fixingahole import ROOT_DIR
 from fixingahole.profiler.utils import memory_with_units
 
+# Some useful global characters.
+# Sparkline characters from lowest to highest
+__sparkline_bars = "".join([chr(i) for i in range(9601, 9609)])  # "▁▂▃▄▅▆▇█"
+__printable = set(printable)
+__table_bar = {
+    "vertical": chr(0x2502),  # "│"
+    "horizontal": chr(0x2500),  # "─"
+    "dbl_horizontal": chr(0x2501),  # "━"
+    "top_left": chr(0x2577),  # "╷"
+    "bottom_left": chr(0x2575),  # "╵"
+    "left_t": chr(0x253C),  # "┼"
+    "right_t": chr(0x2574),  # "╴"
+    "left_double_t": chr(0x2576),  # "╶"
+    "en_dash": chr(0x2013),  # "–" en-dash  # noqa: RUF003
+}
+
 
 @dataclass(frozen=True)
-class FunctionProfile:
+class ProfileDetails:
     """Represents a function's profiling information."""
 
-    function_name: str
+    name: str
     file_path: str
     line_number: int
     memory_python_percentage: float
@@ -48,52 +72,19 @@ class FunctionProfile:
     copy_mb_per_s: float
     memory_samples: list[tuple[float, float]]
 
-    @property
+    @cached_property
     def has_memory_info(self) -> bool:
         """Determine if a line used significant memory."""
         return bool(
             self.peak_memory > 0 or self.memory_python_percentage > 0 or self.timeline_percentage > 0 or self.memory_samples
         )
 
-    @property
+    @cached_property
     def peak_memory_info(self) -> str:
         """Convert the used memory into more sensible units."""
         return memory_with_units(self.peak_memory)
 
-    @property
-    def total_percentage(self) -> float:
-        """Return the total percentage of the runtime."""
-        return self.python_percentage + self.native_percentage + self.system_percentage
-
-
-@dataclass(frozen=True)
-class LineProfile:
-    """Represents a function's profiling information."""
-
-    line_name: str
-    line_number: int
-    memory_python_percentage: float
-    peak_memory: float
-    python_percentage: float
-    native_percentage: float
-    system_percentage: float
-    timeline_percentage: float
-    copy_mb_per_s: float
-    memory_samples: list[tuple[float, float]]
-
-    @property
-    def has_memory_info(self) -> bool:
-        """Determine if a line used significant memory."""
-        return bool(
-            self.peak_memory > 0 or self.memory_python_percentage > 0 or self.timeline_percentage > 0 or self.memory_samples
-        )
-
-    @property
-    def peak_memory_info(self) -> str:
-        """Convert the used memory into more sensible units."""
-        return memory_with_units(self.peak_memory)
-
-    @property
+    @cached_property
     def total_percentage(self) -> float:
         """Return the total percentage of the runtime."""
         return self.python_percentage + self.native_percentage + self.system_percentage
@@ -103,10 +94,28 @@ class LineProfile:
 class ProfileData:
     """Holds the parsed profile data."""
 
-    functions: list[FunctionProfile]
-    lines: dict[str, list[LineProfile]]
-    walltime: float | None
-    max_memory: str | None
+    functions: list[ProfileDetails]
+    lines: dict[str, list[ProfileDetails]]
+    files: dict[str, float]
+    walltime: float
+    max_memory: float
+    samples: list[tuple[float, float]]
+    details: dict[str, float]
+
+    @cached_property
+    def has_memory_info(self) -> bool:
+        """Determine any memory usage data is stored."""
+        return any(fn.has_memory_info for fn in self.functions) or any(
+            ln.has_memory_info for lines in self.lines.values() for ln in lines
+        )
+
+    @cached_property
+    def get_functions_by_file(self) -> dict[str, list[ProfileDetails]]:
+        """Group functions by file path."""
+        result = defaultdict(list)
+        for func in self.functions:
+            result[func.file_path].append(func)
+        return result
 
 
 def parse_json(filename: str | Path) -> ProfileData:
@@ -114,21 +123,21 @@ def parse_json(filename: str | Path) -> ProfileData:
     profile_path = Path(filename)
     if not profile_path.exists():
         Colour.print(Colour.RED("Error:"), "profile", Colour.purple(filename), "does not exist.")
-        return ProfileData(functions=[], lines={}, walltime=None, max_memory=None)
+        return ProfileData(functions=[], lines={}, files={}, walltime=None, max_memory=None, samples=[], details={})
 
-    fixingahole_header = "### Add Fixing-A-Hole extras for profiling. ###"
     content = json.loads(profile_path.read_text(encoding="utf-8"))
-    function_profs: list[FunctionProfile] = []
-    line_profs: dict[str, list[LineProfile]] = defaultdict(list)
+    function_profs: list[ProfileDetails] = []
+    line_profs: dict[str, list[ProfileDetails]] = defaultdict(list)
 
     # Extract walltime and max memory
     walltime = content.get("elapsed_time_sec", 0)
     max_memory = memory_with_units(content.get("max_footprint_mb", 0), digits=3)
 
     files = content.get("files", {}) if isinstance(content, dict) else {}
+    file_percentage: dict[str, float] = {}
     for file_path, info in files.items():
+        file_percentage[file_path] = info.get("percent_cpu_time", 0)
         lines = info.get("lines", []) if isinstance(info, dict) else []
-        line_offset = 21 if any(fixingahole_header in line.get("line", "") for line in lines) else 0
         for line in lines:
             kwargs = {
                 "python_percentage": float(line.get("n_cpu_percent_python", 0)),
@@ -142,15 +151,19 @@ def parse_json(filename: str | Path) -> ProfileData:
             }
             if not any(bool(val) for val in kwargs.values()):
                 continue
-            line_info = {"line_name": line.get("line", ""), "line_number": int(line.get("lineno", 0)) - line_offset}
-            line_profs[file_path].append(LineProfile(**(line_info | kwargs)))
+            line_info = {
+                "file_path": file_path,
+                "name": line.get("line", ""),
+                "line_number": int(line.get("lineno", 0)),
+            }
+            line_profs[file_path].append(ProfileDetails(**(line_info | kwargs)))
 
         funcs = info.get("functions", []) if isinstance(info, dict) else []
         for fn in funcs:
             kwargs = {
                 "file_path": file_path,
-                "function_name": fn.get("line", ""),
-                "line_number": int(fn.get("lineno", 0)) - line_offset,
+                "name": fn.get("line", ""),
+                "line_number": int(fn.get("lineno", 0)),
                 "python_percentage": float(fn.get("n_cpu_percent_python", 0)),
                 "native_percentage": float(fn.get("n_cpu_percent_c", 0)),
                 "system_percentage": float(fn.get("n_sys_percent", 0)),
@@ -160,9 +173,20 @@ def parse_json(filename: str | Path) -> ProfileData:
                 "memory_python_percentage": float(fn.get("n_python_fraction", 0)) * 100,
                 "timeline_percentage": float(fn.get("n_usage_fraction", 0)) * 100,
             }
-            function_profs.append(FunctionProfile(**kwargs))
+            function_profs.append(ProfileDetails(**kwargs))
 
-    return ProfileData(functions=function_profs, lines=line_profs, walltime=walltime, max_memory=max_memory)
+    keys = ["max_footprint_mb", "growth_rate", "start_time_absolute", "start_time_perf"]
+    details = {k: content.get(k, -1) for k in keys}
+
+    return ProfileData(
+        functions=function_profs,
+        lines=line_profs,
+        files=file_percentage,
+        walltime=walltime,
+        max_memory=max_memory,
+        samples=content.get("samples", []),
+        details=details,
+    )
 
 
 def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: float = 0.1) -> str:
@@ -173,11 +197,11 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
 
     has_memory_info = False
     max_func_name_length = 0
-    by_file = get_functions_by_file(functions)
+    by_file = profile_data.get_functions_by_file
     for file_functions in by_file.values():
         for func in file_functions:
             max_func_name_length = max(
-                len(func.function_name) + 3,
+                len(func.name) + 3,
                 max_func_name_length,
             )
             has_memory_info = has_memory_info or func.has_memory_info
@@ -186,7 +210,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     message = [f"\nProfile Summary ({profile_data.walltime or 0:,.3f}s total)", "=" * width]
 
     # Top functions by total runtime percentage
-    top_functions = get_top_functions(functions, top_n)
+    top_functions = get_top_usage(functions, top_n)
     message += [
         f"\nTop {len(top_functions)} Functions by Total Runtime:",
         "-" * width,
@@ -196,12 +220,12 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
         lineno = func.line_number
         runtime_info = f"{func.total_percentage:>5.1f}%"
         message.append(
-            f"{i:2d}. {func.function_name:<{max_func_name_length}} {runtime_info:<6} ({file_name}:{lineno})",
+            f"{i:2d}. {func.name:<{max_func_name_length}} {runtime_info:<6} ({file_name}:{lineno})",
         )
 
     # Add memory summary if available
     if has_memory_info:
-        memory_functions = get_top_functions(functions, top_n, key=lambda f: f.peak_memory)
+        memory_functions = get_top_usage(functions, top_n, key=lambda f: f.peak_memory)
         memory_functions = [f for f in memory_functions if f.peak_memory]
         if memory_functions:
             message += [
@@ -211,7 +235,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
             for i, func in enumerate(memory_functions, 1):
                 file_name = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
                 message.append(
-                    f"{i:2d}. {func.function_name:<{max_func_name_length}} {func.peak_memory_info:>8} ({file_name})",
+                    f"{i:2d}. {func.name:<{max_func_name_length}} {func.peak_memory_info:>8} ({file_name})",
                 )
 
     message.append("\nFunctions by Module:")
@@ -226,26 +250,16 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     return "\n".join(line.rstrip() for line in message)
 
 
-def get_top_functions(
-    functions: list[FunctionProfile],
+def get_top_usage(
+    details: list[ProfileDetails],
     n: int = 10,
     key: Callable = lambda f: f.total_percentage,
-) -> list[FunctionProfile]:
-    """Get the top N functions by key."""
-    return sorted(functions, key=key, reverse=True)[:n]
+) -> list[ProfileDetails]:
+    """Get the top N profile details by key."""
+    return sorted(details, key=key, reverse=True)[:n]
 
 
-def get_functions_by_file(
-    functions: list[FunctionProfile],
-) -> dict[str, list[FunctionProfile]]:
-    """Group functions by file path."""
-    result = defaultdict(list)
-    for func in functions:
-        result[func.file_path].append(func)
-    return result
-
-
-def build_module_tree(by_file_dict: dict[str, list[FunctionProfile]]) -> dict[str, Any]:
+def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> dict[str, Any]:
     """Build a hierarchical tree structure from file paths."""
     modules = installed_modules()
     tree: dict[str, Any] = {}
@@ -327,7 +341,7 @@ def render_tree(
                 peak_mem = f" ({func.peak_memory_info})" if func.has_memory_info else ""
                 runtime_info = f"{func.total_percentage:.>5.2f}%{peak_mem}"
                 lines.append(
-                    f"{func_prefix}{func.function_name:.<{max_func_name_length}}{runtime_info}",
+                    f"{func_prefix}{func.name:.<{max_func_name_length}}{runtime_info}",
                 )
             lines.append(next_prefix)
         elif children:
@@ -355,3 +369,246 @@ def installed_modules() -> set[str]:
             else:
                 return_set.add(str(dist.metadata["Name"]).lower())
         return return_set
+
+
+def generate_sparklines(
+    samples: list[tuple[float, float]], start_time: float, elapsed_time_sec: float, max_memory_usage: float, num_bars: int = 30
+) -> str:
+    """Generate a sparkline from memory samples.
+
+    Args:
+        samples: List of [perf_timestamp, memory_mb] pairs.
+        start_time: The perf_timestamp start of the sampling data.
+        elapsed_time_sec: The total runtime of the profile.
+        max_memory_usage: The maximum memory used during profiling.
+        num_bars: Number of characters in the sparkline.
+
+    Returns:
+        A sparkline string using Unicode block characters.
+
+    """
+    if not samples or num_bars < 1:
+        return ""
+
+    # Re-sample the data to fit the number of bars.
+    bin_width_ns = max(elapsed_time_sec * 1e9, *(s[0] for s in samples)) / (num_bars)
+    bin_edges = [i * bin_width_ns for i in range(num_bars + 1)]
+    bin_values: list[list[float]] = [[] for _ in range(num_bars)]
+    for time, mem_val in samples:
+        for i in range(num_bars):
+            if bin_edges[i] <= (time - start_time) < bin_edges[i + 1]:
+                bin_values[i].append(mem_val)
+                break
+
+    # Average the samples in each bin.
+    memory_values: list[float] = [0.0 for _ in range(num_bars)]
+    for i in range(num_bars):
+        memory_values[i] = sum(bin_values[i]) / n if (n := len(bin_values[i])) else 0
+
+    min_mem = min(memory_values)
+    mem_range = max_memory_usage - min_mem
+
+    sparkline = []
+    for value in memory_values:
+        if mem_range == 0:
+            idx = 0
+        else:
+            # Normalize to 0-1 range, then map to character index
+            normalized = (value - min_mem) / mem_range
+            idx = min(int(normalized * (len(__sparkline_bars) - 1)), len(__sparkline_bars) - 1)
+        sparkline.append(__sparkline_bars[idx])
+
+    return "".join(sparkline)
+
+
+def _top_memory_summary(profile_data: ProfileData) -> str:
+    """Generate a summary of the memory usage during the profiling."""
+    max_memory_usage = profile_data.details.get("max_footprint_mb", 0)
+    growth_rate = profile_data.details.get("growth_rate", 0)
+    start_time = profile_data.details.get("start_time_perf", 0)
+    elapsed_time_sec = profile_data.walltime
+    sparkline = generate_sparklines(profile_data.samples, start_time, elapsed_time_sec, max_memory_usage)
+    mem_units = memory_with_units(max_memory_usage, unit="MB", digits=3)
+    return f"\n{'':8}Memory usage: {sparkline} (max: {mem_units}, growth rate: {growth_rate:3.1f}%)"
+
+
+def _memory_summary(details: list[ProfileDetails]) -> list[str]:
+    """Add top memory consumption summary."""
+    lines: list[str] = ["Top PEAK memory consumption, by line:"]
+    for i, line in enumerate(details, 1):
+        lines.append(f"({i}) {line.line_number:>5}: {int(line.peak_memory):>5} MB")
+    return lines
+
+
+def initialize_table(profile_data: ProfileData, file_path: str, title: str, width: int = 128) -> Table:
+    """Initialize a Rich Table for a file's profile from the data."""
+    max_path_length = 80
+    display_path = str(file_path)
+    with contextlib.suppress(ValueError):
+        display_path = str(Path(file_path).relative_to(ROOT_DIR))
+    display_path = display_path if len(display_path) <= max_path_length else display_path[: max_path_length - 3] + "…"
+
+    en6 = __table_bar["en_dash"] * 6
+    en11 = (en6 * 2)[:-1]
+
+    tbl = Table(box=box.MINIMAL_HEAVY_HEAD, title=title, collapse_padding=True, title_justify="left", width=width)
+    blue = Colour.blue.value
+    tbl.add_column(Markdown("Line", style="dim"), style="dim", justify="right", no_wrap=True, width=4)
+    tbl.add_column(Markdown("Time  " + "\n" + "_Python_", style=blue), style=blue, justify="right", no_wrap=True, width=6)
+    tbl.add_column(Markdown(f"{en6}  \n_native_", style=blue), style=blue, justify="right", no_wrap=True, width=6)
+    tbl.add_column(Markdown(f"{en6}  \n_system_", style=blue), style=blue, justify="right", no_wrap=True, width=6)
+
+    if profile_data.has_memory_info:
+        purple = Colour.purple.value
+        orange = Colour.orange.value
+        tbl.add_column(Markdown("Memory  \n_Python_", style=purple), style=purple, justify="right", no_wrap=True, width=6)
+        tbl.add_column(Markdown(f"{en6}  \n_peak_", style=purple), style=purple, justify="right", no_wrap=True, width=7)
+        tbl.add_column(Markdown(f"{en11}  \n_timeline_/%", style=purple), style=purple, justify="right", no_wrap=True, width=15)
+        tbl.add_column(Markdown("Copy  \n_(MB/s)_", style=orange), style=orange, no_wrap=True, width=6)
+
+    tbl.add_column("\n " + display_path, width=max_path_length, no_wrap=True)
+    return tbl
+
+
+def _file_title(
+    file_path: str,
+    total_time_pct: float,
+    total_time_sec: float,
+    walltime: float,
+) -> str:
+    """Add file header section to lines."""
+    # Format time with milliseconds if < 1 second
+    time_str = f"{total_time_sec * 1000:.3f}ms" if total_time_sec < 1.0 else f"{total_time_sec:.3f}s"
+    return f"{'':3}{file_path}: % of time = {total_time_pct:6.2f}% ({time_str}) out of {walltime:.3f}s."
+
+
+def _above_threshold(details: ProfileDetails, threshold: float = 0.1) -> bool:
+    """Determine if ProfileDetails are all above the threshold."""
+    return (
+        details.python_percentage >= threshold
+        or details.native_percentage >= threshold
+        or details.system_percentage >= threshold
+        or details.memory_python_percentage >= threshold
+    )
+
+
+def _row_details(
+    details: ProfileDetails,
+    start_time: float,
+    elapsed_time_sec: float,
+    max_memory_usage: float,
+    profile_has_memory_info: bool,
+    threshold: float = 0.1,
+) -> list[str]:
+    """Organize a single line for the table."""
+    ret = [
+        f"{details.line_number:4.0f}",
+        f"{details.python_percentage:5.1f}%" if details.python_percentage >= threshold else "",
+        f"{details.native_percentage:5.1f}%" if details.native_percentage >= threshold else "",
+        f"{details.system_percentage:5.1f}%" if details.system_percentage >= threshold else "",
+    ]
+    if profile_has_memory_info:
+        sparks = generate_sparklines(details.memory_samples, start_time, elapsed_time_sec, max_memory_usage, num_bars=9)
+        ret.extend(
+            [
+                f"{details.memory_python_percentage:6.1f}%" if details.memory_python_percentage >= threshold else "",
+                details.peak_memory_info if details.peak_memory >= threshold else "",
+                f"{sparks} {details.timeline_percentage:4.1f}%" if details.timeline_percentage >= threshold else "",
+                f"{details.copy_mb_per_s:6.0f}" if details.copy_mb_per_s >= threshold else "",
+            ]
+        )
+    ret.append(details.name)
+    return ret
+
+
+def _not_empty_line(chars: set[str]) -> bool:
+    """Determine if a line is 'empty'.
+
+    It does this by checking if any of the characters are in the "printable" set,
+    or if it contains any "horizontal" dividers.
+    """
+    return (
+        bool((chars - {" "}) & __printable) or (__table_bar["dbl_horizontal"] in chars) or (__table_bar["horizontal"] in chars)
+    )
+
+
+def capture_table(table: Table, compact_rows: bool = True) -> str:
+    """Convert a Rich table into a string."""
+    console = Console()
+    with console.capture() as capture:
+        console.print(table)
+    result = Colour.remove_ansi(capture.get())
+    if compact_rows:
+        result = "\n".join([line for line in result.splitlines() if _not_empty_line(set(line))])
+    return result
+
+
+def generate_text_report(profile_data: ProfileData, threshold: float = 0.1, width: int = 128) -> str:  # noqa: C901
+    """Generate a text report from ProfileData matching the original Scalene output format.
+
+    Args:
+        profile_data: The parsed profile data.
+        threshold: The cut-off value for displaying data.
+        width: specify the width of the table.
+
+    Returns:
+        A formatted text report string.
+
+    """
+    report = []
+
+    # Top-level memory usage summary.
+    start_time = profile_data.details.get("start_time_perf", 0)
+    max_mem = profile_data.details.get("max_footprint_mb", 0)
+    elpsd_time = profile_data.walltime
+    if profile_data.has_memory_info:
+        report.append(_top_memory_summary(profile_data))
+
+    # Sort files by total runtime percentage (highest first)
+    sorted_files = sorted(
+        profile_data.files.items(),
+        key=operator.itemgetter(1),
+        reverse=True,
+    )
+    for file_path, file_percent in sorted_files:
+        total_time_sec = (file_percent / 100.0) * profile_data.walltime if profile_data.walltime else 0
+        walltime = profile_data.walltime or 0
+
+        max_path_length = width - (57 if profile_data.has_memory_info else 22)
+        display_path = str(file_path)
+        with contextlib.suppress(ValueError):
+            display_path = str(Path(file_path).relative_to(ROOT_DIR))
+        display_path = display_path if len(display_path) <= max_path_length else display_path[: max_path_length - 3] + "…"
+        title = _file_title(file_path, file_percent, total_time_sec, walltime)
+
+        if not any(_above_threshold(line, threshold) for line in profile_data.lines[file_path]):
+            report.extend([title, "\n"])
+            continue
+
+        table = initialize_table(profile_data, file_path, title, width)
+        n_col = len(table.columns) - 1
+        prev_lineno = -1
+        file_has_memory_info = False
+        for line in profile_data.lines[file_path]:
+            file_has_memory_info = file_has_memory_info or line.has_memory_info
+            if _above_threshold(line, threshold):
+                if line.line_number - 1 != prev_lineno:
+                    table.add_row("...")
+                table.add_row(*_row_details(line, start_time, elpsd_time, max_mem, profile_data.has_memory_info, threshold))
+                prev_lineno = line.line_number
+
+        any_above_threshold = any(_above_threshold(fn, threshold) for fn in profile_data.get_functions_by_file[file_path])
+        if profile_data.functions and any_above_threshold:
+            table.add_section()
+            table.add_row(*[*([""] * n_col), f" function summary for {display_path}"])
+            for func in profile_data.get_functions_by_file[file_path]:
+                if _above_threshold(func, threshold):
+                    table.add_row(*_row_details(func, start_time, elpsd_time, max_mem, threshold))
+        report.append(capture_table(table))
+
+        if file_has_memory_info:
+            memory_lines = get_top_usage(profile_data.lines[file_path], n=5, key=lambda f: f.peak_memory)
+            report.extend(_memory_summary(memory_lines))
+        report.append("")
+
+    return "\n".join(report)

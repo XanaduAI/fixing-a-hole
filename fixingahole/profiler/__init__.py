@@ -13,7 +13,7 @@
 # limitations under the License.
 """Integrated Scalene Profiler and Parser."""
 
-from fixingahole.profiler.profile_json_parser import generate_summary, parse_json
+from fixingahole.profiler.profile_json_parser import generate_summary, generate_text_report, parse_json
 from fixingahole.profiler.profile_parser import ProfileParser
 from fixingahole.profiler.profiler import Profiler
 from fixingahole.profiler.stack_reporter import StackReporter
@@ -23,5 +23,6 @@ __all__ = [
     "Profiler",
     "StackReporter",
     "generate_summary",
+    "generate_text_report",
     "parse_json",
 ]
