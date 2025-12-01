@@ -16,6 +16,7 @@
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from enum import Enum
@@ -26,7 +27,7 @@ from sympy import nextprime
 from typer import Exit
 
 from fixingahole import OUTPUT_DIR, ROOT_DIR
-from fixingahole.profiler.utils import LogLevel, Spinner, date
+from fixingahole.profiler.utils import LogLevel, Spinner, date, memory_with_units
 
 
 class Platform(Enum):
@@ -48,6 +49,7 @@ class Profiler:
         cpu_only: bool = False,
         precision: int | None = None,
         detailed: bool = False,
+        threshold: float = 1,
         loglevel: LogLevel = LogLevel.CRITICAL,
         noplots: bool = False,
         trace: bool = True,
@@ -62,6 +64,7 @@ class Profiler:
 
         self.script_args = python_script_args if python_script_args is not None else []
         self.detailed = detailed
+        self.threshold = threshold
         self.loglevel = loglevel
         self.noplots = noplots
         self._output_file = Path.cwd() / "profile_results.txt"
@@ -197,7 +200,7 @@ class Profiler:
         profile_prefix = []
         profile_suffix = []
         logger = [
-            "\n### Add extras for profiling. ###\n",
+            "\n### Add Fixing-A-Hole extras for profiling. ###\n",
             "import sys",
             "import logging",
             "from pathlib import Path",
@@ -233,9 +236,15 @@ class Profiler:
 
         return self.profile_file, self.output_file
 
-    def get_memory_rss(self, stderr: str) -> str:
-        """Max memory resident set size (RSS) that occured while profiling."""
+    def get_usr_bin_time_data(self, stderr: str) -> tuple[str, float]:
+        """Max memory resident set size (RSS) and wall time from /usr/bin/time output.
+
+        Returns:
+            tuple: (memory_string, walltime_seconds)
+
+        """
         memory_used = -1.0
+        walltime = -1.0
         rss_line = "Maximum resident set size (kbytes)" if self.platform == Platform.Linux else "maximum resident set size"
 
         for line in stderr.splitlines():
@@ -246,27 +255,21 @@ class Profiler:
                         break
                     except ValueError:
                         pass
-        byte_prefix = {
-            "KB": 1024,
-            "MB": 1024**2,
-            "GB": 1024**3,
-        }
-        if memory_used > 0:
-            if memory_used >= byte_prefix["GB"]:
-                memory_usage = memory_used / byte_prefix["GB"]
-                unit = "GB"
-            elif memory_used >= byte_prefix["MB"]:
-                memory_usage = memory_used / byte_prefix["MB"]
-                unit = "MB"
-            elif memory_used >= byte_prefix["KB"]:
-                memory_usage = memory_used / byte_prefix["KB"]
-                unit = "KB"
-            else:
-                unit = "bytes"
-            memory_usage = f"{memory_usage:.2f} {unit}"
-        else:
-            memory_usage = ""
-        return memory_usage
+
+            # Parse wall time based on platform
+            if self.platform == Platform.Linux and "Elapsed (wall clock) time" in line:
+                # Elapsed (wall clock) time (h:mm:ss or m:ss): 0:46.59
+                time_parts = line.strip().split()[-1].split(":")
+                time_parts.reverse()
+                units = [1, 60, 3600]
+                walltime = sum(float(t) * u for t, u in zip(time_parts, units, strict=False))
+            elif self.platform == Platform.MacOS and " real " in line:
+                # 1.55 real  0.65 user  0.32 sys
+                walltime = float(line.strip().split()[0])
+
+        unit = "KB" if self.platform == Platform.Linux else "B"
+        memory_str = memory_with_units(memory_used, unit=unit, digits=3)
+        return memory_str, walltime
 
     @property
     def _build_cmd(self) -> list[str]:
@@ -282,12 +285,12 @@ class Profiler:
         cmd = [
             usr_bin_time,
             "python -m scalene",
-            "--reduced-profile --cpu --cli",
-            "--json --stacks" if self.trace else "",
+            "--reduced-profile --cpu --json",
+            "--stacks" if self.trace else "",
             f"--profile-all {self.excluded_folders}" if self.detailed else "",
             f"--memory {sampling_detail}" if not self.cpu_only else "",
             f"--program-path {ROOT_DIR} --column-width={ncols}",
-            f"--profile-interval=5 --outfile={self.output_file}",
+            f"--profile-interval=5 --outfile={self.output_file.with_suffix('.json')}",
         ]
         cmd.append(str(self.profile_file))
         if self.script_args != []:
@@ -296,11 +299,19 @@ class Profiler:
         cmd_str = " ".join(cmd).strip()
         return cmd_str.split()
 
+    def _save_output(self, preamble: str, rss_report: str, summary: str, report: str, stacks: str) -> None:
+        """Save the output to the output file."""
+        results = f"{preamble}\n{rss_report}\n{summary}\n{report}\n{stacks}"
+        self.output_file.write_text(results, encoding="utf-8")
+
     def run_profiler(self, preamble: str = "\n") -> None:
         """Profile the python script using Scalene."""
-        from fixingahole.profiler import ProfileParser, StackReporter  # noqa: PLC0415
+        from fixingahole.profiler import StackReporter, generate_summary, generate_text_report, parse_json  # noqa: PLC0415
 
+        # Fallback to the specified `column_width` if the terminal width cannot be obtained.
         ncols = max(160, len(str(self.profile_file)) + 75)
+        ncols = shutil.get_terminal_size(fallback=(ncols, ncols)).columns
+
         try:
             # Profile the code.
             with Spinner(f"See {Colour.purple(self.output_path)} for details."):
@@ -330,36 +341,32 @@ class Profiler:
             raise Exit(code=1) from ki
         else:
             # Gather all the details and logs and consicely present them to the user.
-            parser = ProfileParser(self.output_file)
-            summary = parser.summary()
-            memory = "" if self.cpu_only else f"using {parser.max_memory} of RAM"
-            finished = f"Finished in {parser.walltime or 0:,.3f} seconds {memory}"
+            profile_data = parse_json(self.output_file.with_suffix(".json"))
+            summary = generate_summary(profile_data, threshold=self.threshold)
+            memory = "" if self.cpu_only else f"using {profile_data.max_memory} of RAM"
+            finished = f"Finished in {profile_data.walltime or 0:,.3f} seconds {memory}"
 
-            results = self.output_file.read_text()
             log_info = self.log_file.read_text() if self.log_file.exists() else ""
             n_warns = log_info.count("WARNING")
             warn = "warning" if n_warns == 1 else "warnings"
             warning_str = f" ({n_warns} {warn})" if n_warns > 0 else ""
 
+            rss_report = ""
             if capture.stderr is not None and self.platform != Platform.Windows:
-                rss = self.get_memory_rss(capture.stderr)
-                rss_report = f"Max RSS Memory Usage: {rss}\n" if rss else ""
-            else:
-                rss_report = ""
+                ubt_rss, ubt_walltime = self.get_usr_bin_time_data(capture.stderr)
+                rss_report = f"Max RSS Memory Usage: {ubt_rss}\n" if ubt_rss else ""
+                rss_report += f"Wall Time: {ubt_walltime:.3f} seconds\n" if ubt_walltime > 0 else ""
 
-            report = ""
+            report = generate_text_report(profile_data, threshold=self.threshold, width=ncols)
+            stacks = ""
             if self.trace:
                 reporter = StackReporter(self.output_file.with_suffix(".json"))
-                report = reporter.report_stacks_for_top_functions(top_n=5)
+                stacks = reporter.report_stacks_for_top_functions(top_n=5)
 
             preamble += f"{finished}.\n"
             preamble += f"Check logs {self.log_path}{warning_str}\n" if log_info else ""
-            results = f"{preamble}\n{rss_report}{summary}{results}{report}"
-            self.output_file.write_text(results, encoding="utf-8")
-
-            Colour.print(f"{summary}{finished}{Colour.orange(warning_str)}.")
-            Colour.print(rss_report, "\n")
-            if self.trace:
-                Colour.print(report)
+            self._save_output(preamble, rss_report, summary, report, stacks)
+            results = f"{finished}{Colour.orange(warning_str)}\n{rss_report}{summary}\n{report}{stacks}"
+            Colour.print(results)
 
             raise Exit(code=0)

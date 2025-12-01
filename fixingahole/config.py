@@ -20,6 +20,8 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
+from colours import Colour
+
 
 def _detect_virtualenv() -> str:
     """Find the virtual environment path for the current Python executable."""
@@ -68,7 +70,15 @@ def _get_config() -> dict[str, Any]:
         return {}
 
     with Path.open(pyproject_path, "rb") as f:
-        data = tomllib.load(f)
+        try:
+            data = tomllib.load(f)
+        except tomllib.TOMLDecodeError as exc:
+            Colour.print(
+                Colour.RED("Error:"),
+                f"{exc} in",
+                Colour.purple(Path(*(pyproject_path.parts[-2:]))),
+            )
+            sys.exit(5)  # Failure to read or write data.
     tools = data.get("tool", {})
     return tools.get("fixingahole", {})
 
@@ -78,7 +88,7 @@ def _get_root_dir(config: dict[str, Any]) -> Path:
     return Path(config.get("root", Path.cwd())).resolve()
 
 
-def _get_output_dir(config: dict[str, Any]) -> Path:
+def _get_output_dir(config: dict[str, Any], root_dir: Path) -> Path:
     """Get the OUTPUT_DIR constant.
 
     If the given path is absolute then use it, otherwise assume it's relative to ROOT_DIR.
@@ -86,10 +96,10 @@ def _get_output_dir(config: dict[str, Any]) -> Path:
     output_path = Path(config.get("output", "performance"))
     if output_path.is_absolute():
         return output_path
-    return (ROOT_DIR / output_path).resolve()
+    return (root_dir / output_path).resolve()
 
 
-def _get_ignore_directories(config: dict[str, str], output_path: Path) -> list[Path]:
+def _get_ignore_directories(config: dict[str, str], root_dir: Path, output_path: Path) -> list[Path]:
     """Get the list of directories to ignore when searching for files."""
     ignore_dirs = config.get("ignore", [output_path])
     if not isinstance(ignore_dirs, list):
@@ -97,12 +107,12 @@ def _get_ignore_directories(config: dict[str, str], output_path: Path) -> list[P
             ignore_dirs = list(Path(ignore_dirs))
         else:
             return [output_path]
-    ignore_dirs = [Path(path).resolve() for path in ignore_dirs if Path(path).resolve().is_dir()]
+    ignore_dirs = [Path(root_dir / path).resolve() for element in ignore_dirs if Path(path := str(element)).resolve().is_dir()]
     if output_path not in ignore_dirs:
         ignore_dirs.append(output_path)
     return ignore_dirs
 
 
 ROOT_DIR = _get_root_dir(_get_config())
-OUTPUT_DIR = _get_output_dir(_get_config())
-IGNORE_DIRS = _get_ignore_directories(_get_config(), OUTPUT_DIR)
+OUTPUT_DIR = _get_output_dir(_get_config(), ROOT_DIR)
+IGNORE_DIRS = _get_ignore_directories(_get_config(), ROOT_DIR, OUTPUT_DIR)

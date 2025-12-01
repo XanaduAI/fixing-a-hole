@@ -46,6 +46,21 @@ def date() -> str:
     return datetime.datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
 
 
+def memory_with_units(memory: float, unit: str = "MB", digits: int = 0) -> str:
+    """Convert memory float to string with units."""
+    byte_prefix = {
+        "B": 1,
+        "KB": 1024,
+        "MB": 1024**2,
+        "GB": 1024**3,
+    }
+    memory_bytes = memory * byte_prefix[unit]
+    for prefix in ["GB", "MB", "KB"]:
+        if memory_bytes >= byte_prefix[prefix]:
+            return f"{memory_bytes / byte_prefix[prefix]:>3.{digits}f} {prefix}"
+    return f"{memory_bytes:.{digits}f} bytes"
+
+
 def find_path(
     pattern: str | Path,
     in_dir: str | Path = "",
