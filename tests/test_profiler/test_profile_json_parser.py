@@ -322,21 +322,16 @@ class TestRenderTree:
         profile_data = parse_json(example_json)
         tree = build_module_tree(profile_data.get_functions_by_file)
         result = render_tree(tree)
-        assert len(result) == 13
+        assert len(result) == 8
         expected_tree = [
-            "└─ fixing-a-hole (9 func, 99.65% total)",
-            "   ├─ performance (6 func, 99.65% total)",
-            "   │  └─ advanced.py (6 func, 99.65% total)",
-            "   │     └─ data_serialization................................99.57% ( 80 MB)",
-            "   │     ",
-            "   └─ .venv (3 func, 0.00% total)",
-            "      └─ lib (3 func, 0.00% total)",
-            "         └─ python3.11 (3 func, 0.00% total)",
-            "            └─ site-packages (3 func, 0.00% total)",
-            "               └─ numpy (3 func, 0.00% total)",
-            "                  └─ _core (3 func, 0.00% total)",
-            "                     └─ _methods.py (3 func, 0.00% total)",
-            "                        ",
+            "├─ performance (6 func, 99.65% total)",
+            "│  └─ advanced.py (6 func, 99.65% total)",
+            "│     └─ data_serialization................................99.57% ( 80 MB)",
+            "│     ",
+            "└─ numpy (3 func, 0.00% total)",
+            "   └─ _core (3 func, 0.00% total)",
+            "      └─ _methods.py (3 func, 0.00% total)",
+            "         ",
         ]
         assert result == expected_tree
 
@@ -345,29 +340,24 @@ class TestRenderTree:
         profile_data = parse_json(example_json)
         tree = build_module_tree(profile_data.get_functions_by_file)
         result = render_tree(tree, threshold=0.0)
-        assert len(result) == 21
+        assert len(result) == 16
         expected_tree = [
-            "└─ fixing-a-hole (9 func, 99.65% total)",
-            "   ├─ performance (6 func, 99.65% total)",
-            "   │  └─ advanced.py (6 func, 99.65% total)",
-            "   │     ├─ data_serialization................................99.57% ( 80 MB)",
-            "   │     ├─ fourier_analysis...................................0.03% (153 MB)",
-            "   │     ├─ statistical_analysis...............................0.02% ( 76 MB)",
-            "   │     ├─ matrix_operations..................................0.02% ( 36 MB)",
-            "   │     ├─ monte_carlo_simulation.............................0.01% ( 76 MB)",
-            "   │     └─ recursive_computation..............................0.00%",
-            "   │     ",
-            "   └─ .venv (3 func, 0.00% total)",
-            "      └─ lib (3 func, 0.00% total)",
-            "         └─ python3.11 (3 func, 0.00% total)",
-            "            └─ site-packages (3 func, 0.00% total)",
-            "               └─ numpy (3 func, 0.00% total)",
-            "                  └─ _core (3 func, 0.00% total)",
-            "                     └─ _methods.py (3 func, 0.00% total)",
-            "                        ├─ _mean..............................................0.00%",
-            "                        ├─ _var...............................................0.00% (153 MB)",
-            "                        └─ _std...............................................0.00%",
-            "                        ",
+            "├─ performance (6 func, 99.65% total)",
+            "│  └─ advanced.py (6 func, 99.65% total)",
+            "│     ├─ data_serialization................................99.57% ( 80 MB)",
+            "│     ├─ fourier_analysis...................................0.03% (153 MB)",
+            "│     ├─ statistical_analysis...............................0.02% ( 76 MB)",
+            "│     ├─ matrix_operations..................................0.02% ( 36 MB)",
+            "│     ├─ monte_carlo_simulation.............................0.01% ( 76 MB)",
+            "│     └─ recursive_computation..............................0.00%",
+            "│     ",
+            "└─ numpy (3 func, 0.00% total)",
+            "   └─ _core (3 func, 0.00% total)",
+            "      └─ _methods.py (3 func, 0.00% total)",
+            "         ├─ _mean..............................................0.00%",
+            "         ├─ _var...............................................0.00% (153 MB)",
+            "         └─ _std...............................................0.00%",
+            "         ",
         ]
         assert result == expected_tree
 
@@ -405,18 +395,13 @@ class TestGenerateSummary:
             " 5. monte_carlo_simulation       76 MB (advanced.py)",
             "\nFunctions by Module:",
             "-----------------------------------------------------------------",
-            "└─ fixing-a-hole (9 func, 99.65% total)",
-            "   ├─ performance (6 func, 99.65% total)",
-            "   │  └─ advanced.py (6 func, 99.65% total)",
-            "   │     └─ data_serialization................................99.57% ( 80 MB)",
-            "   │",
-            "   └─ .venv (3 func, 0.00% total)",
-            "      └─ lib (3 func, 0.00% total)",
-            "         └─ python3.11 (3 func, 0.00% total)",
-            "            └─ site-packages (3 func, 0.00% total)",
-            "               └─ numpy (3 func, 0.00% total)",
-            "                  └─ _core (3 func, 0.00% total)",
-            "                     └─ _methods.py (3 func, 0.00% total)",
+            "├─ performance (6 func, 99.65% total)",
+            "│  └─ advanced.py (6 func, 99.65% total)",
+            "│     └─ data_serialization................................99.57% ( 80 MB)",
+            "│",
+            "└─ numpy (3 func, 0.00% total)",
+            "   └─ _core (3 func, 0.00% total)",
+            "      └─ _methods.py (3 func, 0.00% total)",
             "",
             "",
             "=================================================================",

@@ -21,6 +21,7 @@ import contextlib
 import importlib.metadata
 import json
 import operator
+import os
 import sys
 from collections import defaultdict
 from collections.abc import Callable
@@ -263,20 +264,14 @@ def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> dict[str
     """Build a hierarchical tree structure from file paths."""
     modules = installed_modules()
     tree: dict[str, Any] = {}
+    files = by_file_dict.keys()
+    common_root = Path(os.path.commonpath(files if len(files) > 1 else [*files, ROOT_DIR]))
     for file_path, file_functions in by_file_dict.items():
-        parts = Path(file_path).parts
-        for parents in [ROOT_DIR, *ROOT_DIR.parents]:
-            try:
-                parts = Path(file_path).relative_to(parents).parts
-                break
-            except ValueError:
-                pass
-
+        parts = Path(file_path).relative_to(common_root).parts
         for i, part in enumerate(parts):
             if part in modules:
                 parts = parts[i:]
                 break
-
         current = tree
         for i, part in enumerate(parts):
             if part not in current:
@@ -603,7 +598,7 @@ def generate_text_report(profile_data: ProfileData, threshold: float = 0.1, widt
             table.add_row(*[*([""] * n_col), f" function summary for {display_path}"])
             for func in profile_data.get_functions_by_file[file_path]:
                 if _above_threshold(func, threshold):
-                    table.add_row(*_row_details(func, start_time, elpsd_time, max_mem, threshold))
+                    table.add_row(*_row_details(func, start_time, elpsd_time, max_mem, profile_data.has_memory_info, threshold))
         report.append(capture_table(table))
 
         if file_has_memory_info:
