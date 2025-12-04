@@ -51,9 +51,9 @@ def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     package_root = Path(__file__).parents[1] / "fixingahole"
     for path in package_root.rglob("*.py"):
         part = ".".join(path.relative_to(package_root).parts)[:-3]
-        with suppress(AttributeError):
-            monkeypatch.setattr(f"fixingahole.{part}.ROOT_DIR", mock_root_dir)
-            monkeypatch.setattr(f"fixingahole.{part}.OUTPUT_DIR", mock_output_dir)
+        for folder, mocked in zip(["ROOT_DIR", "OUTPUT_DIR"], [mock_root_dir, mock_output_dir], strict=True):
+            with suppress(AttributeError):
+                monkeypatch.setattr(f"fixingahole.{part}.{folder}", mocked)
     return mock_root_dir
 
 
