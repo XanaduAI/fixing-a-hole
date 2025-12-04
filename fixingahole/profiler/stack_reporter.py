@@ -77,12 +77,14 @@ class StackReporter:
         """Top N expensive functions, rendered as a combined reverse tree."""
         top_funcs = self.get_top_functions(n=top_n)
         report: list[str] = []
+        any_traces = False
         for func in top_funcs:
             report.append(f"\n{func['name']}, ({func['total_percent']:.2f}%)")
             traces = self.find_stack_traces(func["name"])
             if not traces:
                 report.append("  No stack traces found.\n")
                 continue
+            any_traces = True
             # Build combined tree from all stack traces
             tree, call_info = StackReporter.build_combined_reverse_tree(traces)
             tree_lines = self.render_combined_reverse_tree(tree, call_info, is_root=False)
@@ -95,7 +97,9 @@ class StackReporter:
                 "=" * width,
                 *report,
             ]
-        return "\n".join(report)
+        if any_traces:
+            return "\n".join(report)
+        return ""
 
     @staticmethod
     def build_combined_reverse_tree(traces: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:

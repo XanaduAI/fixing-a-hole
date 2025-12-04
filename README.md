@@ -1,52 +1,20 @@
-# `fixing-a-hole` Profiler
+# Fixing-A-Hole Profiler
 
 Profiling is the process of analyzing the resource usage of code to identify
 bottlenecks and potential areas of optimization and improvement. Typical types
 of resources used by code are CPU time, memory usage, and disk space. It can be
 the case that improvements in one area come at the expense of costs in another.
 
-`fixing-a-hole` uses the [scalene](https://github.com/plasma-umass/scalene) profiler which,
+Fixing-A-Hole uses the [scalene](https://github.com/plasma-umass/scalene) profiler which,
 unfortunately, has very limited support on Windows, even for single-threaded CPU usage.
 Scalene supports (single- and multi-threaded) CPU and (peak heap) memory usage on macOS,
 Linux, and WSL (Windows Subsystem for Linux).
+
 
 > [!TIP]
 > _"premature optimization is the root of all evil"_ - [Donald Knuth](https://en.wikipedia.org/wiki/Donald_Knuth)
 
 ## Usage
-
-### Installing `fixing-a-hole`
-
-`fixing-a-hole` can be installed into your repo using
-```bash
-uv add https://github.com/XanaduAI/fixing-a-hole.git
-```
-or
-```bash
-pip install https://github.com/XanaduAI/fixing-a-hole.git
-```
-if you're not using [`uv`](https://docs.astral.sh/uv/).
-
-### Configuring `fixing-a-hole`
-
-If you're installing `fixing-a-hole` into a repo, you can
-configure some defaults in your `pyproject.toml`.
-1. The `root` directory determines how to refer to your codebase and
-is set as the current working directory (meaning wherever `fixingahole profile` is invoked from). Setting this to the root of your repo will provide the best results for profiling code within your repo.
-1. The profiling results are saved in the specified `output` directory.
-The default is set as `performance/` relative to the `root` directory.
-1. Additional directories to `ignore` can be also specified. By
-default, the `.git`, `.venv`, and `output` (`performance/`) directories,
-relative to `root` are not searched when looking for scripts to profile.
-
-The following is an example configuration:
-```text
-[tool.fixingahole]
-root = "/path/to/my/repo/"
-output = "profiling/results/"
-ignore = ["unfinished_ideas/", "scratch/work/"]
-```
-
 
 ### Scripts and Notebooks
 
@@ -54,7 +22,7 @@ Python scripts `.py` and notebooks `.ipynb` can be profiled using
 ```bash
 fixingahole profile <filename>
 ```
-For example, if you're working on a new method in `my_repo/my_work/my_new_method.ipynb`
+For example, if you're working on a new method in `ft-stack/my_work/my_new_method.ipynb`
 then you can profile it using
 ```bash
 fixingahole profile my_new_method.ipynb
@@ -64,9 +32,15 @@ will run it. Otherwise, you will need to be more specific by calling
 `fixingahole profile my_work/my_new_method.ipynb`.
 You can also always specify the absolute path to the script.
 
+### MC Simulations
+
+MC simulations can be profiled when run locally. When creating the input generator,
+simply indicate `profile_kwargs.profile = true`. Logging (see below) is not available
+while profiling from an input generator.
+
 ## Options
 
-To see all the available options for the `fixing-a-hole` profiler, run
+To see all the available options for the Fixing-A-Hole profiler, run
 ```bash
 fixingahole profile --help
 ```
@@ -75,20 +49,18 @@ Additional information for each option can also be found below.
 ```bash
 --cpu/--memory
 ```
-The main options are `--cpu` vs `--memory`. By default, `fixing-a-hole` will profile the
+The main options are `--cpu` vs `--memory`. By default, Fixing-A-Hole will profile the
 RSS memory usage of the script/experiment. _However_, additional CPU overhead is
 required in order to determine the _heap_ memory usage of the script. The slowdown varies
 depending on the script, but may be as low as 1.2x to as much as 4x or more.
 Again, it really depends on the script itself.
-The _heap_ memory profiling (using the `--memory` flag) provides line-by-line blame for
-memory usage.
 
 > [!TIP]
 > It's likely (and recommended) that you have run your script or notebook normally
 > before you profile it. Even the fastest code is useless if it doesn't solve the
 > problem. However, if you're concerned with the overhead of memory sampling,
-> run a default `--cpu` test first to establish an expectation on how long you may
-> need to wait when using `--memory`.
+> run a `--cpu` test first to establish an expectation on how long you may need
+> to wait when using `--memory`.
 
 ```bash
 --precision=<n>
@@ -97,32 +69,23 @@ It is possible to alter the memory sampling overhead using the `--precision` fla
 By default, [scalene](https://github.com/plasma-umass/scalene) will highlight lines
 of code that allocate more than about 10 MB of memory. This can be modified to be as
 verbose as about 325 kB (by setting `--precision=5`) or as vague as about 325 MB
-(by setting `--precision=-5`). The higher the level of precision (`≤10`) the slower
+(by setting `--precision=-5`). The higher the level of precision (`≤5`) the slower
 the profiling might take as more samples are needed. However, setting the level of
-precision too low (`≥-10`) _may_ result in an uninformed summary. You will need to
+precision too low (`≥-5`) _may_ result in an uninformed summary. You will need to
 find the right balance for the level of profiling that you are doing. Again, the
 speed depends on the script itself.
 
 ```bash
 --detailed
 ```
-By default, `fixing-a-hole` will only report CPU and memory usage within the `root`
-directory (see how to configure `fixing-a-hole` above). However, if you would also
-like a report on the usage by imported modules, such as `scipy`, `numpy`, etc.,
-then use the `--detailed` flag.
-
-```bash
---trace
-```
-By default, `fixing-a-hole` will print the stack traces for the most expensive function calls.
-This helps determine where the most expensive function calls are originating from and
-helps distinguish the difference between functions that are expensive to call even once
-from functions that are called repeatedly.
+By default, the profiler will only report CPU and memory usage within Fixing-A-Hole.
+However, if you would also like a report on the usage by imported modules,
+such as `scipy`, `numpy`, etc., then use the `--detailed` flag.
 
 ```bash
 --log-level
 ```
-By default, `fixing-a-hole` will capture warnings while profiling scripts and save them to a
+By default, Fixing-A-Hole will capture warnings while profiling scripts and save them to a
 log file. More or less detailed capture can be specified using the `--log-level` flag.
 The options are: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Each level will
 capture that level of severity _and higher_. So the default capturing `WARNING` will
@@ -132,7 +95,7 @@ your code will still crash, not run, and throw errors in the terminal.
 ```bash
 --no-plots
 ```
-By default, if your script or notebook generates plots, then `fixing-a-hole` will profile that
+By default, if your script or notebook generates plots, then Fixing-A-Hole will profile that
 too. The downside of this is that if a plot is opened and you take 5 seconds to close
 it, those 5 seconds will count towards how long it took your code to run. If you would
 like to temporarily disable generating plots, you can profile your code with the
@@ -141,20 +104,24 @@ modifying your code.
 
 ## Results
 
-Results generated from `fixingahole profile` are saved in the configured `output` (`performance/`)
-directory relative to the configured `root` directory (see how to configure `fixing-a-hole` above).
-It is suggested that the `output` directory is not tracked by `git`. Each script or notebook
-that you profile in this way are saved by name and the UTC datetime when you ran the profile.
-For example, `my_work/my_new_method.ipynb` will be saved in
-`performance/my_new_method/20250639_123456/`. Within the folder will be a copy of the
+Results generated from `fixingahole profile` are saved in the `.scratch/performance/` directory
+of the Fixing-A-Hole repo. As such, they are not tracked by `git`. Each script or notebook that
+you profile in this way are saved by name and the UTC datetime when you ran the profile.
+For example, `/my_work/my_new_method.ipynb` will be saved in
+`/performance/my_new_method/20250639_123456/`. Within the folder will be a copy of the
 code that was profiled along with the logs and profile results.
 
-See below for a portion of an example profile of `tests/scripts/advanced.py` and how to interpret it.
+Results generated for a local job (for example, using `fpfill`), are saved in the job
+directory created for the job. They are saved with a default name, or with the given name.
+
+See below for a portion of an example profile for
+`doc/tutorials/run_basics_qec.py` and how to interpret it.
 
 ### `profile_results.txt`
 
-The first line in the results file is the command used to generate the results.
-The second line shows the runtime and max heap memory usage.
+The first line in the results file is the command used to generate the results (if it
+was called using `fixingahole`; otherwise, it was called for a specific job and is blank).
+The second line shows the runtime and max memory usage.
 If the `logs.log` file is not empty, then a summary is printed next.
 Following that, the main Profile Summary is given (it was also printed to stdout).
 
@@ -182,141 +149,71 @@ copies can be computationally expensive and can significantly slow down your pro
 
 
 ```bash
-$ fixingahole profile advanced.py --memory
-Finished in 9.759 seconds using 767.730 MB of RAM.
-Check logs performance/advanced/logs.log (6 warnings)
+$ fixingahole profile run_basics_qec.py
+Finished in 11.847 seconds using 150.601 MB of RAM.
+Check logs .scratch/performance/run_basics_qec/20250717_183538/logs.log (1 warning)
 
-Profile Summary (9.759s total)
-=================================================================
 
-Top 7 Functions by Total Runtime:
------------------------------------------------------------------
- 1. data_serialization         69.8% (advanced.py:142)
- 2. fourier_analysis           16.0% (advanced.py:104)
- 3. statistical_analysis        7.1% (advanced.py:68)
- 4. matrix_operations           2.3% (advanced.py:35)
- 5. monte_carlo_simulation      0.9% (advanced.py:56)
- 6. recursive_computation       0.1% (advanced.py:133)
- 7. main                        0.0% (advanced.py:165)
+Profile Summary
+=====================================================================
 
-Top 5 Functions by Memory Usage:
------------------------------------------------------------------
- 1. fourier_analysis            611 MB (advanced.py)
- 2. data_serialization          390 MB (advanced.py)
- 3. statistical_analysis         77 MB (advanced.py)
- 4. monte_carlo_simulation       76 MB (advanced.py)
- 5. matrix_operations            36 MB (advanced.py)
+Top 4 Functions by Total Runtime:
+---------------------------------------------------------------------
+ 1. CSSCode.symplectic_product     37.0% (ops.py)
+ 2. PauliOperator.to_binary         6.0% (ops.py)
+ 3. CSSCode.symp_gram_schmidt       6.0% (stabilizer_code.py)
+ 4. RepetitionCode                  4.0% (code_library.py)
+
+Top 1 Functions by Memory Usage:
+---------------------------------------------------------------------
+ 1. PauliOperator.to_binary          10 MB (ops.py)
 
 Functions by Module:
------------------------------------------------------------------
-└─ performance (7 func, 96.17% total)
-   └─ advanced (7 func, 96.17% total)
-      └─ 20251201_165709 (7 func, 96.17% total)
-         └─ advanced.py (7 func, 96.17% total)
-            ├─ data_serialization................................69.81% (390 MB)
-            ├─ fourier_analysis..................................15.99% (611 MB)
-            ├─ statistical_analysis...............................7.15% ( 77 MB)
-            └─ matrix_operations..................................2.25% ( 36 MB)
+---------------------------------------------------------------------
+└─ flamingpy (4 func, 53.0% total)
+   ├─ dv (2 func, 43.0% total)
+   │  └─ ops.py (2 func, 43.0% total)
+   │     ├─ CSSCode.symplectic_product....37.0%
+   │     └─ PauliOperator.to_binary........6.0% (10 MB)
+   │
+   └─ code (2 func, 10.0% total)
+      ├─ stabilizer_code.py (1 func, 6.0% total)
+      │  └─ CSSCode.symp_gram_schmidt......6.0%
+      │
+      └─ code_library.py (1 func, 4.0% total)
+         └─ RepetitionCode.................4.0%
 
 
-=================================================================
-Finished in 9.759 seconds using 767.730 MB of RAM (6 warnings).
-Max RSS Memory Usage: 1.230 GB
-Wall Time: 10.350 seconds
+=====================================================================
 
-
-
-        Memory usage: ▁▁▂▃▃▅▁▁▁▃▁▂▂▂▂▂▂▂▂▁▁▂▂▂▁▃▂▂▁▃ (max: 767.730 MB, growth rate: 7.5%)
-   /home/ubuntu/fixing-a-hole/tests/scripts/advanced.py: % of time =  99.67% (9.726s) out of 9.759s.
-       │Time    │–––––– │––––––│Memory │–––––– │–––––––––––      │Copy   │
-  Line │Python  │native │system│Python │peak   │timeline/%       │(MB/s) │ tests/scripts/advanced.py
-╺━━━━━━┿━━━━━━━━┿━━━━━━━┿━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ... │        │       │      │       │       │                 │       │
-     8 │        │  1.5% │ 1.3% │       │       │                 │    31 │import numpy as np
-   ... │        │       │      │       │       │                 │       │
-    19 │        │       │      │ 94.2% │ 36 MB │ ▁▁▁▁▁▁▁▁▁  1.0% │       │  matrix_a = rng.uniform(-10, 10, size=(size, size))
-    20 │        │       │      │ 73.2% │ 30 MB │                 │       │  matrix_b = rng.uniform(-10, 10, size=(size, size))
-   ... │        │       │      │       │       │                 │       │
-    30 │        │       │      │  5.2% │ 12 MB │                 │       │  np.linalg.svd(smaller_matrix)
-   ... │        │       │      │       │       │                 │       │
-    39 │        │       │      │  2.6% │ 74 MB │ ▂▁▁▁▁▁▁▁▁  2.0% │       │  points = rng.uniform(-1, 1, size=(iterations, 2))
-    40 │        │       │      │ 12.0% │ 76 MB │ ▃▁▁▁▁▁▁▁▁  3.1% │       │  distances = np.sqrt(points[:, 0] ** 2 + points[:, 1] ** 2)
-   ... │        │       │      │       │       │                 │       │
-    52 │        │       │      │ 43.0% │ 76 MB │ ▁▁▁▁▁▁▁▁▁  2.1% │       │  normal_data = rng.normal(loc=0, scale=1, size=sample_size)
-    53 │        │       │      │ 36.1% │ 76 MB │ ▂▁▁▁▁▁▁▁▁  2.1% │       │  exponential_data = rng.exponential(scale=2, size=sample_size)
-   ... │        │       │      │       │       │                 │       │
-    59 │        │       │      │  6.4% │ 76 MB │ ▂▁▁▁▁▁▁▁▁  2.1% │       │      "std": float(np.std(normal_data)),
-    60 │        │       │      │  9.3% │ 76 MB │ ▃▁▁▁▁▁▁▁▁  2.1% │    13 │      "median": float(np.median(normal_data)),
-   ... │        │       │      │       │       │                 │       │
-    62 │        │       │      │ 14.7% │ 77 MB │ ▃▁▁▁▁▁▁▁▁  2.1% │     8 │        "25": float(np.percentile(normal_data, 25)),
-    63 │        │       │      │ 13.1% │ 76 MB │ ▃▁▁▁▁▁▁▁▁  2.1% │     8 │        "50": float(np.percentile(normal_data, 50)),
-   ... │        │       │      │       │       │                 │       │
-    77 │        │       │      │ 14.5% │ 15 MB │                 │       │  correlation = np.corrcoef(combined.T)
-   ... │        │       │      │       │       │                 │       │
-    88 │        │       │      │ 10.4% │ 76 MB │ ▁▃▁▁▁▁▁▁▁  2.1% │    13 │  t = np.linspace(0, 10, signal_length)
-   ... │        │       │      │       │       │                 │       │
-    90 │        │       │      │ 20.4% │153 MB │ ▁▂▁▁▁▁▁▁▁  4.2% │       │    np.sin(2 * np.pi * 5 * t)
-   ... │        │       │      │       │       │                 │       │
-    97 │        │  1.0% │ 1.3% │       │611 MB │ ▁▅▁▁▁▁▁▁▁ 16.8% │       │  fft_result = np.fft.fft(signal)
-    98 │        │       │      │  1.1% │229 MB │ ▁▅▁▁▁▁▁▁▁  6.3% │       │  frequencies = np.fft.fftfreq(signal_length, d=0.001)
-   ... │        │       │      │       │       │                 │       │
-   102 │        │ 10.7% │      │       │ 76 MB │ ▁▁▅▁▁▁▁▁▁  2.1% │       │  top_indices = np.argsort(power)[-5:]
-   ... │        │       │      │       │       │                 │       │
-   130 │        │       │      │ 82.9% │ 80 MB │ ▁▁▂▁▁▁▁▁▁  2.2% │    14 │      "matrix": rng.uniform(0, 100, size=(50, 50)).tolist(),
-   ... │        │       │      │       │       │                 │       │
-   140 │  35.0% │  7.8% │      │ 99.9% │196 MB │ ▁▁▁▂▂▂▂▂▂ 13.0% │    28 │    json_str = json.dumps(complex_data)
-   141 │   1.1% │ 23.3% │      │100.0% │390 MB │ ▁▁▁▁▂▂▂▃▃ 10.7% │    64 │    _ = json.loads(json_str)
-╶──────┼────────┼───────┼──────┼───────┼───────┼─────────────────┼───────┼────────────────────────────────────────────────────────────────
-       │        │       │      │       │       │                 │       │ function summary for tests/scripts/advanced.py
-    14 │        │  1.2% │      │ 44.3% │ 36 MB │ ▁▁▁▁▁▁▁▁▁  2.2% │     7 │matrix_operations
-    35 │        │       │      │  8.3% │ 76 MB │ ▂▁▁▁▁▁▁▁▁  5.2% │       │monte_carlo_simulation
-    47 │   1.3% │  4.8% │ 1.1% │ 12.3% │ 77 MB │ ▂▃▁▁▁▁▁▁▁ 21.4% │    45 │statistical_analysis
-    83 │        │ 10.5% │ 4.5% │  2.9% │611 MB │ ▁▄▅▁▁▁▁▁▁ 44.0% │    13 │fourier_analysis
-   121 │  37.0% │ 31.5% │ 1.3% │ 98.5% │390 MB │ ▁▁▂▂▂▂▂▂▃ 25.9% │   106 │data_serialization
+        Memory usage: ▁▂▂▃▃▄▄▅▅▆▆▇▇██ (max: 150.601 MB, growth rate: 100%)
+   /home/ubuntu/ft-stack/flamingpy/dv/ops.py: % of time =  44.58% (5.281s) out of 11.847s.
+       ╷       ╷       ╷       ╷       ╷     ╷          ╷       ╷
+       │Time   │–––––– │–––––– │Memory │–––––│––––––––––│Copy   │
+  Line │Python │native │system │Python │peak │timeline/%│(MB/s) │/home/ubuntu/ft-stack/flamingpy/dv/ops.py
+╺━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━━━┿━━━━━┿━━━━━━━━━━┿━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ... │       │       │       │       │     │          │       │
+   224 │    3% │       │       │       │     │          │     3 │    x1_stab = ops1[:, : shape[1] // 2]
+   225 │    2% │       │       │       │     │          │       │    x2_stab = ops2[:, : shape[1] // 2]
+   226 │    2% │       │       │       │     │          │     1 │    z1_stab = ops1[:, shape[1] // 2 :]
+   227 │    2% │       │       │       │     │          │     3 │    z2_stab = ops2[:, shape[1] // 2 :]
+   228 │   18% │    8% │       │       │     │          │     2 │    symplectic_prod = x1_stab @ z2_stab.T + z1_stab @ x2_stab.T
+   ... │       │       │       │       │     │          │       │
+   230 │    1% │       │       │       │     │          │     8 │    return symplectic_prod.astype(np.int8)
+   ... │       │       │       │       │     │          │       │
+   296 │    5% │    1% │       │  99%  │ 10M │▁   7%    │    11 │        ops = csr_array(ops, dtype=np.int8)
+   ... │       │       │       │       │     │          │       │
+       │       │       │       │       │     │          │       │
+╶──────┼───────┼───────┼───────┼───────┼─────┼──────────┼───────┼─────────────────────────────────────────────────────────────────
+       │       │       │       │       │     │          │       │function summary for /home/ubuntu/ft-stack/flamingpy/dv/o…
+   215 │   27% │   10% │       │       │     │          │    18 │CSSCode.symplectic_product
+   286 │    5% │    1% │       │  99%  │ 10M │█   7%    │    11 │PauliOperator.to_binary
+       ╵       ╵       ╵       ╵       ╵     ╵          ╵       ╵
+Top AVERAGE memory consumption, by line:
+(1)   296:    10 MB
 Top PEAK memory consumption, by line:
-(1)    97:   610 MB
-(2)   141:   390 MB
-(3)    98:   228 MB
-(4)   140:   196 MB
-(5)    92:   152 MB
-Possible memory leak identified at line 141 (estimated likelihood:  96%, velocity:   4 MB/s)
-
-Stack Trace Summary (9.759s total)
-==================================================================================
-
-data_serialization, (68.48%)
-  ├─ tests/scripts/advanced.py:180; main
-  │  └─ tests/scripts/advanced.py:190; <module>
-  │     n_calls: 342
-  │
-  └─ tests/scripts/advanced.py:133; data_serialization
-     └─ tests/scripts/advanced.py:180; main
-        └─ tests/scripts/advanced.py:190; <module>
-           n_calls: 3
-
-
-fourier_analysis, (11.47%)
-  └─ tests/scripts/advanced.py:191; main
-     └─ tests/scripts/advanced.py:190; <module>
-        n_calls: 10
-
-
-statistical_analysis, (6.07%)
-  └─ tests/scripts/advanced.py:165; main
-     └─ tests/scripts/advanced.py:190; <module>
-        n_calls: 16
-
-
-matrix_operations, (1.74%)
-  └─ tests/scripts/advanced.py:155; main
-     └─ tests/scripts/advanced.py:190; <module>
-        n_calls: 4
-
-
-monte_carlo_simulation, (0.57%)
-  └─ tests/scripts/advanced.py:160; main
-     └─ tests/scripts/advanced.py:190; <module>
-        n_calls: 2
+(1)   296:    10 MB
+Possible memory leak identified at line 296 (estimated likelihood:  96%, velocity:   4 MB/s)
 ```
 
 While the upper portion of the table shows the most resource intensive lines of code,
@@ -326,3 +223,6 @@ memory consumption by line in the file. There may also be a warning identifying 
 possible memory leak, this may be useful, but the feature is currently marked as
 experimental.
 
+Please reach out to the Software Tools team in the
+[#tooling-for-architecture](https://xanaduhq.slack.com/archives/C04HPDUFN15)
+slack channel if you have any additional questions.

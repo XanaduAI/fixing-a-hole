@@ -13,6 +13,7 @@
 # limitations under the License.
 """Command-line entrypoints integrated Scalene profiler Fixing-a-Hole."""
 
+import shutil
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -22,6 +23,8 @@ from colours import Colour
 from typer import Exit
 
 from fixingahole import IGNORE_DIRS, ROOT_DIR, LogLevel, Profiler
+from fixingahole.profiler.profile_json_parser import generate_summary, generate_text_report, parse_json
+from fixingahole.profiler.stack_reporter import StackReporter
 from fixingahole.profiler.utils import find_path
 
 app = typer.Typer(
@@ -133,6 +136,38 @@ def profile(
         "for speed." if cpu_only else "for memory usage.",
     )
     profiler.run_profiler(preamble=preamble)
+
+
+@app.command(
+    no_args_is_help=True,
+    rich_help_panel="Utilities",
+    epilog=":copyright: Xanadu Quantum Technologies",
+)
+def summarize_json(
+    *,
+    filename: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the script or notebook to profile.",
+            show_default=False,
+        ),
+    ],
+    columns: Annotated[
+        int,
+        typer.Option(
+            help="Number of character columns to use for table output.",
+            show_default="Terminal width",
+        ),
+    ] = 128,
+) -> None:
+    """Summarize a Scalene JSON file."""
+    json_file = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS, return_suffix=".json")
+    profile_data = parse_json(json_file)
+    summary = generate_summary(profile_data)
+    columns = shutil.get_terminal_size(fallback=(columns, columns)).columns
+    report = generate_text_report(profile_data, width=columns)
+    stacks = StackReporter(json_file).report_stacks_for_top_functions(top_n=5)
+    Colour.print(f"{summary}\n{report}\n{stacks}")
 
 
 def version_callback(value: bool) -> None:

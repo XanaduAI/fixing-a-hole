@@ -30,17 +30,17 @@ from colours import Colour
 from fixingahole import ROOT_DIR
 
 
-class FunctionProfile:
+class ProfileDetails:
     """Represents a function's profiling information."""
 
     def __init__(self, **kwargs: dict[str, Any]):
-        """Initialize the FunctionProfile instance."""
+        """Initialize the ProfileDetails instance."""
         self.line_number = kwargs.get("line_number", 0)
-        self.function_name = kwargs.get("function_name", "")
+        self.name = kwargs.get("name", "")
         self.file_path = kwargs.get("file_path", "")
-        self.memory_python_percentage = FunctionProfile._get_as_float(kwargs.get("memory_python_percentage"))
+        self.memory_python_percentage = ProfileDetails._get_as_float(kwargs.get("memory_python_percentage"))
         self.peak_memory = kwargs.get("peak_memory", "")
-        self.memory_size = FunctionProfile._parse_memory_size(self.peak_memory)
+        self.memory_size = ProfileDetails._parse_memory_size(self.peak_memory)
         self.timeline_percentage = self._get_as_float(kwargs.get("timeline_percentage"))
         self.copy_mb_per_s = self._get_as_float(kwargs.get("copy_mb_per_s"))
         self.total_percentage = sum(self._get_as_float(value) for value in kwargs.get("cpu_percentages", []))
@@ -67,7 +67,7 @@ class FunctionProfile:
     @staticmethod
     def _parse_memory_size(memory_str: str) -> int:
         """Parse memory size string to bytes for sorting (e.g., '13.98G' -> bytes)."""
-        value = FunctionProfile._get_as_float(memory_str)
+        value = ProfileDetails._get_as_float(memory_str)
         units = "".join(c for c in memory_str if not c.isdigit() and c not in ".-").upper()
 
         # Convert to bytes
@@ -91,17 +91,17 @@ class ProfileParser:
 
     def __init__(self, filename: str | Path | None = None) -> None:
         """Parser for summarizing Scalene cli profile results files."""
-        self.functions: list[FunctionProfile] = None
+        self.functions: list[ProfileDetails] = None
         self.walltime: float | None = None
         self.max_memory: str | None = None
         if filename is not None and Path(filename).exists():
             self.functions = self.parse_file(filename)
 
-    def parse_file(self, file_path: str) -> list[FunctionProfile]:
+    def parse_file(self, file_path: str) -> list[ProfileDetails]:
         """Parse a profile results file and return function profiles."""
         return self.parse_content(Path(file_path).read_text(encoding="utf-8"))
 
-    def parse_content(self, content: str) -> list[FunctionProfile]:
+    def parse_content(self, content: str) -> list[ProfileDetails]:
         """Parse profile results content and return function profiles."""
         # Replace "table vertical bar" (│, U+2502) and "box drawings light up" (╵, U+2575)
         #  with the "verical bar" (|, U+007C) for parsing.
@@ -137,7 +137,7 @@ class ProfileParser:
                 kwargs = {}
                 kwargs["line_number"] = int(groups[0])
                 kwargs["cpu_percentages"] = groups[1:4]
-                kwargs["function_name"] = groups[-1]
+                kwargs["name"] = groups[-1]
                 kwargs["file_path"] = current_file
 
                 # Parse memory information from any additional columns
@@ -149,7 +149,7 @@ class ProfileParser:
                     kwargs["timeline_percentage"] = memory_group[2]
                     kwargs["copy_mb_per_s"] = memory_group[3]
 
-                functions.append(FunctionProfile(**kwargs))
+                functions.append(ProfileDetails(**kwargs))
 
         return functions
 
@@ -170,7 +170,7 @@ class ProfileParser:
             max_memory = re.search(r"max:\s(\d+.\d+\s.B)", contents)
             self.max_memory = str(max_memory[1]) if max_memory is not None else "an unknown amount"
 
-    def summary(self, functions: list[FunctionProfile] | None = None, top_n: int = 10) -> str:
+    def summary(self, functions: list[ProfileDetails] | None = None, top_n: int = 10) -> str:
         """Generate a summary of the profiling results."""
         # Functions by file and calculate the maximum function name length for proper alignment
         # Also check if any functions have memory information
@@ -184,7 +184,7 @@ class ProfileParser:
         for file_functions in by_file.values():
             for func in file_functions:
                 max_func_name_length = max(
-                    len(func.function_name) + 3,
+                    len(func.name) + 3,
                     max_func_name_length,
                 )
                 has_memory_info += func.has_memory_info
@@ -201,7 +201,7 @@ class ProfileParser:
             file_name = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
             runtime_info = f"{func.total_percentage:>5.1f}%"
             message.append(
-                f"{i:2d}. {func.function_name:<{max_func_name_length}} {runtime_info:<6} ({file_name})",
+                f"{i:2d}. {func.name:<{max_func_name_length}} {runtime_info:<6} ({file_name})",
             )
 
         # Add memory summary if available
@@ -218,7 +218,7 @@ class ProfileParser:
                 for i, func in enumerate(memory_functions, 1):
                     file_name = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
                     message.append(
-                        f"{i:2d}. {func.function_name:<{max_func_name_length}} {func.peak_memory_info:>8} ({file_name})",
+                        f"{i:2d}. {func.name:<{max_func_name_length}} {func.peak_memory_info:>8} ({file_name})",
                     )
 
         message.append("\nFunctions by Module:")
@@ -237,17 +237,17 @@ class ProfileParser:
 
     @staticmethod
     def get_top_functions(
-        functions: list[FunctionProfile],
+        functions: list[ProfileDetails],
         n: int = 10,
         key: Callable = lambda f: f.total_percentage,
-    ) -> list[FunctionProfile]:
+    ) -> list[ProfileDetails]:
         """Get the top N functions by total runtime percentage."""
         return sorted(functions, key=key, reverse=True)[:n]
 
     @staticmethod
     def get_functions_by_file(
-        functions: list[FunctionProfile],
-    ) -> dict[str, list[FunctionProfile]]:
+        functions: list[ProfileDetails],
+    ) -> dict[str, list[ProfileDetails]]:
         """Group functions by file path."""
         result = defaultdict(list)
         for func in functions:
@@ -256,7 +256,7 @@ class ProfileParser:
 
     # Build module tree for hierarchical display
     @staticmethod
-    def build_module_tree(by_file_dict: dict[str, list[FunctionProfile]]) -> dict[str, Any]:
+    def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> dict[str, Any]:
         """Build a hierarchical tree structure from file paths."""
         modules = ProfileParser.installed_modules()
         tree: dict[str, Any] = {}
@@ -344,7 +344,7 @@ class ProfileParser:
                     peak_mem = f" ({func.peak_memory_info})" if func.has_memory_info else ""
                     runtime_info = f"{func.total_percentage:.>5.1f}%{peak_mem}"
                     lines.append(
-                        f"{func_prefix}{func.function_name:.<{max_func_name_length}}{runtime_info}",
+                        f"{func_prefix}{func.name:.<{max_func_name_length}}{runtime_info}",
                     )
                 lines.append(next_prefix)
             elif children:

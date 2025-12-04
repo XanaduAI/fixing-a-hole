@@ -15,7 +15,19 @@
 
 from pathlib import Path
 
+import pytest
+
 from fixingahole.profiler import ProfileParser
+from fixingahole.profiler.profile_parser import ProfileDetails
+
+
+@pytest.fixture
+def example_txt(tmp_path: Path) -> Path:
+    """Return path to the advanced profile results text file."""
+    example_text = Path(__file__).parents[1] / "scripts" / "advanced_profile_results.txt"
+    file_path = tmp_path / "example.json"
+    file_path.write_bytes(example_text.read_bytes())
+    return file_path
 
 
 class TestProfilerDetailsExtraction:
@@ -98,3 +110,420 @@ class TestProfilerDetailsExtraction:
         expected_time = 5 * 60 + 30.5
         assert parser.walltime == expected_time
         assert parser.max_memory == "512.25 MB"
+
+
+class TestProfileDetails:
+    """Test the ProfileDetails class."""
+
+    def test_function_profile_initialization_minimal(self):
+        """Test ProfileDetails with minimal kwargs."""
+        profile = ProfileDetails()
+        assert profile.line_number == 0
+        assert not profile.name
+        assert not profile.file_path
+        assert profile.memory_python_percentage == 0.0
+        assert not profile.peak_memory
+        assert profile.memory_size == 0
+        assert profile.timeline_percentage == 0.0
+        assert profile.copy_mb_per_s == 0.0
+        assert profile.total_percentage == 0.0
+        assert not profile.has_memory_info
+
+    def test_function_profile_initialization_complete(self):
+        """Test ProfileDetails with complete kwargs."""
+        profile = ProfileDetails(
+            line_number=42,
+            name="test_func",
+            file_path="/path/to/file.py",
+            memory_python_percentage="75.5%",
+            peak_memory="128M",
+            timeline_percentage="10.5%",
+            copy_mb_per_s="50.0",
+            cpu_percentages=["45.0%", "5.0%", "2.0%"],
+        )
+        assert profile.line_number == 42
+        assert profile.name == "test_func"
+        assert profile.file_path == "/path/to/file.py"
+        assert profile.memory_python_percentage == 75.5
+        assert profile.peak_memory == "128M"
+        assert profile.memory_size == 128 * 1024 * 1024  # 128 MB in bytes
+        assert profile.timeline_percentage == 10.5
+        assert profile.copy_mb_per_s == 50.0
+        assert profile.total_percentage == 52.0  # 45 + 5 + 2
+        assert profile.has_memory_info
+
+    def test_peak_memory_info_formatting(self):
+        """Test peak_memory_info property formatting."""
+        profile1 = ProfileDetails(peak_memory="128M")
+        assert profile1.peak_memory_info == "128 MB"
+
+        profile2 = ProfileDetails(peak_memory="1.5G")
+        assert profile2.peak_memory_info == "1.5 GB"
+
+        profile3 = ProfileDetails(peak_memory="")
+        assert not profile3.peak_memory_info
+
+    @pytest.mark.parametrize(
+        ("memory_str", "expected_bytes"),
+        [
+            ("100", 100),
+            ("1K", 1024),
+            ("1KB", 1024),
+            ("10M", 10 * 1024 * 1024),
+            ("10MB", 10 * 1024 * 1024),
+            ("2G", 2 * 1024 * 1024 * 1024),
+            ("2GB", 2 * 1024 * 1024 * 1024),
+            ("153M", 153 * 1024 * 1024),
+        ],
+    )
+    def test_parse_memory_size(self, memory_str: str, expected_bytes: float):
+        """Test memory size parsing to bytes."""
+        profile = ProfileDetails(peak_memory=memory_str)
+        assert profile.memory_size == expected_bytes
+
+    def test_get_as_float_various_formats(self):
+        """Test _get_as_float with various input formats."""
+        assert ProfileDetails._get_as_float("45.5%") == 45.5  # noqa: SLF001
+        assert ProfileDetails._get_as_float("100") == 100.0  # noqa: SLF001
+        assert ProfileDetails._get_as_float("1.234") == 1.234  # noqa: SLF001
+        assert ProfileDetails._get_as_float("-5.5") == -5.5  # noqa: SLF001
+        assert ProfileDetails._get_as_float("invalid") == 0.0  # noqa: SLF001
+        assert ProfileDetails._get_as_float(None) == 0.0  # noqa: SLF001
+
+    def test_has_memory_info_conditions(self):
+        """Test has_memory_info with different conditions."""
+        # With peak_memory
+        profile1 = ProfileDetails(peak_memory="128M")
+        assert profile1.has_memory_info
+
+        # With memory_python_percentage
+        profile2 = ProfileDetails(memory_python_percentage="75%")
+        assert profile2.has_memory_info
+
+        # With timeline_percentage
+        profile3 = ProfileDetails(timeline_percentage="10%")
+        assert profile3.has_memory_info
+
+        # With none of them
+        profile4 = ProfileDetails()
+        assert not profile4.has_memory_info
+
+
+class TestProfileParserParsing:
+    """Test the ProfileParser parsing functionality."""
+
+    def test_parse_file_with_advanced_profile(self, example_txt: Path):
+        """Test parsing the real advanced profile text file."""
+        parser = ProfileParser(filename=example_txt)
+
+        # Verify walltime was extracted
+        assert parser.walltime is not None
+        assert parser.walltime == pytest.approx(10.987, rel=1e-3)
+
+        # Verify max memory was extracted
+        assert parser.max_memory == "950.715 MB"
+
+        # Verify functions were parsed
+        assert parser.functions is not None
+        assert len(parser.functions) > 0
+
+    def test_parse_content_function_extraction(self, example_txt: Path):
+        """Test that functions are properly extracted from content."""
+        content = example_txt.read_text()
+        parser = ProfileParser()
+        functions = parser.parse_content(content)
+
+        # Check we found multiple files
+        file_paths = {str(f.file_path) for f in functions}
+        assert len(file_paths) > 1
+
+        # Check we found the main script
+        assert any("advanced.py" in fp for fp in file_paths)
+
+        # Check we found numpy functions
+        assert any("numpy" in fp for fp in file_paths)
+
+    def test_parse_content_function_details(self, example_txt: Path):
+        """Test that function details are correctly parsed."""
+        content = example_txt.read_text()
+        parser = ProfileParser()
+        functions = parser.parse_content(content)
+
+        # Find a specific function we know exists
+        data_serialization = [f for f in functions if f.name == "data_serialization"]
+        assert len(data_serialization) > 0
+
+        func = data_serialization[0]
+        assert func.line_number == 144
+        assert "advanced" in func.file_path
+        assert func.has_memory_info
+        assert func.peak_memory == "80M"
+
+    def test_parse_content_handles_special_characters(self):
+        """Test parsing content with special Unicode box-drawing characters."""
+        content = """
+/path/to/file.py: % of time = 100%
+        │Time   │Memory  │
+  Line │Python │peak    │function
+╺━━━━━━┿━━━━━━━┿━━━━━━━━┿━━━━━━━━━━━╸
+       │       │        │
+╶──────┼───────┼────────┼───────────╴
+       │       │        │function summary for /path/to/file.py
+    42 │  50%  │   10M  │test_function
+       ╵       ╵        ╵
+"""
+        parser = ProfileParser()
+        functions = parser.parse_content(content)
+
+        assert len(functions) == 1
+        assert functions[0].name == "test_function"
+        assert functions[0].line_number == 42
+
+    def test_parse_empty_content(self):
+        """Test parsing empty content."""
+        parser = ProfileParser()
+        functions = parser.parse_content("")
+
+        assert functions == []
+        assert parser.walltime is None
+        assert parser.max_memory == "an unknown amount"
+
+    def test_parse_content_without_function_summary(self):
+        """Test parsing content without function summary sections."""
+        content = """
+        Some profile output...
+        out of 10.5s total time.
+        max: 256 MB
+        No function summaries here.
+        """
+        parser = ProfileParser()
+        functions = parser.parse_content(content)
+
+        assert functions == []
+        assert parser.walltime == 10.5
+        assert parser.max_memory == "256 MB"
+
+
+class TestProfileParserSummary:
+    """Test the ProfileParser summary generation."""
+
+    def test_summary_with_advanced_profile(self, example_txt: Path):
+        """Test generating summary from advanced profile."""
+        parser = ProfileParser(filename=example_txt)
+        summary = parser.summary(top_n=5)
+
+        # Check for expected sections
+        assert "Profile Summary" in summary
+        assert "Top 5 Functions by Total Runtime:" in summary
+        assert "Top 5 Functions by Memory Usage:" in summary
+        assert "Functions by Module:" in summary
+
+        # Check that walltime is included
+        assert "10.987s total" in summary
+
+    def test_summary_top_n_parameter(self, example_txt: Path):
+        """Test that top_n parameter limits the output."""
+        parser = ProfileParser(filename=example_txt)
+        summary = parser.summary(top_n=3)
+
+        assert "Top 3 Functions" in summary
+
+    def test_summary_without_memory_info(self, mock_file: Path):
+        """Test summary generation when functions have no memory info."""
+        content = """
+        out of 5.0s total time.
+        /path/to/file.py: % of time = 100%
+╶──────┼───────┼───────────╴
+       │       │function summary for /path/to/file.py
+    10 │  50%  │func1
+    20 │  30%  │func2
+       ╵       ╵
+"""
+        mock_file.write_text(content)
+        parser = ProfileParser(filename=mock_file)
+        summary = parser.summary()
+
+        # Should not have memory section
+        assert "Top" in summary
+        assert "Functions by Module:" in summary
+
+    def test_summary_raises_on_no_functions(self):
+        """Test that summary raises ValueError when no functions available."""
+        parser = ProfileParser()
+        with pytest.raises(ValueError, match="Missing functions to summarize"):
+            parser.summary()
+
+
+class TestProfileParserStaticMethods:
+    """Test ProfileParser static methods."""
+
+    def test_get_top_functions_by_runtime(self):
+        """Test getting top functions by runtime."""
+        functions = [
+            ProfileDetails(name="func1", cpu_percentages=["50%", "5%", "2%"]),
+            ProfileDetails(name="func2", cpu_percentages=["30%", "3%", "1%"]),
+            ProfileDetails(name="func3", cpu_percentages=["20%", "2%", "1%"]),
+        ]
+        top = ProfileParser.get_top_functions(functions, n=2)
+
+        assert len(top) == 2
+        assert top[0].name == "func1"
+        assert top[1].name == "func2"
+
+    def test_get_top_functions_by_memory(self):
+        """Test getting top functions by memory size."""
+        functions = [
+            ProfileDetails(name="func1", peak_memory="100M"),
+            ProfileDetails(name="func2", peak_memory="500M"),
+            ProfileDetails(name="func3", peak_memory="50M"),
+        ]
+        top = ProfileParser.get_top_functions(functions, n=2, key=lambda f: f.memory_size)
+
+        assert len(top) == 2
+        assert top[0].name == "func2"  # 500M
+        assert top[1].name == "func1"  # 100M
+
+    def test_get_functions_by_file(self):
+        """Test grouping functions by file path."""
+        functions = [
+            ProfileDetails(name="func1", file_path="/path/file1.py"),
+            ProfileDetails(name="func2", file_path="/path/file2.py"),
+            ProfileDetails(name="func3", file_path="/path/file1.py"),
+        ]
+        by_file = ProfileParser.get_functions_by_file(functions)
+
+        assert len(by_file) == 2
+        assert len(by_file["/path/file1.py"]) == 2
+        assert len(by_file["/path/file2.py"]) == 1
+
+    def test_build_module_tree(self):
+        """Test building hierarchical module tree."""
+        by_file = {
+            "/home/user/project/module/file1.py": [ProfileDetails(name="func1")],
+            "/home/user/project/module/file2.py": [ProfileDetails(name="func2")],
+        }
+        tree = ProfileParser.build_module_tree(by_file)
+
+        assert tree is not None
+        assert len(tree) > 0
+
+    def test_get_all_functions_in_tree(self):
+        """Test extracting all functions from a tree structure."""
+        tree = {
+            "file1.py": {
+                "_functions": [ProfileDetails(name="func1")],
+                "_children": {},
+            },
+            "dir": {
+                "_functions": [],
+                "_children": {
+                    "file2.py": {
+                        "_functions": [ProfileDetails(name="func2")],
+                        "_children": {},
+                    }
+                },
+            },
+        }
+        all_funcs = ProfileParser.get_all_functions_in_tree(tree)
+
+        assert len(all_funcs) == 2
+        assert len(all_funcs[0]) == 1
+        assert len(all_funcs[1]) == 1
+
+    def test_render_tree_basic(self):
+        """Test rendering a basic tree structure."""
+        tree = {
+            "file.py": {
+                "_functions": [ProfileDetails(name="func1", cpu_percentages=["50%", "5%", "2%"])],
+                "_children": {},
+            }
+        }
+        lines = ProfileParser.render_tree(tree)
+
+        assert len(lines) > 0
+        assert any("file.py" in line for line in lines)
+        assert any("func1" in line for line in lines)
+
+    def test_render_tree_nested(self):
+        """Test rendering nested tree structure."""
+        tree = {
+            "module": {
+                "_functions": [],
+                "_children": {
+                    "submodule": {
+                        "_functions": [],
+                        "_children": {
+                            "file.py": {
+                                "_functions": [
+                                    ProfileDetails(
+                                        name="nested_func",
+                                        cpu_percentages=["30%", "2%", "1%"],
+                                    )
+                                ],
+                                "_children": {},
+                            }
+                        },
+                    }
+                },
+            }
+        }
+        lines = ProfileParser.render_tree(tree)
+
+        result = "\n".join(lines)
+        assert "module" in result
+        assert "submodule" in result
+        assert "file.py" in result
+        assert "nested_func" in result
+
+
+class TestProfileParserRealWorldScenarios:
+    """Test ProfileParser with real-world scenarios."""
+
+    def test_full_parsing_workflow(self, example_txt: Path):
+        """Test complete parsing workflow with advanced profile."""
+        # Parse the file
+        parser = ProfileParser(filename=example_txt)
+
+        # Verify parsing succeeded
+        assert parser.functions is not None
+        assert len(parser.functions) == 8
+
+        # Generate summary
+        summary = parser.summary(top_n=10)
+        assert len(summary) > 100  # Should be substantial
+
+        # Check for specific known functions
+        func_names = [f.name for f in parser.functions]
+        assert "data_serialization" in func_names
+        assert "_wrapfunc" in func_names
+
+    def test_multiple_files_parsing(self, example_txt: Path):
+        """Test that multiple files are correctly parsed."""
+        parser = ProfileParser(filename=example_txt)
+        by_file = ProfileParser.get_functions_by_file(parser.functions)
+
+        # Should have multiple files with expensive functions.
+        assert len(by_file) == 3
+
+        # Check for expected file patterns
+        file_paths = list(by_file.keys())
+        assert any("advanced" in fp for fp in file_paths)
+        assert any("numpy" in fp for fp in file_paths)
+        # Verify we have standard library modules
+        assert any("python" in fp.lower() for fp in file_paths)
+
+    def test_memory_statistics(self, example_txt: Path):
+        """Test memory-related statistics from parsed data."""
+        parser = ProfileParser(filename=example_txt)
+
+        # Find functions with memory info
+        memory_funcs = [f for f in parser.functions if f.has_memory_info]
+        assert len(memory_funcs) > 0
+
+        # Check memory sizes are properly parsed
+        memory_sizes = [f.memory_size for f in memory_funcs if f.peak_memory]
+        assert all(size > 0 for size in memory_sizes)
+
+        # Find the function with highest memory usage
+        top_memory = max(parser.functions, key=lambda f: f.memory_size)
+        assert top_memory.peak_memory
