@@ -60,9 +60,9 @@ class StackReporter:
         return [{"stack": stack[0], **stack[1]} for stack in self.data["stacks"] if func_name in stack[0][-1]]
 
     @staticmethod
-    def combine_stack_traces(traces: list[dict]) -> dict[str, Any]:
+    def combine_stack_traces(traces: list[dict]) -> dict[str, dict[str, float]]:
         """Gather traces into similar call stacks."""
-        combined = defaultdict(
+        combined: dict[str, dict[str, float]] = defaultdict(
             lambda: {"count": 0, "c_time": 0.0, "python_time": 0.0, "cpu_samples": 0.0},
         )
         for trace in traces:
@@ -98,14 +98,16 @@ class StackReporter:
         return "\n".join(report)
 
     @staticmethod
-    def build_combined_reverse_tree(traces: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
+    def build_combined_reverse_tree(
+        traces: list[dict[str, Any]],
+    ) -> tuple[dict[str, Any], dict[tuple[str, ...], dict[str, Any]]]:
         """Build a combined reverse tree from all stack traces for a function.
 
         Returns (tree, call_info) where tree is a nested dict and call_info maps node paths to call
         stats. Stack frames are normalized relative to ROOT_DIR if possible.
         """
         tree = {}
-        call_info = {}
+        call_info: dict[tuple[str, ...], dict[str, Any]] = {}
         combined_traces = StackReporter.combine_stack_traces(traces)
         for stacks, values in combined_traces.items():
             stack = list(reversed(stacks))  # callers first, callee last
@@ -138,7 +140,7 @@ class StackReporter:
     def render_combined_reverse_tree(
         self,
         tree: dict[str, Any],
-        call_info: dict[str, Any],
+        call_info: dict[tuple[str, ...], dict[str, Any]],
         prefix: str = "",
         path: list | None = None,
         is_root: bool = True,

@@ -18,7 +18,8 @@ resolution-markers = [
     "python_full_version == '3.13.*' and sys_platform == 'linux'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
     "python_full_version == '3.12.*' and sys_platform == 'win32'",
-    "(python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version >= '3.14' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version < '3.14' and platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 
 [[package]]
@@ -193,23 +194,7 @@ version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "colours" },
-    { name = "scalene", version = "1.5.55", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')" },
-    { name = "scalene", version = "1.5.55", source = { git = "https://github.com/zyrxvo/scalene.git?rev=v1.5.55b#11dab97bf789d354e063228415d5e1a5f997d924" }, marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_13_0_universal2.whl" }, marker = "python_full_version < '3.12' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_15_0_universal2.whl" }, marker = "python_full_version < '3.12' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" }, marker = "python_full_version < '3.12' and sys_platform == 'linux'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_13_0_universal2.whl" }, marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_15_0_universal2.whl" }, marker = "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" }, marker = "python_full_version == '3.12.*' and sys_platform == 'linux'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-win_amd64.whl" }, marker = "python_full_version == '3.12.*' and sys_platform == 'win32'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-macosx_13_0_universal2.whl" }, marker = "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-macosx_15_0_universal2.whl" }, marker = "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" }, marker = "python_full_version == '3.13.*' and sys_platform == 'linux'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-win_amd64.whl" }, marker = "python_full_version == '3.13.*' and sys_platform == 'win32'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-macosx_13_0_universal2.whl" }, marker = "python_full_version == '3.14.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-macosx_15_0_universal2.whl" }, marker = "python_full_version == '3.14.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" }, marker = "python_full_version == '3.14.*' and sys_platform == 'linux'" },
-    { name = "scalene", version = "1.5.55", source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-win_amd64.whl" }, marker = "python_full_version == '3.14.*' and sys_platform == 'win32'" },
+    { name = "scalene" },
     { name = "sympy" },
     { name = "typer" },
 ]
@@ -219,28 +204,13 @@ dev = [
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "ty" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "colours", git = "https://github.com/XanaduAI/colours.git?branch=main" },
-    { name = "scalene", marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.11' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform == 'win32') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')" },
-    { name = "scalene", marker = "python_full_version == '3.11.*' and platform_machine == 'arm64' and sys_platform == 'darwin'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_15_0_universal2.whl" },
-    { name = "scalene", marker = "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_15_0_universal2.whl" },
-    { name = "scalene", marker = "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-macosx_15_0_universal2.whl" },
-    { name = "scalene", marker = "python_full_version == '3.14.*' and platform_machine == 'arm64' and sys_platform == 'darwin'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-macosx_15_0_universal2.whl" },
-    { name = "scalene", marker = "python_full_version == '3.11.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_13_0_universal2.whl" },
-    { name = "scalene", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_13_0_universal2.whl" },
-    { name = "scalene", marker = "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-macosx_13_0_universal2.whl" },
-    { name = "scalene", marker = "python_full_version == '3.14.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-macosx_13_0_universal2.whl" },
-    { name = "scalene", marker = "python_full_version == '3.11.*' and sys_platform == 'linux'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" },
-    { name = "scalene", marker = "python_full_version == '3.12.*' and sys_platform == 'linux'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" },
-    { name = "scalene", marker = "python_full_version == '3.13.*' and sys_platform == 'linux'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" },
-    { name = "scalene", marker = "python_full_version == '3.14.*' and sys_platform == 'linux'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" },
-    { name = "scalene", marker = "python_full_version == '3.11.*' and sys_platform == 'win32'", git = "https://github.com/zyrxvo/scalene.git?rev=v1.5.55b" },
-    { name = "scalene", marker = "python_full_version == '3.12.*' and sys_platform == 'win32'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-win_amd64.whl" },
-    { name = "scalene", marker = "python_full_version == '3.13.*' and sys_platform == 'win32'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-win_amd64.whl" },
-    { name = "scalene", marker = "python_full_version == '3.14.*' and sys_platform == 'win32'", url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-win_amd64.whl" },
+    { name = "scalene" },
     { name = "sympy", specifier = ">=1.14.0" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
@@ -250,6 +220,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4.3.0" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-cov", specifier = ">=5.0.0,<6.0.0" },
+    { name = "ty", specifier = ">=0.0.5" },
 ]
 
 [[package]]
@@ -770,537 +741,31 @@ wheels = [
 
 [[package]]
 name = "scalene"
-version = "1.5.55"
+version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "(python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
-]
 dependencies = [
-    { name = "cloudpickle", marker = "(python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')" },
-    { name = "jinja2", marker = "(python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')" },
-    { name = "numpy", marker = "(python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')" },
-    { name = "nvidia-ml-py", marker = "(python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')" },
-    { name = "psutil", marker = "(python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')" },
-    { name = "pydantic", marker = "(python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')" },
-    { name = "rich", marker = "(python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32') or (platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')" },
+    { name = "cloudpickle" },
+    { name = "jinja2" },
+    { name = "numpy" },
+    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'" },
+    { name = "psutil" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/75/65/e57f87fd92aa8c14f5404dc04542054afbc41c1ba8e9e86f4414a58983e9/scalene-1.5.55.tar.gz", hash = "sha256:71c0c89287f46f9f1fa965def5866156313a949ed592b8acb008f8cafcf7c518", size = 9331156, upload-time = "2025-09-23T12:52:27.493Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b5/72/00836b6e0f6da4818e551130a22daacf425032f5e8c5c25f3edb380c79cc/scalene-2.0.1.tar.gz", hash = "sha256:df3f7f4274ff77e6d1384a7b36a031ea97dd1cd57b12e73c28c9e7f560f08ec5", size = 9384644, upload-time = "2025-12-22T17:33:36.506Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/fd/a88a2355a6290dffd32f7771ceb425aa42fa2b181f28a00df5a25797ce6a/scalene-1.5.55-cp311-cp311-macosx_13_0_universal2.whl", hash = "sha256:58c0ed50c159df32887fe91abde01e1e152d270814ffa892edbd79f132d3ffb3", size = 1136476, upload-time = "2025-09-23T12:52:23.74Z" },
-    { url = "https://files.pythonhosted.org/packages/cf/65/032be96f3d5dd548dfe60aed6403d367a35a76d712b6fd919527e51363e9/scalene-1.5.55-cp311-cp311-macosx_15_0_universal2.whl", hash = "sha256:be4f5c58c8e31a8f7262c7c2bf39855b8573570ccb99e235055141a00f72fec6", size = 1134545, upload-time = "2025-09-23T12:52:26.213Z" },
-    { url = "https://files.pythonhosted.org/packages/f5/94/dfc47c4a3ffeaea541885296699961832cbf79328e432a565148218917cb/scalene-1.5.55-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9651c24636edf72e07d57ee24cc636b19ce4dbf3c0ca9d1d527fc69d20e1ae5c", size = 1411207, upload-time = "2025-09-23T12:46:06.176Z" },
-    { url = "https://files.pythonhosted.org/packages/d9/9a/616850c58f987aa889685431cfdce5bcfd0e7444fa20acdc750809a015c5/scalene-1.5.55-cp312-cp312-macosx_13_0_universal2.whl", hash = "sha256:1750f70215762dec3b7998fecbaf9b59704d18711f24258adf15d54cecf42e33", size = 1136310, upload-time = "2025-09-23T12:52:41.54Z" },
-    { url = "https://files.pythonhosted.org/packages/f2/e4/ba77dd1a9b3415287d9ee73909a4527799eaf44908fc8abe9ddb94ac8887/scalene-1.5.55-cp312-cp312-macosx_15_0_universal2.whl", hash = "sha256:8bb094a887062bb12e91a81cc8b69c73a5f35a42da3cc6a67e92f8a3eea72af7", size = 1134356, upload-time = "2025-09-23T12:50:44.984Z" },
-    { url = "https://files.pythonhosted.org/packages/37/b5/8b67429f201b74c576794a4fbfc7fa401d2f4570ba3aa98d9922e3a6f5a8/scalene-1.5.55-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c31ddee2590bcb55c53d9562b6aa8989c8c975b49777a0b4beb5d68ac7804d8c", size = 1411709, upload-time = "2025-09-23T12:46:12.773Z" },
-    { url = "https://files.pythonhosted.org/packages/ab/21/fe23516085fb57686bf3ce5573f83b28e12a7c994b96ea28b214b022aff9/scalene-1.5.55-cp312-cp312-win_amd64.whl", hash = "sha256:c86c06a88a1714f5a77c609e69153702a30e679a015045ba53e504aea19ede4b", size = 1025322, upload-time = "2025-09-23T12:46:12.914Z" },
-    { url = "https://files.pythonhosted.org/packages/a4/b9/9c0279f95e254eff8880d65687007f8ff3ec955fb0e0a3c3d93694a1ef7b/scalene-1.5.55-cp313-cp313-macosx_13_0_universal2.whl", hash = "sha256:34fd559e5043d91b17e450bd3373dec0279881959314be4db47bedaa9da065a9", size = 1136330, upload-time = "2025-09-23T12:48:09.541Z" },
-    { url = "https://files.pythonhosted.org/packages/31/84/a21828d85f94bbb053268c4513bef0f7e5c168ecb1e21315bc66f598c87f/scalene-1.5.55-cp313-cp313-macosx_15_0_universal2.whl", hash = "sha256:c625fd30a3b73b98ae1acd2cb2268b0f654987021192277c62c0e6e0883cd0ae", size = 1134342, upload-time = "2025-09-23T12:52:12.392Z" },
-    { url = "https://files.pythonhosted.org/packages/bb/b4/33636da3cd6ed2a2bea19907c4c64a630931eb0fb6697a27735234ab4282/scalene-1.5.55-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d4f42a8daaf7a17beca104d44dafc704617f35af385305baa27ed489bb2f2dc1", size = 1411645, upload-time = "2025-09-23T12:46:07.209Z" },
-    { url = "https://files.pythonhosted.org/packages/d0/5d/c620fd816a05b979cb5b61c8c18128e2136214a0e50b755231dfd4f4f0b4/scalene-1.5.55-cp313-cp313-win_amd64.whl", hash = "sha256:57daf3072f88e7fdda3bc94d0e75f30733268f033fed76f1b909c59315926634", size = 1025323, upload-time = "2025-09-23T12:46:21.673Z" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { git = "https://github.com/zyrxvo/scalene.git?rev=v1.5.55b#11dab97bf789d354e063228415d5e1a5f997d924" }
-resolution-markers = [
-    "python_full_version < '3.12' and sys_platform == 'win32'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
-    { name = "jinja2", marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
-    { name = "numpy", marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
-    { name = "nvidia-ml-py", marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
-    { name = "psutil", marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
-    { name = "pydantic", marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
-    { name = "rich", marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_13_0_universal2.whl" }
-resolution-markers = [
-    "python_full_version < '3.12' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version < '3.12' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "jinja2", marker = "python_full_version < '3.12' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "numpy", marker = "python_full_version < '3.12' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "psutil", marker = "python_full_version < '3.12' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "pydantic", marker = "python_full_version < '3.12' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "rich", marker = "python_full_version < '3.12' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_13_0_universal2.whl", hash = "sha256:3df7629c8195cb391aece14ac385c23b7a87d977f8dad654f4173bac46c11865" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_15_0_universal2.whl" }
-resolution-markers = [
-    "python_full_version < '3.12' and platform_machine == 'arm64' and sys_platform == 'darwin'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version < '3.12' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "jinja2", marker = "python_full_version < '3.12' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "numpy", marker = "python_full_version < '3.12' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "psutil", marker = "python_full_version < '3.12' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "pydantic", marker = "python_full_version < '3.12' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "rich", marker = "python_full_version < '3.12' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-macosx_15_0_universal2.whl", hash = "sha256:ca7a1447ded94b3c337a2c3b7fcf346fd3815ffeadef62de88132638e6b25ff4" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" }
-resolution-markers = [
-    "python_full_version < '3.12' and sys_platform == 'linux'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version < '3.12' and sys_platform == 'linux'" },
-    { name = "jinja2", marker = "python_full_version < '3.12' and sys_platform == 'linux'" },
-    { name = "numpy", marker = "python_full_version < '3.12' and sys_platform == 'linux'" },
-    { name = "nvidia-ml-py", marker = "python_full_version < '3.12' and sys_platform == 'linux'" },
-    { name = "psutil", marker = "python_full_version < '3.12' and sys_platform == 'linux'" },
-    { name = "pydantic", marker = "python_full_version < '3.12' and sys_platform == 'linux'" },
-    { name = "rich", marker = "python_full_version < '3.12' and sys_platform == 'linux'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b813fb31338cbc4f89da82507b4f582928a764b3a51876f03f6ff9ed0526afdd" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_13_0_universal2.whl" }
-resolution-markers = [
-    "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "jinja2", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "numpy", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "psutil", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "pydantic", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "rich", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_13_0_universal2.whl", hash = "sha256:1966aef2e982d032adb12734c48559887bdb11e477dbd96787f3f932d859e008" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_15_0_universal2.whl" }
-resolution-markers = [
-    "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "jinja2", marker = "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "numpy", marker = "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "psutil", marker = "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "pydantic", marker = "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "rich", marker = "python_full_version == '3.12.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-macosx_15_0_universal2.whl", hash = "sha256:a85179b1326c9a703caf551e184448136bac01a63b1a6fc0b375a7409c95bec5" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" }
-resolution-markers = [
-    "python_full_version == '3.12.*' and sys_platform == 'linux'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.12.*' and sys_platform == 'linux'" },
-    { name = "jinja2", marker = "python_full_version == '3.12.*' and sys_platform == 'linux'" },
-    { name = "numpy", marker = "python_full_version == '3.12.*' and sys_platform == 'linux'" },
-    { name = "nvidia-ml-py", marker = "python_full_version == '3.12.*' and sys_platform == 'linux'" },
-    { name = "psutil", marker = "python_full_version == '3.12.*' and sys_platform == 'linux'" },
-    { name = "pydantic", marker = "python_full_version == '3.12.*' and sys_platform == 'linux'" },
-    { name = "rich", marker = "python_full_version == '3.12.*' and sys_platform == 'linux'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:fce554185bb2102a25c915a20e964ea01832a009f8f3d4a85f0e41fd89af166e" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-win_amd64.whl" }
-resolution-markers = [
-    "python_full_version == '3.12.*' and sys_platform == 'win32'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.12.*' and sys_platform == 'win32'" },
-    { name = "jinja2", marker = "python_full_version == '3.12.*' and sys_platform == 'win32'" },
-    { name = "numpy", marker = "python_full_version == '3.12.*' and sys_platform == 'win32'" },
-    { name = "nvidia-ml-py", marker = "python_full_version == '3.12.*' and sys_platform == 'win32'" },
-    { name = "psutil", marker = "python_full_version == '3.12.*' and sys_platform == 'win32'" },
-    { name = "pydantic", marker = "python_full_version == '3.12.*' and sys_platform == 'win32'" },
-    { name = "rich", marker = "python_full_version == '3.12.*' and sys_platform == 'win32'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp312-cp312-win_amd64.whl", hash = "sha256:24c60ff414e597a156564dc80d93cefa99b744fd59ab0f850d6e013eb2b9120b" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-macosx_13_0_universal2.whl" }
-resolution-markers = [
-    "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "jinja2", marker = "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "numpy", marker = "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "psutil", marker = "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "pydantic", marker = "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "rich", marker = "python_full_version == '3.13.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-macosx_13_0_universal2.whl", hash = "sha256:72cf0b730beccfd9f20bd1046e6c17578cf9682c735d0d2ec6f4329cda3de6d1" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-macosx_15_0_universal2.whl" }
-resolution-markers = [
-    "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "jinja2", marker = "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "numpy", marker = "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "psutil", marker = "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "pydantic", marker = "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "rich", marker = "python_full_version == '3.13.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-macosx_15_0_universal2.whl", hash = "sha256:f66ac390d14c08b29756e4a7dd1a4eb79b425ed4248fc5152b6042b3afa298bc" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" }
-resolution-markers = [
-    "python_full_version == '3.13.*' and sys_platform == 'linux'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.13.*' and sys_platform == 'linux'" },
-    { name = "jinja2", marker = "python_full_version == '3.13.*' and sys_platform == 'linux'" },
-    { name = "numpy", marker = "python_full_version == '3.13.*' and sys_platform == 'linux'" },
-    { name = "nvidia-ml-py", marker = "python_full_version == '3.13.*' and sys_platform == 'linux'" },
-    { name = "psutil", marker = "python_full_version == '3.13.*' and sys_platform == 'linux'" },
-    { name = "pydantic", marker = "python_full_version == '3.13.*' and sys_platform == 'linux'" },
-    { name = "rich", marker = "python_full_version == '3.13.*' and sys_platform == 'linux'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:88f85128eb9e95a6036139ffa5fe1adf3d9466264bc63fce4db6e947d16a2204" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-win_amd64.whl" }
-resolution-markers = [
-    "python_full_version == '3.13.*' and sys_platform == 'win32'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.13.*' and sys_platform == 'win32'" },
-    { name = "jinja2", marker = "python_full_version == '3.13.*' and sys_platform == 'win32'" },
-    { name = "numpy", marker = "python_full_version == '3.13.*' and sys_platform == 'win32'" },
-    { name = "nvidia-ml-py", marker = "python_full_version == '3.13.*' and sys_platform == 'win32'" },
-    { name = "psutil", marker = "python_full_version == '3.13.*' and sys_platform == 'win32'" },
-    { name = "pydantic", marker = "python_full_version == '3.13.*' and sys_platform == 'win32'" },
-    { name = "rich", marker = "python_full_version == '3.13.*' and sys_platform == 'win32'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp313-cp313-win_amd64.whl", hash = "sha256:0a467a8f09477efea9eb57ea2b228c09d46bf042d2f7e36ca1c11e8e679714eb" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-macosx_13_0_universal2.whl" }
-resolution-markers = [
-    "python_full_version == '3.14.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.14.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "jinja2", marker = "python_full_version == '3.14.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "numpy", marker = "python_full_version == '3.14.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "psutil", marker = "python_full_version == '3.14.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "pydantic", marker = "python_full_version == '3.14.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "rich", marker = "python_full_version == '3.14.*' and platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-macosx_13_0_universal2.whl", hash = "sha256:f2baf4dc14c7dd6421126213307500753823b87424c0702c7cdc5966dfcd9411" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-macosx_15_0_universal2.whl" }
-resolution-markers = [
-    "python_full_version == '3.14.*' and platform_machine == 'arm64' and sys_platform == 'darwin'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.14.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "jinja2", marker = "python_full_version == '3.14.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "numpy", marker = "python_full_version == '3.14.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "psutil", marker = "python_full_version == '3.14.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "pydantic", marker = "python_full_version == '3.14.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "rich", marker = "python_full_version == '3.14.*' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-macosx_15_0_universal2.whl", hash = "sha256:d1b143a28441f0f86094eac71c8a19506d42ea1b1f109df3ed02d7ad4be36f07" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl" }
-resolution-markers = [
-    "python_full_version == '3.14.*' and sys_platform == 'linux'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.14.*' and sys_platform == 'linux'" },
-    { name = "jinja2", marker = "python_full_version == '3.14.*' and sys_platform == 'linux'" },
-    { name = "numpy", marker = "python_full_version == '3.14.*' and sys_platform == 'linux'" },
-    { name = "nvidia-ml-py", marker = "python_full_version == '3.14.*' and sys_platform == 'linux'" },
-    { name = "psutil", marker = "python_full_version == '3.14.*' and sys_platform == 'linux'" },
-    { name = "pydantic", marker = "python_full_version == '3.14.*' and sys_platform == 'linux'" },
-    { name = "rich", marker = "python_full_version == '3.14.*' and sys_platform == 'linux'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:844efb9c402b72ba2c36308a841bac5d87e1a569beb235db871d0a4591b98414" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
-]
-
-[[package]]
-name = "scalene"
-version = "1.5.55"
-source = { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-win_amd64.whl" }
-resolution-markers = [
-    "python_full_version == '3.14.*' and sys_platform == 'win32'",
-]
-dependencies = [
-    { name = "cloudpickle", marker = "python_full_version == '3.14.*' and sys_platform == 'win32'" },
-    { name = "jinja2", marker = "python_full_version == '3.14.*' and sys_platform == 'win32'" },
-    { name = "numpy", marker = "python_full_version == '3.14.*' and sys_platform == 'win32'" },
-    { name = "nvidia-ml-py", marker = "python_full_version == '3.14.*' and sys_platform == 'win32'" },
-    { name = "psutil", marker = "python_full_version == '3.14.*' and sys_platform == 'win32'" },
-    { name = "pydantic", marker = "python_full_version == '3.14.*' and sys_platform == 'win32'" },
-    { name = "rich", marker = "python_full_version == '3.14.*' and sys_platform == 'win32'" },
-]
-wheels = [
-    { url = "https://github.com/zyrxvo/scalene/releases/download/v1.5.55b/scalene-1.5.55-cp314-cp314-win_amd64.whl", hash = "sha256:88f7984ddb04e9657f028dce5e7d7205b462aeb9e46fe160ed80666aae554e4a" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "astunparse", marker = "python_full_version < '3.9'", specifier = ">=1.6.3" },
-    { name = "cloudpickle", specifier = ">=2.2.1" },
-    { name = "jinja2", specifier = ">=3.0.3" },
-    { name = "numpy", marker = "python_full_version < '3.14'", specifier = ">=1.24.0,!=1.27" },
-    { name = "numpy", marker = "python_full_version >= '3.14'", specifier = ">=2.3.4" },
-    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'", specifier = ">=12.555.43" },
-    { name = "psutil", specifier = ">=5.9.2" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "rich", specifier = ">=10.7.0" },
+    { url = "https://files.pythonhosted.org/packages/56/36/1cad02908a8802dded2839729a141e12864917dbfdf55d10b76494c52765/scalene-2.0.1-cp311-cp311-macosx_15_0_universal2.whl", hash = "sha256:837aa7b71a56ace9c12b809890e2c3c7c4dd4351531bbf7427337de3a3c37b1a", size = 1156872, upload-time = "2025-12-22T17:33:34.882Z" },
+    { url = "https://files.pythonhosted.org/packages/23/b6/57e62e683826e0ae32d25a44b8b28ff4039eee36e5db4cde83afaf99a630/scalene-2.0.1-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ad518969b950d289c43690a9f5ac19913e635ce08605d5d373f7b17f12cd95d5", size = 1433140, upload-time = "2025-12-22T17:29:11.859Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/93/20eaeb8232f8b0388596afe365bb19100f274683dab56ed341a841f0f33b/scalene-2.0.1-cp312-cp312-macosx_15_0_universal2.whl", hash = "sha256:b40a82017c4b4d3f4f02b66dbc30b16df1e33dee6dbb32e53bdc510d02d1fbf4", size = 1156651, upload-time = "2025-12-22T17:34:31.039Z" },
+    { url = "https://files.pythonhosted.org/packages/43/1d/1cefb4d3241e593dada4fc65ed193a6c675de2afed132d0a82359005d38e/scalene-2.0.1-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:66f8b481e5463144491112fe6ede27d0360e4b88ffbda8e777b5a4c6a93e4d5b", size = 1433505, upload-time = "2025-12-22T17:29:04.924Z" },
+    { url = "https://files.pythonhosted.org/packages/17/cb/8936b14988179cd77f1298e2d54f32c003c5d6b136d14e35ca8665b12e30/scalene-2.0.1-cp312-cp312-win_amd64.whl", hash = "sha256:a864d2dda994c6699e1f9d4473760c5e7d6e9086f2d116c509b20d90ccfc3d97", size = 1089684, upload-time = "2025-12-22T17:31:25.022Z" },
+    { url = "https://files.pythonhosted.org/packages/69/12/0943cb441713b9915975a51d3146fd857434f7632632d167728feccd1c48/scalene-2.0.1-cp313-cp313-macosx_15_0_universal2.whl", hash = "sha256:1cb18a89a1dce5e42bf96317e5fa5292362a6ec7b64f66b0c49d5677fc10be8b", size = 1161555, upload-time = "2025-12-22T17:33:12.671Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/dc/75fcaba094f9b13894fbea8f1b9d8c67e6508fd333a0a7c89eabb6f5841d/scalene-2.0.1-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:72fa3731a6c31c5f99d8ee8a43373bd5692b204589e40a5b9294bee49ea0e4f7", size = 1442251, upload-time = "2025-12-22T17:29:06.914Z" },
+    { url = "https://files.pythonhosted.org/packages/61/30/1a3a5a19fe9cee0a1d82fa92309434dcc94ad88a4cce69f1bc4be578f060/scalene-2.0.1-cp313-cp313-win_amd64.whl", hash = "sha256:4d88c340e9b3d497b22f5dee00a222361a9c15a0f00f38fa785c429cbc50feb7", size = 1091330, upload-time = "2025-12-22T17:31:33.933Z" },
+    { url = "https://files.pythonhosted.org/packages/27/8c/08be7e800852c48ac8a7105b6758d9dd62b5f2e9c41eeb9a6388f2e166ae/scalene-2.0.1-cp314-cp314-macosx_15_0_universal2.whl", hash = "sha256:8c8fc3a724ea7c429702b70668f094fc434d2b1b2a8de3dc40cb4fb02707958e", size = 1161473, upload-time = "2025-12-22T17:33:51.061Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/de/8589038e1c419362686bbb5f4445d8d362405c18c5c3705811921f433764/scalene-2.0.1-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:afb31b45e434bc39c6304c09e1f6a10f52bfc1315d9c919eab3bd119ec699704", size = 1442149, upload-time = "2025-12-22T17:29:10.781Z" },
+    { url = "https://files.pythonhosted.org/packages/77/d6/8d73456d8bceb31c9a978a90459de4753ba770d14363f334007e8dcbaa26/scalene-2.0.1-cp314-cp314-win_amd64.whl", hash = "sha256:ee823979ec8e8ed4c108b2ce66f3722e51c964aeaeec312c6997b6539416cf0b", size = 1100992, upload-time = "2025-12-22T17:30:50.411Z" },
 ]
 
 [[package]]
@@ -1371,6 +836,31 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/46/cc36c679f09f27ded940281c38607716c86cf8ba4a518d524e349c8b4874/tomli-2.3.0-cp314-cp314t-win32.whl", hash = "sha256:a1f7f282fe248311650081faafa5f4732bdbfef5d45fe3f2e702fbc6f2d496e0", size = 107563, upload-time = "2025-10-08T22:01:44.233Z" },
     { url = "https://files.pythonhosted.org/packages/84/ff/426ca8683cf7b753614480484f6437f568fd2fda2edbdf57a2d3d8b27a0b/tomli-2.3.0-cp314-cp314t-win_amd64.whl", hash = "sha256:70a251f8d4ba2d9ac2542eecf008b3c8a9fc5c3f9f02c56a9d7952612be2fdba", size = 119756, upload-time = "2025-10-08T22:01:45.234Z" },
     { url = "https://files.pythonhosted.org/packages/77/b8/0135fadc89e73be292b473cb820b4f5a08197779206b33191e801feeae40/tomli-2.3.0-py3-none-any.whl", hash = "sha256:e95b1af3c5b07d9e643909b5abbec77cd9f1217e6d0bca72b0234736b9fb1f1b", size = 14408, upload-time = "2025-10-08T22:01:46.04Z" },
+]
+
+[[package]]
+name = "ty"
+version = "0.0.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9e/db/6299d478000f4f1c6f9bf2af749359381610ffc4cbe6713b66e436ecf6e7/ty-0.0.5.tar.gz", hash = "sha256:983da6330773ff71e2b249810a19c689f9a0372f6e21bbf7cde37839d05b4346", size = 4806218, upload-time = "2025-12-20T21:19:17.24Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/98/c1f61ba378b4191e641bb36c07b7fcc70ff844d61be7a4bf2fea7472b4a9/ty-0.0.5-py3-none-linux_armv6l.whl", hash = "sha256:1594cd9bb68015eb2f5a3c68a040860f3c9306dc6667d7a0e5f4df9967b460e2", size = 9785554, upload-time = "2025-12-20T21:19:05.024Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/f9/b37b77c03396bd779c1397dae4279b7ad79315e005b3412feed8812a4256/ty-0.0.5-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:7c0140ba980233d28699d9ddfe8f43d0b3535d6a3bbff9935df625a78332a3cf", size = 9603995, upload-time = "2025-12-20T21:19:15.256Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/70/4e75c11903b0e986c0203040472627cb61d6a709e1797fb08cdf9d565743/ty-0.0.5-py3-none-macosx_11_0_arm64.whl", hash = "sha256:15de414712cde92048ae4b1a77c4dc22920bd23653fe42acaf73028bad88f6b9", size = 9145815, upload-time = "2025-12-20T21:19:36.481Z" },
+    { url = "https://files.pythonhosted.org/packages/89/05/93983dfcf871a41dfe58e5511d28e6aa332a1f826cc67333f77ae41a2f8a/ty-0.0.5-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:438aa51ad6c5fae64191f8d58876266e26f9250cf09f6624b6af47a22fa88618", size = 9619849, upload-time = "2025-12-20T21:19:19.084Z" },
+    { url = "https://files.pythonhosted.org/packages/82/b6/896ab3aad59f846823f202e94be6016fb3f72434d999d2ae9bd0f28b3af9/ty-0.0.5-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:1b3d373fd96af1564380caf153600481c676f5002ee76ba8a7c3508cdff82ee0", size = 9606611, upload-time = "2025-12-20T21:19:24.583Z" },
+    { url = "https://files.pythonhosted.org/packages/ca/ae/098e33fc92330285ed843e2750127e896140c4ebd2d73df7732ea496f588/ty-0.0.5-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:8453692503212ad316cf8b99efbe85a91e5f63769c43be5345e435a1b16cba5a", size = 10029523, upload-time = "2025-12-20T21:19:07.055Z" },
+    { url = "https://files.pythonhosted.org/packages/04/5a/f4b4c33758b9295e9aca0de9645deca0f4addd21d38847228723a6e780fc/ty-0.0.5-py3-none-manylinux_2_17_ppc64.manylinux2014_ppc64.whl", hash = "sha256:2e4c454139473abbd529767b0df7a795ed828f780aef8d0d4b144558c0dc4446", size = 10870892, upload-time = "2025-12-20T21:19:34.495Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/c5/4e3e7e88389365aa1e631c99378711cf0c9d35a67478cb4720584314cf44/ty-0.0.5-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:426d4f3b82475b1ec75f3cc9ee5a667c8a4ae8441a09fcd8e823a53b706d00c7", size = 10599291, upload-time = "2025-12-20T21:19:26.557Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/5d/138f859ea87bd95e17b9818e386ae25a910e46521c41d516bf230ed83ffc/ty-0.0.5-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:5710817b67c6b2e4c0224e4f319b7decdff550886e9020f6d46aa1ce8f89a609", size = 10413515, upload-time = "2025-12-20T21:19:11.094Z" },
+    { url = "https://files.pythonhosted.org/packages/27/21/1cbcd0d3b1182172f099e88218137943e0970603492fb10c7c9342369d9a/ty-0.0.5-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e23c55ef08882c7c5ced1ccb90b4eeefa97f690aea254f58ac0987896c590f76", size = 10144992, upload-time = "2025-12-20T21:19:13.225Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/30/fdac06a5470c09ad2659a0806497b71f338b395d59e92611f71b623d05a0/ty-0.0.5-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:b9e4c1a28a23b14cf8f4f793f4da396939f16c30bfa7323477c8cc234e352ac4", size = 9606408, upload-time = "2025-12-20T21:19:09.212Z" },
+    { url = "https://files.pythonhosted.org/packages/09/93/e99dcd7f53295192d03efd9cbcec089a916f49cad4935c0160ea9adbd53d/ty-0.0.5-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:4e9ebb61529b9745af662e37c37a01ad743cdd2c95f0d1421705672874d806cd", size = 9630040, upload-time = "2025-12-20T21:19:38.165Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/f8/6d1e87186e4c35eb64f28000c1df8fd5f73167ce126c5e3dd21fd1204a23/ty-0.0.5-py3-none-musllinux_1_2_i686.whl", hash = "sha256:5eb191a8e332f50f56dfe45391bdd7d43dd4ef6e60884710fd7ce84c5d8c1eb5", size = 9754016, upload-time = "2025-12-20T21:19:32.79Z" },
+    { url = "https://files.pythonhosted.org/packages/28/e6/20f989342cb3115852dda404f1d89a10a3ce93f14f42b23f095a3d1a00c9/ty-0.0.5-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:92ed7451a1e82ee134a2c24ca43b74dd31e946dff2b08e5c34473e6b051de542", size = 10252877, upload-time = "2025-12-20T21:19:20.787Z" },
+    { url = "https://files.pythonhosted.org/packages/57/9d/fc66fa557443233dfad9ae197ff3deb70ae0efcfb71d11b30ef62f5cdcc3/ty-0.0.5-py3-none-win32.whl", hash = "sha256:71f6707e4c1c010c158029a688a498220f28bb22fdb6707e5c20e09f11a5e4f2", size = 9212640, upload-time = "2025-12-20T21:19:30.817Z" },
+    { url = "https://files.pythonhosted.org/packages/68/b6/05c35f6dea29122e54af0e9f8dfedd0a100c721affc8cc801ebe2bc2ed13/ty-0.0.5-py3-none-win_amd64.whl", hash = "sha256:2b8b754a0d7191e94acdf0c322747fec34371a4d0669f5b4e89549aef28814ae", size = 10034701, upload-time = "2025-12-20T21:19:28.311Z" },
+    { url = "https://files.pythonhosted.org/packages/df/ca/4201ed5cb2af73912663d0c6ded927c28c28b3c921c9348aa8d2cfef4853/ty-0.0.5-py3-none-win_arm64.whl", hash = "sha256:83bea5a5296caac20d52b790ded2b830a7ff91c4ed9f36730fe1f393ceed6654", size = 9566474, upload-time = "2025-12-20T21:19:22.518Z" },
 ]
 
 [[package]]

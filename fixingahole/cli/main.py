@@ -90,7 +90,7 @@ def profile(
             case_sensitive=False,
             show_default=True,
         ),
-    ] = "WARNING",
+    ] = LogLevel.WARNING,
     noplots: Annotated[
         bool,
         typer.Option(
@@ -107,7 +107,7 @@ def profile(
     if full_path.exists():
         python_file = full_path
     else:
-        python_file = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS)
+        python_file: Path = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS)
         if python_file.is_dir():
             Colour.ORANGE.print(Colour.red_error("Error: cannot profile a directory."))
             raise typer.Exit(code=1)

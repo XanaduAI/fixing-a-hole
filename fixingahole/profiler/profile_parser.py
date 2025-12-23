@@ -17,7 +17,7 @@ This module parses profile results files and extracts function names and runtime
 the function summary sections at the bottom of each file's profiling table.
 """
 
-import importlib
+import importlib.metadata
 import re
 import sys
 from collections import defaultdict
@@ -33,18 +33,18 @@ from fixingahole import ROOT_DIR
 class FunctionProfile:
     """Represents a function's profiling information."""
 
-    def __init__(self, **kwargs: dict[str, Any]):
+    def __init__(self, **kwargs: Any):  # noqa: ANN401
         """Initialize the FunctionProfile instance."""
-        self.line_number = kwargs.get("line_number", 0)
-        self.function_name = kwargs.get("function_name", "")
-        self.file_path = kwargs.get("file_path", "")
-        self.memory_python_percentage = FunctionProfile._get_as_float(kwargs.get("memory_python_percentage"))
-        self.peak_memory = kwargs.get("peak_memory", "")
-        self.memory_size = FunctionProfile._parse_memory_size(self.peak_memory)
-        self.timeline_percentage = self._get_as_float(kwargs.get("timeline_percentage"))
-        self.copy_mb_per_s = self._get_as_float(kwargs.get("copy_mb_per_s"))
-        self.total_percentage = sum(self._get_as_float(value) for value in kwargs.get("cpu_percentages", []))
-        self.has_memory_info = bool(
+        self.line_number: int = kwargs.get("line_number", 0)
+        self.function_name: str = kwargs.get("function_name", "")
+        self.file_path: str = kwargs.get("file_path", "")
+        self.memory_python_percentage: float = FunctionProfile._get_as_float(kwargs.get("memory_python_percentage", ""))
+        self.peak_memory: str = kwargs.get("peak_memory", "")
+        self.memory_size: int = FunctionProfile._parse_memory_size(self.peak_memory)
+        self.timeline_percentage: float = FunctionProfile._get_as_float(kwargs.get("timeline_percentage", ""))
+        self.copy_mb_per_s: float = FunctionProfile._get_as_float(kwargs.get("copy_mb_per_s", ""))
+        self.total_percentage: float = sum(FunctionProfile._get_as_float(value) for value in kwargs.get("cpu_percentages", []))
+        self.has_memory_info: bool = bool(
             self.peak_memory or self.memory_python_percentage > 0 or self.timeline_percentage > 0,
         )
 
@@ -52,7 +52,8 @@ class FunctionProfile:
     def peak_memory_info(self) -> str:
         """Format the peak memory information, if available."""
         if self.peak_memory:
-            value, unit = self.peak_memory[:-1], self.peak_memory[-1]
+            value: str = self.peak_memory[:-1]
+            unit: str = self.peak_memory[-1]
             return f"{value} {unit}B"
         return ""
 
@@ -97,7 +98,7 @@ class ProfileParser:
         if filename is not None and Path(filename).exists():
             self.functions = self.parse_file(filename)
 
-    def parse_file(self, file_path: str) -> list[FunctionProfile]:
+    def parse_file(self, file_path: str | Path) -> list[FunctionProfile]:
         """Parse a profile results file and return function profiles."""
         return self.parse_content(Path(file_path).read_text(encoding="utf-8"))
 
@@ -373,7 +374,7 @@ class ProfileParser:
                 if "Name" not in dist.metadata:
                     Colour.print("Found a distribution with missing 'Name' metadata.")
                     Colour.print(f"  Path hint: {dist.locate_file('')}")
-                    Colour.print(f"  Available metadata: {list(dist.metadata.keys())}")
+                    Colour.print(f"  Available metadata: {list(dist.metadata)}")
                 else:
                     return_set.add(str(dist.metadata["Name"]).lower())
             return return_set

@@ -46,7 +46,7 @@ class Profiler:
         path: Path,
         python_script_args: list[str] | None = None,
         cpu_only: bool = False,
-        precision: int | None = None,
+        precision: int | str | None = None,
         detailed: bool = False,
         loglevel: LogLevel = LogLevel.CRITICAL,
         noplots: bool = False,
@@ -110,7 +110,8 @@ class Profiler:
         """Scalene flag to exclude system python directory when profiling all modules."""
         exclude_dir = None
         if platform.system() == "Windows":
-            exclude_dir = Path(os.getenv("APPDATA"))
+            appdata = os.getenv("APPDATA")
+            exclude_dir = Path(appdata) if appdata else Path(sys.prefix)
         else:
             exclude_dir = Path(sys.executable).resolve().parents[1]
         # Do not exclude directories that are within the repo.

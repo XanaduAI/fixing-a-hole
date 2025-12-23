@@ -84,12 +84,11 @@ class TestFindPath:
 
     def test_find_files_in_dir(self, root_dir: Path):
         """Test that the correct files are found inside the directory."""
-        filenames: list[str] = ["find_me.py", "find_me_too.py"]
-        path = Path(root_dir) / "deeply" / "nested"
+        path: Path = Path(root_dir) / "deeply" / "nested"
+        filenames: list[Path] = [Path(path / file).resolve() for file in ["find_me.py", "find_me_too.py"]]
         path.mkdir(parents=True, exist_ok=True)
-        for i, filename in enumerate(filenames):
-            filenames[i] = (path / filename).resolve()
-            filenames[i].touch()
+        for filename in filenames:
+            filename.touch()
         output_path, output_files = find_path(path.name, return_suffix=".py")
         assert output_path == path
         assert sorted(output_files) == sorted(filenames)
@@ -158,7 +157,6 @@ class TestProfilerInit:
             detailed=True,
             loglevel=LogLevel.DEBUG,
             noplots=True,
-            profilename="custom.txt",
             trace=False,
         )
 

@@ -17,6 +17,7 @@ import datetime
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
+from typing import overload
 
 from colours import Colour
 from rich._spinners import SPINNERS  # noqa: PLC2701
@@ -44,6 +45,26 @@ class LogLevel(Enum):
 def date() -> str:
     """Return the current UTC date and time."""
     return datetime.datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+
+
+@overload
+def find_path(
+    pattern: str | Path,
+    in_dir: str | Path = "",
+    *,
+    exclude: list[str | Path] | None = None,
+    return_suffix: None = None,
+) -> Path: ...
+
+
+@overload
+def find_path(
+    pattern: str | Path,
+    in_dir: str | Path = "",
+    *,
+    exclude: list[str | Path] | None = None,
+    return_suffix: str,
+) -> tuple[Path, list[Path]]: ...
 
 
 def find_path(
@@ -89,7 +110,7 @@ def find_path(
     file_or_folder = "folders" if not Path(pattern).suffix else "files"
     match len(options):
         case 1:
-            result = options.pop()
+            result: Path = options.pop()
             if return_suffix is not None:
                 return result, [path for path in result.rglob(f"*{return_suffix}") if "__pycache__" not in str(path)]
             return result

@@ -15,3 +15,11 @@ repos:
     - id: ruff-check
       args: [ --fix, --exit-non-zero-on-fix]
     - id: ruff-format
+- repo: local
+  hooks:
+    - id: ty
+      name: type check
+      entry: ty check .
+      language: system
+      pass_filenames: false
+      always_run: true
