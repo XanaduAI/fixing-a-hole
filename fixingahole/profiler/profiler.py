@@ -282,8 +282,8 @@ class Profiler:
 
         cmd = [
             usr_bin_time,
-            "python -m scalene",
-            "--reduced-profile --cpu --cli",
+            "python -m scalene run",
+            "--reduced-profile --cpu-only",
             "--json --stacks" if self.trace else "",
             f"--profile-all {self.excluded_folders}" if self.detailed else "",
             f"--memory {sampling_detail}" if not self.cpu_only else "",

@@ -19,7 +19,6 @@ repos:
   hooks:
     - id: ty
       name: type check
-      entry: ty check .
-      language: system
-      pass_filenames: false
-      always_run: true
+      entry: uvx ty check . --ignore unresolved-import
+      language: python
+      types: [python]
