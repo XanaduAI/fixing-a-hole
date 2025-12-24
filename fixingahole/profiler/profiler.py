@@ -18,8 +18,11 @@ import os
 import platform
 import subprocess
 import sys
+import time
+from contextlib import suppress
 from enum import Enum
 from pathlib import Path
+from threading import Event, Thread
 
 from colours import Colour
 from sympy import nextprime
@@ -288,7 +291,7 @@ class Profiler:
             f"--profile-all {self.excluded_folders}" if self.detailed else "",
             f"--memory {sampling_detail}" if not self.cpu_only else "",
             f"--program-path {ROOT_DIR} --column-width={ncols}",
-            f"--profile-interval=5 --outfile={self.output_file}",
+            f"--profile-interval=5 --outfile={self.output_file.with_suffix('.json')}",
         ]
         cmd.append(str(self.profile_file))
         if self.script_args != []:
@@ -296,6 +299,45 @@ class Profiler:
             cmd.extend(self.script_args)
         cmd_str = " ".join(cmd).strip()
         return cmd_str.split()
+
+    def _watch_output_file(self, stop_event: Event, ncols: int) -> None:
+        """Watch JSON output for changes and update the text output.
+
+        Args:
+            stop_event: Event to signal when to stop watching
+            ncols: Number of columns for formatting the output
+
+        """
+        last_mtime = None
+        while not stop_event.is_set():
+            with suppress(subprocess.CalledProcessError):
+                if self.output_file.with_suffix(".json").exists():
+                    current_mtime = self.output_file.stat().st_mtime
+                    if last_mtime is None or current_mtime > last_mtime:
+                        last_mtime = current_mtime
+                        # Run the scalene view command to format the output
+                        result = subprocess.run(
+                            f"python -m scalene view --cli --reduced {self.output_file.with_suffix('.json')}".split(),
+                            check=True,
+                            text=True,
+                            capture_output=True,
+                            env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
+                        )
+                        self.output_file.write_text(Colour.remove_ansi(result.stdout))
+            time.sleep(0.5)  # Check for changes every 0.5 seconds
+
+    def _start_watcher(self, ncols: int) -> tuple[Thread, Event]:
+        """Start a background thread to watch and update the output file during profiling."""
+        stop_event = Event()
+        watcher_thread = Thread(target=self._watch_output_file, args=(stop_event, ncols), daemon=True)
+        watcher_thread.start()
+        return watcher_thread, stop_event
+
+    @staticmethod
+    def _stop_watcher(watcher_thread: Thread, stop_event: Event) -> None:
+        """Stop the background thread."""
+        stop_event.set()
+        watcher_thread.join(timeout=1.0)
 
     def run_profiler(self, preamble: str = "\n") -> None:
         """Profile the python script using Scalene."""
@@ -305,13 +347,19 @@ class Profiler:
         try:
             # Profile the code.
             with Spinner(f"See {Colour.purple(self.output_path)} for details."):
-                capture = subprocess.run(
-                    self._build_cmd,
-                    check=True,
-                    text=True,
-                    capture_output=self.loglevel.should_catch_warnings(),
-                    env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
-                )
+                watcher_thread, stop_event = self._start_watcher(ncols)
+                try:
+                    # Run the profiling command
+                    capture = subprocess.run(
+                        self._build_cmd,
+                        check=True,
+                        text=True,
+                        capture_output=self.loglevel.should_catch_warnings(),
+                        env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
+                    )
+                finally:
+                    self._stop_watcher(watcher_thread, stop_event)
+
         except subprocess.CalledProcessError as exc:
             # Catch any shell errors and display them.
             # This includes any fatal errors in Python during execution.
@@ -320,8 +368,7 @@ class Profiler:
                     continue
                 output = exc_output.decode() if isinstance(exc_output, bytes) else exc_output
                 if output.strip():
-                    Colour.RED.print("\nExecution Error:")
-                    Colour.print(Colour.red_error(output.strip()))
+                    Colour.print(Colour.RED("\nExecution Error:\n"), Colour.red_error(output.strip()))
             raise Exit(code=1) from exc
         except KeyboardInterrupt as ki:
             # Make sure to indicate in the profile_results.txt of the interruption.
@@ -339,8 +386,7 @@ class Profiler:
             results = self.output_file.read_text()
             log_info = self.log_file.read_text() if self.log_file.exists() else ""
             n_warns = log_info.count("WARNING")
-            warn = "warning" if n_warns == 1 else "warnings"
-            warning_str = f" ({n_warns} {warn})" if n_warns > 0 else ""
+            warning_str = f" ({n_warns} {'warning' if n_warns == 1 else 'warnings'})" if n_warns > 0 else ""
 
             if capture.stderr is not None and self.platform != Platform.Windows:
                 rss = self.get_memory_rss(capture.stderr)
@@ -358,8 +404,7 @@ class Profiler:
             results = f"{preamble}\n{rss_report}{summary}{results}{report}"
             self.output_file.write_text(results, encoding="utf-8")
 
-            Colour.print(f"{summary}{finished}{Colour.orange(warning_str)}.")
-            Colour.print(rss_report, "\n")
+            Colour.print(f"{summary}{finished}{Colour.orange(warning_str)}.\n", rss_report, "\n")
             if self.trace:
                 Colour.print(report)
 

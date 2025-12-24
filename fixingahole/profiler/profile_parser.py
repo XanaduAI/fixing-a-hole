@@ -109,8 +109,8 @@ class ProfileParser:
         # The "vertical bar" should be the easy one to type with a normal keyboard.
         self.get_details_from_profile(content)
 
-        lines = content.replace(chr(0x2502), chr(0x007C)).replace(chr(0x2575), chr(0x007C)).split("\n")
-        functions = []
+        lines: list[str] = content.replace(chr(0x2502), chr(0x007C)).replace(chr(0x2575), chr(0x007C)).split("\n")
+        functions: list[FunctionProfile] = []
         current_file = None
         in_function_summary = False
 
@@ -122,7 +122,7 @@ class ProfileParser:
                 continue
 
             # Check for function summary section
-            if "function summary for" in line:
+            if "Function summaries:" in line:
                 in_function_summary = True
                 continue
 

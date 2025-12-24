@@ -1,6 +1,6 @@
 [project]
 name = "FixingAHole"
-version = "0.1.2"
+version = "0.2.0"
 description = "Integrating Scalene into Python projects."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,7 +15,7 @@ dependencies = [
 fixingahole = "fixingahole.cli.main:app"
 
 [tool.uv.sources]
-colours = { git = "https://github.com/XanaduAI/colours.git", branch = "main"}
+colours = { git = "https://github.com/XanaduAI/colours.git", branch = "stronger-typing"}
 
 [dependency-groups]
 dev = [

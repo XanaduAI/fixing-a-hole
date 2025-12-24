@@ -156,7 +156,7 @@ def main(
         ),
     ] = None,
 ) -> None:
-    """Implement `fixingahole --version` callback."""
+    """Integrated Scalene Profiler CLI."""
 
 
 if __name__ == "__main__":
