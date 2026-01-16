@@ -15,7 +15,7 @@ dependencies = [
 fixingahole = "fixingahole.cli.main:app"
 
 [tool.uv.sources]
-colours = { git = "https://github.com/XanaduAI/colours.git", branch = "stronger-typing"}
+colours = { git = "https://github.com/XanaduAI/colours.git", rev = "61c77e904fe0f0479043138ce14c5ba730d9d2c0" }
 
 [dependency-groups]
 dev = [

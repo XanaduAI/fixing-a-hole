@@ -19,7 +19,6 @@ import platform
 import subprocess
 import sys
 import time
-from contextlib import suppress
 from enum import Enum
 from pathlib import Path
 from threading import Event, Thread
@@ -310,19 +309,19 @@ class Profiler:
         """
         last_mtime = None
         while not stop_event.is_set():
-            with suppress(subprocess.CalledProcessError):
-                if self.output_file.with_suffix(".json").exists():
-                    current_mtime = self.output_file.stat().st_mtime
-                    if last_mtime is None or current_mtime > last_mtime:
-                        last_mtime = current_mtime
-                        # Run the scalene view command to format the output
-                        result = subprocess.run(
-                            f"python -m scalene view --cli --reduced {self.output_file.with_suffix('.json')}".split(),
-                            check=True,
-                            text=True,
-                            capture_output=True,
-                            env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
-                        )
+            if self.output_file.with_suffix(".json").exists():
+                current_mtime = self.output_file.stat().st_mtime
+                if last_mtime is None or current_mtime > last_mtime:
+                    last_mtime = current_mtime
+                    # Run the scalene view command to format the output
+                    result = subprocess.run(
+                        f"python -m scalene view --cli --reduced {self.output_file.with_suffix('.json')}".split(),
+                        check=False,
+                        text=True,
+                        capture_output=True,
+                        env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
+                    )
+                    if result.returncode == 0:
                         self.output_file.write_text(Colour.remove_ansi(result.stdout))
             time.sleep(0.5)  # Check for changes every 0.5 seconds
 

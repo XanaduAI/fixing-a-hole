@@ -60,9 +60,9 @@ class StackReporter:
         return [{"stack": stack[0], **stack[1]} for stack in self.data["stacks"] if func_name in stack[0][-1]]
 
     @staticmethod
-    def combine_stack_traces(traces: list[dict]) -> dict[str, dict[str, float]]:
+    def combine_stack_traces(traces: list[dict]) -> dict[tuple[str], dict[str, float]]:
         """Gather traces into similar call stacks."""
-        combined: dict[str, dict[str, float]] = defaultdict(
+        combined: dict[tuple[str], dict[str, float]] = defaultdict(
             lambda: {"count": 0, "c_time": 0.0, "python_time": 0.0, "cpu_samples": 0.0},
         )
         for trace in traces:

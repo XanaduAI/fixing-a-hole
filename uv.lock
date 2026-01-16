@@ -73,7 +73,7 @@ wheels = [
 [[package]]
 name = "colours"
 version = "0.1.1"
-source = { git = "https://github.com/XanaduAI/colours.git?branch=stronger-typing#cbefe2db3e3312a7f02b674b9cc148c5a8963b35" }
+source = { git = "https://github.com/XanaduAI/colours.git?rev=61c77e904fe0f0479043138ce14c5ba730d9d2c0#61c77e904fe0f0479043138ce14c5ba730d9d2c0" }
 dependencies = [
     { name = "rich" },
 ]
@@ -208,7 +208,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "colours", git = "https://github.com/XanaduAI/colours.git?branch=stronger-typing" },
+    { name = "colours", git = "https://github.com/XanaduAI/colours.git?rev=61c77e904fe0f0479043138ce14c5ba730d9d2c0" },
     { name = "scalene" },
     { name = "sympy", specifier = ">=1.14.0" },
     { name = "typer", specifier = ">=0.20.0" },
