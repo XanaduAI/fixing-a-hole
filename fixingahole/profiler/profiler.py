@@ -340,7 +340,7 @@ class Profiler:
 
     def run_profiler(self, preamble: str = "\n") -> None:
         """Profile the python script using Scalene."""
-        from fixingahole.profiler import ProfileParser, StackReporter  # noqa: PLC0415
+        from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
         ncols = max(160, len(str(self.profile_file)) + 75)
         try:
@@ -377,10 +377,10 @@ class Profiler:
             raise Exit(code=1) from ki
         else:
             # Gather all the details and logs and consicely present them to the user.
-            parser = ProfileParser(self.output_file)
-            summary = parser.summary()
-            memory = "" if self.cpu_only else f"using {parser.max_memory} of RAM"
-            finished = f"Finished in {parser.walltime or 0:,.3f} seconds {memory}"
+            profile_data = ProfileSummary(self.output_file.with_suffix(".json"))
+            summary = profile_data.summary()
+            memory = "" if self.cpu_only else f"using {profile_data.max_memory} of RAM"
+            finished = f"Finished in {profile_data.walltime or 0:,.3f} seconds {memory}"
 
             results = self.output_file.read_text()
             log_info = self.log_file.read_text() if self.log_file.exists() else ""

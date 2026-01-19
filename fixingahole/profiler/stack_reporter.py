@@ -55,14 +55,15 @@ class StackReporter:
         # Sort by total_percent descending
         return sorted(funcs, key=operator.itemgetter("total_percent"), reverse=True)[:n]
 
-    def find_stack_traces(self, func_name: str) -> list[dict]:
+    @staticmethod
+    def find_stack_traces(stacks: dict, func_name: str) -> list[dict]:
         """Find all stack traces where the function name appears."""
-        return [{"stack": stack[0], **stack[1]} for stack in self.data["stacks"] if func_name in stack[0][-1]]
+        return [{"stack": stack[0], **stack[1]} for stack in stacks if func_name in stack[0][-1]]
 
     @staticmethod
-    def combine_stack_traces(traces: list[dict]) -> dict[tuple[str], dict[str, float]]:
+    def combine_stack_traces(traces: list[dict]) -> dict[tuple[str], dict[str, int | float]]:
         """Gather traces into similar call stacks."""
-        combined: dict[tuple[str], dict[str, float]] = defaultdict(
+        combined: dict[tuple[str], dict[str, int | float]] = defaultdict(
             lambda: {"count": 0, "c_time": 0.0, "python_time": 0.0, "cpu_samples": 0.0},
         )
         for trace in traces:
@@ -79,7 +80,7 @@ class StackReporter:
         report: list[str] = []
         for func in top_funcs:
             report.append(f"\n{func['name']}, ({func['total_percent']:.2f}%)")
-            traces = self.find_stack_traces(func["name"])
+            traces = StackReporter.find_stack_traces(self.data["stacks"], func["name"])
             if not traces:
                 report.append("  No stack traces found.\n")
                 continue

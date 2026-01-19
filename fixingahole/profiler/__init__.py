@@ -13,12 +13,12 @@
 # limitations under the License.
 """Integrated Scalene Profiler and Parser."""
 
-from fixingahole.profiler.profile_parser import ProfileParser
+from fixingahole.profiler.profile_summary import ProfileSummary
 from fixingahole.profiler.profiler import Profiler
 from fixingahole.profiler.stack_reporter import StackReporter
 
 __all__ = [
-    "ProfileParser",
+    "ProfileSummary",
     "Profiler",
     "StackReporter",
 ]

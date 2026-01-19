@@ -14,6 +14,8 @@
 """Integrated Scalene Profiler Utils."""
 
 import datetime
+import importlib.metadata
+import sys
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
@@ -45,6 +47,21 @@ class LogLevel(Enum):
 def date() -> str:
     """Return the current UTC date and time."""
     return datetime.datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+
+
+def memory_with_units(memory: float, unit: str = "MB", digits: int = 0) -> str:
+    """Convert memory float to string with units."""
+    byte_prefix = {
+        "B": 1,
+        "KB": 1024,
+        "MB": 1024**2,
+        "GB": 1024**3,
+    }
+    memory_bytes = memory * byte_prefix[unit]
+    for prefix in ["GB", "MB", "KB"]:
+        if memory_bytes >= byte_prefix[prefix]:
+            return f"{memory_bytes / byte_prefix[prefix]:>3.{digits}f} {prefix}"
+    return f"{memory_bytes:.{digits}f} bytes"
 
 
 @overload
@@ -131,6 +148,23 @@ def find_path(
             for path in options:
                 Colour.purple.print(path.relative_to(ROOT_DIR))
             raise Exit(code=1)
+
+
+def installed_modules() -> set[str]:
+    """List of all installed module names in the current Python virtual environment."""
+    try:
+        return {str(dist.metadata["Name"]).lower() for dist in importlib.metadata.distributions()}
+    except KeyError:
+        Colour.print(f"Python version: {sys.version}")
+        return_set = set()
+        for dist in importlib.metadata.distributions():
+            if "Name" not in dist.metadata:
+                Colour.print("Found a distribution with missing 'Name' metadata.")
+                Colour.print(f"  Path hint: {dist.locate_file('')}")
+                Colour.print(f"  Available metadata: {list(dist.metadata)}")
+            else:
+                return_set.add(str(dist.metadata["Name"]).lower())
+        return return_set
 
 
 class Spinner(Live):
