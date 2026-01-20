@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the MrKite Profiler."""
+"""Tests for the Profiler."""
 
 import subprocess
 from pathlib import Path
@@ -27,38 +27,23 @@ from fixingahole.profiler import Profiler
 class TestProfilerRunProfiler:
     """Test the run_profiler method."""
 
-    def _mocked_file(self, mock_file: Path) -> Path:
-        content = [
-            "import numpy as np",
-            "from sys import argv",
-            "def main():",
-            "  try:",
-            "    logging.info(' '.join(argv[1:]))",
-            "    logging.warning('This is a warning.')",
-            "  except: pass",
-            "  a = np.random.uniform(size=10**7)",
-            "main()",
-        ]
-        mock_file.write_text("\n".join(content))
-        return mock_file
-
     def test_run_profiler_success(self, mock_file: Path):
         """Test successful profiler run."""
-        profiler = Profiler(path=self._mocked_file(mock_file), precision=5, loglevel=LogLevel.INFO)
+        profiler = Profiler(path=mock_file, precision=5, loglevel=LogLevel.INFO)
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
         assert exc_info.value.exit_code == 0
 
     def test_run_profiler_cpu_only(self, mock_file: Path):
         """Test successful profiler run using only CPU."""
-        profiler = Profiler(path=self._mocked_file(mock_file), cpu_only=True)
+        profiler = Profiler(path=mock_file, cpu_only=True)
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
         assert exc_info.value.exit_code == 0
 
     def test_run_profiler_detailed_mode(self, mock_file: Path):
         """Test profiler run with detailed profiling enabled."""
-        profiler = Profiler(path=self._mocked_file(mock_file), precision=5, detailed=True)
+        profiler = Profiler(path=mock_file, precision=5, detailed=True)
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
 
@@ -74,7 +59,7 @@ class TestProfilerRunProfiler:
         error.stderr = b"stderr error message"
         mock_run.side_effect = error
 
-        profiler = Profiler(path=self._mocked_file(mock_file), precision=5)
+        profiler = Profiler(path=mock_file, precision=5)
 
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
@@ -88,7 +73,7 @@ class TestProfilerRunProfiler:
         # Setup subprocess to raise KeyboardInterrupt.
         mock_run.side_effect = KeyboardInterrupt()
 
-        profiler = Profiler(path=self._mocked_file(mock_file), precision=5)
+        profiler = Profiler(path=mock_file, precision=5)
 
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
@@ -101,7 +86,7 @@ class TestProfilerRunProfiler:
         """Test profiler run with script arguments."""
         args = ["arg1=value1", "arg2=value2"]
         profiler = Profiler(
-            path=self._mocked_file(mock_file),
+            path=mock_file,
             python_script_args=args,
             precision=5,
             loglevel=LogLevel.INFO,

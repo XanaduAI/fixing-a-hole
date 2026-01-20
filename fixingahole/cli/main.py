@@ -104,7 +104,7 @@ def profile(
     # Find and Prepare script for profiling.
     Colour.blue.print("Initializing...")
     full_path = (ROOT_DIR / filename).resolve()
-    if full_path.exists():
+    if full_path.exists() and not full_path.is_dir():
         python_file = full_path
     else:
         python_file: Path = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS)

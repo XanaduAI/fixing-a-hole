@@ -25,7 +25,7 @@ from fixingahole.profiler.stack_reporter import StackReporter, StackReporterErro
 @pytest.fixture
 def example_json(tmp_path: Path) -> Path:
     """Return path to the advanced profile results JSON file."""
-    example_json_file: Path = Path(__file__).parents[1] / "scripts" / "advanced_profile_results.json"
+    example_json_file: Path = Path(__file__).parents[1] / "scripts" / "data" / "advanced_profile_results.json"
     file_path: Path = tmp_path / "example.json"
     file_path.write_bytes(example_json_file.read_bytes())
     return file_path
