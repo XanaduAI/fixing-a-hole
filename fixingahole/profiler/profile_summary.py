@@ -127,22 +127,25 @@ def parse_json(filename: str | Path) -> ProfileData:
             if not any([python_pct, native_pct, system_pct, peak_mem, copy_mb, mem_samples, mem_py_pct, timeline_pct]):
                 continue
 
-            line_profs[file_path].append(ProfileDetails(
-                file_path=file_path,
-                name=line.get("line", ""),
-                line_number=int(line.get("lineno", 0)),
-                python_percentage=python_pct,
-                native_percentage=native_pct,
-                system_percentage=system_pct,
-                peak_memory=peak_mem,
-                copy_mb_per_s=copy_mb,
-                memory_samples=mem_samples,
-                memory_python_percentage=mem_py_pct,
-                timeline_percentage=timeline_pct,
-            ))
+            line_profs[file_path].append(
+                ProfileDetails(
+                    file_path=file_path,
+                    name=line.get("line", ""),
+                    line_number=int(line.get("lineno", 0)),
+                    python_percentage=python_pct,
+                    native_percentage=native_pct,
+                    system_percentage=system_pct,
+                    peak_memory=peak_mem,
+                    copy_mb_per_s=copy_mb,
+                    memory_samples=mem_samples,
+                    memory_python_percentage=mem_py_pct,
+                    timeline_percentage=timeline_pct,
+                )
+            )
 
         funcs = info.get("functions", []) if isinstance(info, dict) else []
-        function_profs.extend(ProfileDetails(
+        function_profs.extend(
+            ProfileDetails(
                 file_path=file_path,
                 name=fn.get("line", ""),
                 line_number=int(fn.get("lineno", 0)),
@@ -154,7 +157,9 @@ def parse_json(filename: str | Path) -> ProfileData:
                 memory_samples=list(fn.get("memory_samples", [])),
                 memory_python_percentage=float(fn.get("n_python_fraction", 0)) * 100,
                 timeline_percentage=float(fn.get("n_usage_fraction", 0)) * 100,
-            ) for fn in funcs)
+            )
+            for fn in funcs
+        )
 
     keys = ["max_footprint_mb", "growth_rate", "start_time_absolute", "start_time_perf"]
     details = {k: content.get(k, -1) for k in keys}

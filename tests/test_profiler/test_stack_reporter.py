@@ -130,8 +130,9 @@ class TestGetTopFunctions:
 
         # Validate descending sort order
         for i in range(len(top_5) - 1):
-            assert top_5[i]["total_percent"] >= top_5[i + 1]["total_percent"], \
+            assert top_5[i]["total_percent"] >= top_5[i + 1]["total_percent"], (
                 f"Functions not sorted: {top_5[i]['total_percent']} < {top_5[i + 1]['total_percent']}"
+            )
 
         # Test custom n
         n = 3
@@ -141,8 +142,9 @@ class TestGetTopFunctions:
 
         # Test requesting more than available
         top_1000: list[dict[str, Any]] = stack_reporter.get_top_functions(n=1000)
-        assert len(top_1000) == len(stack_reporter.get_top_functions(n=10000)), \
+        assert len(top_1000) == len(stack_reporter.get_top_functions(n=10000)), (
             "Should return all available functions when n exceeds total"
+        )
 
 
 class TestFindStackTraces:
@@ -173,8 +175,7 @@ class TestFindStackTraces:
 
             # Validate function name appears in last stack frame
             last_frame: str = trace["stack"][-1]
-            assert "data_serialization" in last_frame, \
-                f"Function name should appear in last frame: {last_frame}"
+            assert "data_serialization" in last_frame, f"Function name should appear in last frame: {last_frame}"
 
         # Test with non-existent function
         empty_traces: list[dict[str, Any]] = StackReporter.find_stack_traces(stacks, "nonexistent_function_xyz")
@@ -193,10 +194,7 @@ class TestCombineStackTraces:
         assert len(empty_combined) == 0
 
         # Test with real data
-        test_traces: list[dict[str, Any]] = StackReporter.find_stack_traces(
-            sample_data["stacks"],
-            "data_serialization"
-        )
+        test_traces: list[dict[str, Any]] = StackReporter.find_stack_traces(sample_data["stacks"], "data_serialization")
         assert len(test_traces) > 0, "Need traces to test combination"
 
         combined: dict[tuple[str], dict[str, float]] = StackReporter.combine_stack_traces(test_traces)
@@ -232,10 +230,7 @@ class TestBuildCombinedReverseTree:
         assert empty_info == {}
 
         # Test with real data
-        traces: list[dict[str, Any]] = StackReporter.find_stack_traces(
-            sample_data["stacks"],
-            "_wrapreduction"
-        )
+        traces: list[dict[str, Any]] = StackReporter.find_stack_traces(sample_data["stacks"], "_wrapreduction")
         if not traces:
             pytest.skip("No traces found for _wrapreduction")
 
@@ -270,11 +265,7 @@ class TestBuildCombinedReverseTree:
 class TestRenderCombinedReverseTree:
     """Test the render_combined_reverse_tree method."""
 
-    def test_render_combined_reverse_tree(
-        self,
-        stack_reporter: StackReporter,
-        sample_data: dict[str, Any]
-    ) -> None:
+    def test_render_combined_reverse_tree(self, stack_reporter: StackReporter, sample_data: dict[str, Any]) -> None:
         """Test rendering tree with real data and edge cases."""
         # Test empty tree
         empty_lines: list[str] = stack_reporter.render_combined_reverse_tree({}, {})
@@ -282,10 +273,7 @@ class TestRenderCombinedReverseTree:
         assert len(empty_lines) == 0, "Empty tree should produce no output"
 
         # Test with real data
-        traces: list[dict[str, Any]] = StackReporter.find_stack_traces(
-            sample_data["stacks"],
-            "data_serialization"
-        )
+        traces: list[dict[str, Any]] = StackReporter.find_stack_traces(sample_data["stacks"], "data_serialization")
         assert len(traces) > 0, "Need traces for testing"
 
         tree, call_info = StackReporter.build_combined_reverse_tree(traces)
@@ -313,11 +301,7 @@ class TestRenderCombinedReverseTree:
 class TestReportStacksForTopFunctions:
     """Test the report_stacks_for_top_functions method."""
 
-    def test_report_stacks_for_top_functions(
-        self,
-        stack_reporter: StackReporter,
-        sample_data: dict[str, Any]
-    ) -> None:
+    def test_report_stacks_for_top_functions(self, stack_reporter: StackReporter, sample_data: dict[str, Any]) -> None:
         """Test generating complete stack trace report."""
         # Test default report
         report: str = stack_reporter.report_stacks_for_top_functions()
