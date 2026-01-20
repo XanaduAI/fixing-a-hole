@@ -187,4 +187,5 @@ def main() -> None:
     logger.info("Results summary: %s metrics computed", len(results))
 
 
-main()
+if __name__ == "__main__":
+    main()

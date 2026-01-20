@@ -18,17 +18,15 @@ import os
 import platform
 import subprocess
 import sys
-import time
 from enum import Enum
 from pathlib import Path
-from threading import Event, Thread
 
 from colours import Colour
 from sympy import nextprime
 from typer import Exit
 
 from fixingahole import OUTPUT_DIR, ROOT_DIR
-from fixingahole.profiler.utils import LogLevel, Spinner, date
+from fixingahole.profiler.utils import FileWatcher, LogLevel, Spinner, date
 
 
 class Platform(Enum):
@@ -129,6 +127,16 @@ class Profiler:
         """Location of the Scalene output."""
         self._output_file = Path(value)
         self._output_file.touch()
+
+    @property
+    def output_json(self) -> Path:
+        """The location of the Scalene JSON output."""
+        return self._output_file.with_suffix(".json")
+
+    @property
+    def output_summary(self) -> Path:
+        """The location of the Scalene JSON output."""
+        return self._output_file.with_name("profile_summary.txt")
 
     @property
     def output_path(self) -> Path:
@@ -290,7 +298,7 @@ class Profiler:
             f"--profile-all {self.excluded_folders}" if self.detailed else "",
             f"--memory {sampling_detail}" if not self.cpu_only else "",
             f"--program-path {ROOT_DIR} --column-width={ncols}",
-            f"--profile-interval=5 --outfile={self.output_file.with_suffix('.json')}",
+            f"--profile-interval=5 --outfile={self.output_json}",
         ]
         cmd.append(str(self.profile_file))
         if self.script_args != []:
@@ -299,54 +307,62 @@ class Profiler:
         cmd_str = " ".join(cmd).strip()
         return cmd_str.split()
 
-    def _watch_output_file(self, stop_event: Event, ncols: int) -> None:
-        """Watch JSON output for changes and update the text output.
+    def json_to_tables(self, ncols: int) -> None:
+        """Run the scalene view command to format the output."""
+        result = subprocess.run(
+            f"python -m scalene view --cli --reduced {self.output_json}".split(),
+            check=False,
+            text=True,
+            capture_output=True,
+            env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
+        )
+        if result.returncode == 0:
+            self.output_file.write_text(Colour.remove_ansi(result.stdout))
 
-        Args:
-            stop_event: Event to signal when to stop watching
-            ncols: Number of columns for formatting the output
+    def summarize(self, preamble: str, capture: subprocess.CompletedProcess, ncols: int = 128) -> str:
+        """Gather all the details and logs and consicely present them to the user."""
+        from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
-        """
-        last_mtime = None
-        while not stop_event.is_set():
-            if self.output_file.with_suffix(".json").exists():
-                current_mtime = self.output_file.stat().st_mtime
-                if last_mtime is None or current_mtime > last_mtime:
-                    last_mtime = current_mtime
-                    # Run the scalene view command to format the output
-                    result = subprocess.run(
-                        f"python -m scalene view --cli --reduced {self.output_file.with_suffix('.json')}".split(),
-                        check=False,
-                        text=True,
-                        capture_output=True,
-                        env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
-                    )
-                    if result.returncode == 0:
-                        self.output_file.write_text(Colour.remove_ansi(result.stdout))
-            time.sleep(0.5)  # Check for changes every 0.5 seconds
+        profile_data = ProfileSummary(self.output_json)
+        self.json_to_tables(ncols)
+        profile_summary = profile_data.summary()
+        memory = "" if self.cpu_only else f"using {profile_data.max_memory} of RAM"
+        finished = f"Finished in {profile_data.walltime or 0:,.3f} seconds {memory}"
 
-    def _start_watcher(self, ncols: int) -> tuple[Thread, Event]:
-        """Start a background thread to watch and update the output file during profiling."""
-        stop_event = Event()
-        watcher_thread = Thread(target=self._watch_output_file, args=(stop_event, ncols), daemon=True)
-        watcher_thread.start()
-        return watcher_thread, stop_event
+        results = self.output_file.read_text()
+        log_info = self.log_file.read_text() if self.log_file.exists() else ""
+        n_warns = log_info.count("WARNING")
+        warning_str = f" ({n_warns} {'warning' if n_warns == 1 else 'warnings'})" if n_warns > 0 else ""
 
-    @staticmethod
-    def _stop_watcher(watcher_thread: Thread, stop_event: Event) -> None:
-        """Stop the background thread."""
-        stop_event.set()
-        watcher_thread.join(timeout=1.0)
+        if capture.stderr is not None and self.platform != Platform.Windows:
+            rss = self.get_memory_rss(capture.stderr)
+            rss_report = f"Max RSS Memory Usage: {rss}\n" if rss else ""
+        else:
+            rss_report = ""
+
+        stack_report = ""
+        if self.trace:
+            reporter = StackReporter(self.output_json)
+            stack_report = reporter.report_stacks_for_top_functions(top_n=5)
+
+        preamble += f"{finished}.\n"
+        preamble += f"Check logs {self.log_path}{warning_str}\n" if log_info else ""
+        results = f"{preamble}\n{rss_report}{profile_summary}\n{stack_report}"
+        self.output_summary.write_text(results, encoding="utf-8")
+
+        summary = f"{profile_summary}{finished}{Colour.orange(warning_str)}.\n{rss_report}\n"
+        if self.trace:
+            summary += stack_report
+        return summary
 
     def run_profiler(self, preamble: str = "\n") -> None:
         """Profile the python script using Scalene."""
-        from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
-
         ncols = max(160, len(str(self.profile_file)) + 75)
         try:
             # Profile the code.
             with Spinner(f"See {Colour.purple(self.output_path)} for details."):
-                watcher_thread, stop_event = self._start_watcher(ncols)
+                watcher = FileWatcher(self.output_json, on_change_callback=lambda: self.json_to_tables(ncols))
+                watcher.start()
                 try:
                     # Run the profiling command
                     capture = subprocess.run(
@@ -357,7 +373,7 @@ class Profiler:
                         env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
                     )
                 finally:
-                    self._stop_watcher(watcher_thread, stop_event)
+                    watcher.stop()
 
         except subprocess.CalledProcessError as exc:
             # Catch any shell errors and display them.
@@ -376,35 +392,5 @@ class Profiler:
             Colour.RED.print(message)
             raise Exit(code=1) from ki
         else:
-            # Gather all the details and logs and consicely present them to the user.
-            profile_data = ProfileSummary(self.output_file.with_suffix(".json"))
-            summary = profile_data.summary()
-            memory = "" if self.cpu_only else f"using {profile_data.max_memory} of RAM"
-            finished = f"Finished in {profile_data.walltime or 0:,.3f} seconds {memory}"
-
-            results = self.output_file.read_text()
-            log_info = self.log_file.read_text() if self.log_file.exists() else ""
-            n_warns = log_info.count("WARNING")
-            warning_str = f" ({n_warns} {'warning' if n_warns == 1 else 'warnings'})" if n_warns > 0 else ""
-
-            if capture.stderr is not None and self.platform != Platform.Windows:
-                rss = self.get_memory_rss(capture.stderr)
-                rss_report = f"Max RSS Memory Usage: {rss}\n" if rss else ""
-            else:
-                rss_report = ""
-
-            report = ""
-            if self.trace:
-                reporter = StackReporter(self.output_file.with_suffix(".json"))
-                report = reporter.report_stacks_for_top_functions(top_n=5)
-
-            preamble += f"{finished}.\n"
-            preamble += f"Check logs {self.log_path}{warning_str}\n" if log_info else ""
-            results = f"{preamble}\n{rss_report}{summary}{results}{report}"
-            self.output_file.write_text(results, encoding="utf-8")
-
-            Colour.print(f"{summary}{finished}{Colour.orange(warning_str)}.\n", rss_report, "\n")
-            if self.trace:
-                Colour.print(report)
-
+            Colour.print(self.summarize(preamble, capture, ncols))
             raise Exit(code=0)

@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from colours import Colour
+from typer import Exit
 
 from fixingahole import ROOT_DIR
 from fixingahole.profiler.utils import installed_modules, memory_with_units
@@ -86,7 +87,7 @@ class ProfileData:
         )
 
     @cached_property
-    def get_functions_by_file(self) -> dict[str, list[ProfileDetails]]:
+    def functions_by_file(self) -> dict[str, list[ProfileDetails]]:
         """Group functions by file path."""
         result = defaultdict(list)
         for func in self.functions:
@@ -99,7 +100,7 @@ def parse_json(filename: str | Path) -> ProfileData:
     profile_path = Path(filename)
     if not profile_path.exists():
         Colour.print(Colour.RED("Error:"), "profile", Colour.purple(filename), "does not exist.")
-        return ProfileData(functions=[], lines={}, files={}, walltime=None, max_memory=None, samples=[], details={})
+        raise Exit(code=66)  # Cannot open input: A specified file or input cannot be accessed.
 
     content = json.loads(profile_path.read_text(encoding="utf-8"))
     function_profs: list[ProfileDetails] = []
@@ -183,7 +184,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
 
     has_memory_info = False
     max_func_name_length = 0
-    by_file = profile_data.get_functions_by_file
+    by_file = profile_data.functions_by_file
     for file_functions in by_file.values():
         for func in file_functions:
             max_func_name_length = max(

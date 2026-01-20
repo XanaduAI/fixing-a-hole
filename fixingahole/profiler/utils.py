@@ -15,19 +15,24 @@
 
 import datetime
 import importlib.metadata
-import sys
+from collections.abc import Callable
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
-from typing import overload
+from typing import TYPE_CHECKING, overload
 
 from colours import Colour
 from rich._spinners import SPINNERS  # noqa: PLC2701
 from rich.live import Live
 from rich.spinner import Spinner as rich_Spinner
 from typer import Exit
+from watchdog.events import FileSystemEvent, FileSystemEventHandler
+from watchdog.observers import Observer
 
 from fixingahole import ROOT_DIR
+
+if TYPE_CHECKING:
+    from watchdog.observers.api import BaseObserver
 
 
 class LogLevel(Enum):
@@ -152,19 +157,13 @@ def find_path(
 
 def installed_modules() -> set[str]:
     """List of all installed module names in the current Python virtual environment."""
-    try:
-        return {str(dist.metadata["Name"]).lower() for dist in importlib.metadata.distributions()}
-    except KeyError:
-        Colour.print(f"Python version: {sys.version}")
-        return_set = set()
-        for dist in importlib.metadata.distributions():
-            if "Name" not in dist.metadata:
-                Colour.print("Found a distribution with missing 'Name' metadata.")
-                Colour.print(f"  Path hint: {dist.locate_file('')}")
-                Colour.print(f"  Available metadata: {list(dist.metadata)}")
-            else:
-                return_set.add(str(dist.metadata["Name"]).lower())
-        return return_set
+    modules: set[str] = set()
+    for dist in importlib.metadata.distributions():
+        if "Name" in dist.metadata:
+            modules.add(str(dist.metadata["Name"]).lower())
+        elif not any("egg-info" in str(file) for file in getattr(dist, "files", [])):
+            Colour.print(Colour.ORANGE("\nWarning:"), "module missing 'Name' metadata.")
+    return modules
 
 
 class Spinner(Live):
@@ -174,3 +173,44 @@ class Spinner(Live):
         """Abstraction of rich.spinner.Spinner with Live context."""
         spinner = rich_Spinner(choice(sorted(SPINNERS.keys())), message, style=style, speed=speed)
         super().__init__(spinner, refresh_per_second=20)
+
+
+class FileWatcher:
+    """A file system watcher that triggers a callback when a file changes."""
+
+    def __init__(self, file_path: Path, on_change_callback: Callable) -> None:
+        """Initialize the file watcher.
+
+        Args:
+            file_path: Path to the file to watch
+            on_change_callback: Function to call when the file is modified
+
+        """
+        self.file_path = Path(file_path)
+        self.callback = on_change_callback
+        self.observer: BaseObserver | None = None
+
+    def start(self) -> None:
+        """Start watching the file for changes."""
+
+        class FileChangeHandler(FileSystemEventHandler):
+            """Handler for file system events."""
+
+            def __init__(self, target_path: str, callback: Callable):
+                self.target_path = target_path
+                self.callback = callback
+
+            def on_modified(self, event: FileSystemEvent) -> None:
+                if not event.is_directory and event.src_path == self.target_path:
+                    self.callback()
+
+        handler = FileChangeHandler(str(self.file_path), self.callback)
+        self.observer = Observer()
+        self.observer.schedule(handler, str(self.file_path.parent), recursive=False)
+        self.observer.start()
+
+    def stop(self) -> None:
+        """Stop watching the file."""
+        if self.observer:
+            self.observer.stop()
+            self.observer.join(timeout=1.0)
