@@ -29,7 +29,7 @@ class TestProfilerRunProfiler:
 
     def test_run_profiler_success(self, mock_file: Path):
         """Test successful profiler run."""
-        profiler = Profiler(path=mock_file, precision=5, loglevel=LogLevel.INFO)
+        profiler = Profiler(path=mock_file, precision=5, loglevel=LogLevel.INFO, live_update=True)
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
         assert exc_info.value.exit_code == 0
@@ -100,6 +100,6 @@ class TestProfilerRunProfiler:
             assert arg in logs
         assert "This is a warning." in logs
         # Check that warning count is correctly calculated and included
-        final_content = profiler.output_file.read_text()
+        final_content = profiler.output_summary.read_text()
         assert "Check logs" in final_content
         assert "(1 warning)" in final_content

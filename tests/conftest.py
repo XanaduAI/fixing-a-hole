@@ -13,6 +13,7 @@
 # limitations under the License.
 """Helper code for testing the FlamingPy CLI tools."""
 
+import contextlib
 from pathlib import Path
 
 import pytest
@@ -50,11 +51,9 @@ def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     package_root = Path(__file__).parents[1] / "fixingahole"
     for path in package_root.rglob("*.py"):
         part = ".".join(path.relative_to(package_root).parts)[:-3]
-        try:
-            monkeypatch.setattr(f"fixingahole.{part}.ROOT_DIR", mock_root_dir)
-            monkeypatch.setattr(f"fixingahole.{part}.OUTPUT_DIR", mock_output_dir)
-        except AttributeError:
-            continue
+        for folder in ["ROOT_DIR", "OUTPUT_DIR"]:
+            with contextlib.suppress(AttributeError):
+                monkeypatch.setattr(f"fixingahole.{part}.{folder}", mock_root_dir)
     return mock_root_dir
 
 

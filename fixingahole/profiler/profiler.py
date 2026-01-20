@@ -13,6 +13,7 @@
 # limitations under the License.
 """Integrated Scalene Profiler."""
 
+import contextlib
 import json
 import os
 import platform
@@ -51,6 +52,7 @@ class Profiler:
         loglevel: LogLevel = LogLevel.CRITICAL,
         noplots: bool = False,
         trace: bool = True,
+        live_update: bool = False,
         **_: dict,
     ) -> None:
         self.cpu_only = cpu_only
@@ -68,6 +70,7 @@ class Profiler:
         self.cli_inputs = ""
         self._precision_limit = 10
         self.trace = trace
+        self.live_update = live_update
 
         # Prepare the results folder.
         if path.is_file():
@@ -309,14 +312,17 @@ class Profiler:
 
     def json_to_tables(self, ncols: int) -> None:
         """Run the scalene view command to format the output."""
+        if not self.output_json.exists():
+            return
+
         result = subprocess.run(
-            f"python -m scalene view --cli --reduced {self.output_json}".split(),
+            [sys.executable, "-m", "scalene", "view", "--cli", "--reduced", str(self.output_json)],
             check=False,
             text=True,
             capture_output=True,
-            env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
+            env=os.environ.copy() | {"LINES": "320", "COLUMNS": str(ncols), "FIXING_A_HOLE_PROFILE": "1"},
         )
-        if result.returncode == 0:
+        if result.returncode == 0 and result.stdout:
             self.output_file.write_text(Colour.remove_ansi(result.stdout))
 
     def summarize(self, preamble: str, capture: subprocess.CompletedProcess, ncols: int = 128) -> str:
@@ -361,8 +367,10 @@ class Profiler:
         try:
             # Profile the code.
             with Spinner(f"See {Colour.purple(self.output_path)} for details."):
-                watcher = FileWatcher(self.output_json, on_change_callback=lambda: self.json_to_tables(ncols))
-                watcher.start()
+                watcher = None
+                if self.live_update:
+                    watcher = FileWatcher(file_path=self.output_json, on_change_callback=lambda: self.json_to_tables(ncols))
+                    watcher.start()
                 try:
                     # Run the profiling command
                     capture = subprocess.run(
@@ -373,7 +381,8 @@ class Profiler:
                         env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
                     )
                 finally:
-                    watcher.stop()
+                    if watcher:
+                        watcher.stop()
 
         except subprocess.CalledProcessError as exc:
             # Catch any shell errors and display them.
@@ -388,6 +397,8 @@ class Profiler:
         except KeyboardInterrupt as ki:
             # Make sure to indicate in the profile_results.txt of the interruption.
             message = "\n Profiling interrupted by user. \n"
+            with contextlib.suppress(KeyboardInterrupt):
+                self.json_to_tables(ncols)
             self.output_file.write_text(message + self.output_file.read_text(), encoding="utf-8")
             Colour.RED.print(message)
             raise Exit(code=1) from ki

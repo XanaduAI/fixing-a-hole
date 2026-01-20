@@ -20,7 +20,6 @@ the function summary sections at the bottom of each file's profiling table.
 import json
 import os
 from collections import defaultdict
-from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
@@ -197,7 +196,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     message = [f"\nProfile Summary ({profile_data.walltime or 0:,.3f}s total)", "=" * width]
 
     # Top functions by total runtime percentage
-    top_functions = get_top_usage(functions, top_n)
+    top_functions: list[ProfileDetails] = sorted(functions, key=lambda f: f.total_percentage, reverse=True)[:top_n]
     message += [
         f"\nTop {len(top_functions)} Functions by Total Runtime:",
         "-" * width,
@@ -212,8 +211,8 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
 
     # Add memory summary if available
     if has_memory_info:
-        memory_functions = get_top_usage(functions, top_n, key=lambda f: f.peak_memory)
-        memory_functions = [f for f in memory_functions if f.peak_memory]
+        memory_functions: list[ProfileDetails] = sorted(functions, key=lambda f: f.peak_memory, reverse=True)[:top_n]
+        memory_functions: list[ProfileDetails] = [f for f in memory_functions if f.peak_memory]
         if memory_functions:
             message += [
                 f"\nTop {len(memory_functions)} Functions by Memory Usage:",
@@ -235,15 +234,6 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
 
     message.extend(["=" * width, "\n"])
     return "\n".join(line.rstrip() for line in message)
-
-
-def get_top_usage(
-    details: list[ProfileDetails],
-    n: int = 10,
-    key: Callable = lambda f: f.total_percentage,
-) -> list[ProfileDetails]:
-    """Get the top N profile details by key."""
-    return sorted(details, key=key, reverse=True)[:n]
 
 
 def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> dict[str, Any]:

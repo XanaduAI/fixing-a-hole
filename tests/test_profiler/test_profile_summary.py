@@ -25,7 +25,6 @@ from fixingahole.profiler.profile_summary import (
     build_module_tree,
     generate_summary,
     get_all_functions_in_tree,
-    get_top_usage,
     memory_with_units,
     parse_json,
     render_tree,
@@ -178,46 +177,6 @@ class TestParseJson:
         assert func.copy_mb_per_s == 0.0
         assert func.memory_python_percentage == 0.20126943997844543 * 100
         assert func.timeline_percentage == 0.0018903851360701405 * 100
-
-
-class TestTopFunctions:
-    """Test the get_top_usage function."""
-
-    def test_top_functions_by_total_percentage(self, example_json: Path):
-        """Test getting top functions by total percentage."""
-        data = parse_json(example_json)
-        result = get_top_usage(data.functions, n=2)
-        assert len(result) == 2
-        assert result[0].name == "data_serialization"
-        assert result[1].name == "fourier_analysis"
-        assert result[0].total_percentage == 99.56785634799832
-        assert result[1].total_percentage == 0.03309718139989738
-
-    def test_top_usage_by_memory(self, example_json: Path):
-        """Test getting top functions by memory."""
-        data = parse_json(example_json)
-        result = get_top_usage(data.functions, n=2, key=lambda f: f.peak_memory)
-        assert len(result) == 2
-        assert result[0].name == "fourier_analysis"
-        assert result[1].name == "_var"
-        assert result[0].peak_memory_info == "153 MB"
-        assert result[1].peak_memory_info == "153 MB"
-
-    def test_top_usage_empty_list(self):
-        """Test getting top functions from empty list."""
-        result = get_top_usage([], n=5)
-        assert result == []
-
-    def test_top_usage_real_profile(self, example_json: Path):
-        """Test getting top functions from real profile data."""
-        profile_data = parse_json(example_json)
-        result = get_top_usage(profile_data.functions, n=10)
-
-        # Should get all 9 functions in the example.
-        assert len(result) == 9
-        # Verify they're sorted by total percentage (descending)
-        for i in range(len(result) - 1):
-            assert result[i].total_percentage >= result[i + 1].total_percentage
 
 
 class TestGetFunctionsByFile:

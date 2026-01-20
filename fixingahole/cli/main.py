@@ -99,6 +99,14 @@ def profile(
             show_default=True,
         ),
     ] = False,
+    live: Annotated[
+        bool,
+        typer.Option(
+            "--live/--no-live",
+            help="Update the profile output every 5 seconds as the profiling happens.",
+            show_default=True,
+        ),
+    ] = False,
 ) -> None:
     """Profile a python script or Jupyter notebook."""
     # Find and Prepare script for profiling.
@@ -121,6 +129,7 @@ def profile(
         loglevel=loglevel,
         noplots=noplots,
         trace=trace,
+        live_update=live,
     )
 
     cli_args = sys.argv
