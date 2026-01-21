@@ -32,7 +32,9 @@ if you're not using [`uv`](https://docs.astral.sh/uv/).
 If you're installing `fixing-a-hole` into a repo, you can
 configure some defaults in your `pyproject.toml`.
 1. The `root` directory determines how to refer to your codebase and
-is set as the current working directory (meaning wherever `fixingahole profile` is invoked from). Setting this to the root of your repo will provide the best results for profiling code within your repo.
+is set as the current working directory (meaning wherever `fixingahole profile`
+is invoked from). Setting this to the root of your repo will provide the best
+results for profiling code within your repo.
 1. The profiling results are saved in the specified `output` directory.
 The default is set as `performance/` relative to the `root` directory.
 1. Additional directories to `ignore` can be also specified. By

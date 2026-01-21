@@ -13,6 +13,7 @@
 # limitations under the License.
 """Helper code for testing the FlamingPy CLI tools."""
 
+import contextlib
 from pathlib import Path
 
 import pytest
@@ -41,6 +42,15 @@ def mock_dir(tmp_path: Path) -> Path:
     return test_dir
 
 
+@pytest.fixture
+def example_json(tmp_path: Path) -> Path:
+    """Return path to the advanced profile results JSON file."""
+    example_json_file: Path = Path(__file__).parent / "scripts" / "data" / "advanced_profile_results.json"
+    file_path: Path = tmp_path / "example.json"
+    file_path.write_bytes(example_json_file.read_bytes())
+    return file_path
+
+
 @pytest.fixture(name="root_dir", autouse=True)
 def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Create a temporary repo root directory for tests."""
@@ -50,11 +60,9 @@ def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     package_root = Path(__file__).parents[1] / "fixingahole"
     for path in package_root.rglob("*.py"):
         part = ".".join(path.relative_to(package_root).parts)[:-3]
-        try:
-            monkeypatch.setattr(f"fixingahole.{part}.ROOT_DIR", mock_root_dir)
-            monkeypatch.setattr(f"fixingahole.{part}.OUTPUT_DIR", mock_output_dir)
-        except AttributeError:
-            continue
+        for folder in ["ROOT_DIR", "OUTPUT_DIR"]:
+            with contextlib.suppress(AttributeError):
+                monkeypatch.setattr(f"fixingahole.{part}.{folder}", mock_root_dir)
     return mock_root_dir
 
 

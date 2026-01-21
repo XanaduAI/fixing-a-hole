@@ -90,7 +90,7 @@ def profile(
             case_sensitive=False,
             show_default=True,
         ),
-    ] = "WARNING",
+    ] = LogLevel.WARNING,
     noplots: Annotated[
         bool,
         typer.Option(
@@ -99,15 +99,23 @@ def profile(
             show_default=True,
         ),
     ] = False,
+    live: Annotated[
+        bool,
+        typer.Option(
+            "--live/--no-live",
+            help="Update the profile output every 5 seconds as the profiling happens.",
+            show_default=True,
+        ),
+    ] = False,
 ) -> None:
     """Profile a python script or Jupyter notebook."""
     # Find and Prepare script for profiling.
     Colour.blue.print("Initializing...")
     full_path = (ROOT_DIR / filename).resolve()
-    if full_path.exists():
+    if full_path.exists() and not full_path.is_dir():
         python_file = full_path
     else:
-        python_file = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS)
+        python_file: Path = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS)
         if python_file.is_dir():
             Colour.ORANGE.print(Colour.red_error("Error: cannot profile a directory."))
             raise typer.Exit(code=1)
@@ -121,6 +129,7 @@ def profile(
         loglevel=loglevel,
         noplots=noplots,
         trace=trace,
+        live_update=live,
     )
 
     cli_args = sys.argv
@@ -156,7 +165,7 @@ def main(
         ),
     ] = None,
 ) -> None:
-    """Implement `fixingahole --version` callback."""
+    """Integrated Scalene Profiler CLI."""
 
 
 if __name__ == "__main__":
