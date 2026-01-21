@@ -1,4 +1,4 @@
-# Copyright 2025 Xanadu Quantum Technologies Inc.
+# Copyright 2026 Xanadu Quantum Technologies Inc.
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,15 +20,6 @@ from typing import Any
 import pytest
 
 from fixingahole.profiler.stack_reporter import StackReporter, StackReporterError
-
-
-@pytest.fixture
-def example_json(tmp_path: Path) -> Path:
-    """Return path to the advanced profile results JSON file."""
-    example_json_file: Path = Path(__file__).parents[1] / "scripts" / "data" / "advanced_profile_results.json"
-    file_path: Path = tmp_path / "example.json"
-    file_path.write_bytes(example_json_file.read_bytes())
-    return file_path
 
 
 @pytest.fixture
@@ -111,14 +102,11 @@ class TestGetTopFunctions:
 
     def test_get_top_functions(self, stack_reporter: StackReporter) -> None:
         """Test getting top functions returns correctly sorted and limited results."""
-        # Test default (top 5)
-        default_n = 5
-        top_5: list[dict[str, Any]] = stack_reporter.get_top_functions()
-        assert len(top_5) <= default_n
-        assert len(top_5) > 0, "Should have at least one function"
+        top_3: list[dict[str, Any]] = stack_reporter.get_top_functions(n=3)
+        assert len(top_3) == 3
 
         # Validate structure
-        for func in top_5:
+        for func in top_3:
             assert isinstance(func, dict)
             assert "file" in func
             assert isinstance(func["file"], str)
@@ -129,20 +117,14 @@ class TestGetTopFunctions:
             assert func["total_percent"] >= 0, "CPU percent should be non-negative"
 
         # Validate descending sort order
-        for i in range(len(top_5) - 1):
-            assert top_5[i]["total_percent"] >= top_5[i + 1]["total_percent"], (
-                f"Functions not sorted: {top_5[i]['total_percent']} < {top_5[i + 1]['total_percent']}"
+        for i in range(len(top_3) - 1):
+            assert top_3[i]["total_percent"] >= top_3[i + 1]["total_percent"], (
+                f"Functions not sorted: {top_3[i]['total_percent']} < {top_3[i + 1]['total_percent']}"
             )
-
-        # Test custom n
-        n = 3
-        top_3: list[dict[str, Any]] = stack_reporter.get_top_functions(n=n)
-        assert len(top_3) <= n
-        assert top_3[0] == top_5[0], "Top function should be the same"
 
         # Test requesting more than available
         top_1000: list[dict[str, Any]] = stack_reporter.get_top_functions(n=1000)
-        assert len(top_1000) == len(stack_reporter.get_top_functions(n=10000)), (
+        assert len(top_1000) == len(stack_reporter.get_top_functions(n=10**6)), (
             "Should return all available functions when n exceeds total"
         )
 

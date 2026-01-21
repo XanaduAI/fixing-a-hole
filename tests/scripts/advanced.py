@@ -143,7 +143,7 @@ def data_serialization(data_size: int = 1000) -> None:
 
 def main() -> None:
     """Complex test function with multiple computational tasks."""
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     logger.info(" ".join(argv[1:]))
     logger.info("Starting advanced profiling test...")
@@ -180,7 +180,7 @@ def main() -> None:
     data_serialization(data_size=1000)
 
     # Final summary
-    elapsed = time.time() - start_time
+    elapsed = time.perf_counter() - start_time
     results["total_elapsed_seconds"] = elapsed
 
     logger.info("All tasks completed in %s seconds", elapsed)

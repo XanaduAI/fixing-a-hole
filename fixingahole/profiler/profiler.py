@@ -293,7 +293,7 @@ class Profiler:
         return memory_str, walltime
 
     @property
-    def _build_cmd(self) -> list[str]:
+    def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
         sampling_detail = self.get_memory_precision()
         ncols = max(160, len(str(self.profile_file)) + 75)
@@ -305,7 +305,7 @@ class Profiler:
 
         cmd = [
             usr_bin_time,
-            "python -m scalene run",
+            f"{sys.executable} -m scalene run",
             "--reduced-profile --cpu-only",
             "--json --stacks" if self.trace else "",
             f"--profile-all {self.excluded_folders}" if self.detailed else "",
@@ -387,7 +387,7 @@ class Profiler:
                 try:
                     # Run the profiling command
                     capture = subprocess.run(
-                        self._build_cmd,
+                        self._scalene_run_cmd,
                         check=True,
                         text=True,
                         capture_output=self.loglevel.should_catch_warnings(),
