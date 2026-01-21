@@ -27,7 +27,7 @@ from sympy import nextprime
 from typer import Exit
 
 from fixingahole import OUTPUT_DIR, ROOT_DIR
-from fixingahole.profiler.utils import FileWatcher, LogLevel, Spinner, date
+from fixingahole.profiler.utils import FileWatcher, LogLevel, Spinner, date, memory_with_units
 
 
 class Platform(Enum):
@@ -257,9 +257,15 @@ class Profiler:
 
         return self.profile_file, self.output_file
 
-    def get_memory_rss(self, stderr: str) -> str:
-        """Max memory resident set size (RSS) that occured while profiling."""
+    def get_usr_bin_time_data(self, stderr: str) -> tuple[str, float]:
+        """Max memory resident set size (RSS) and wall time from /usr/bin/time output.
+
+        Returns:
+            tuple: (memory_string, walltime_seconds)
+
+        """
         memory_used = -1.0
+        walltime = -1.0
         rss_line = "Maximum resident set size (kbytes)" if self.platform == Platform.Linux else "maximum resident set size"
 
         for line in stderr.splitlines():
@@ -270,27 +276,21 @@ class Profiler:
                         break
                     except ValueError:
                         pass
-        byte_prefix = {
-            "KB": 1024,
-            "MB": 1024**2,
-            "GB": 1024**3,
-        }
-        if memory_used > 0:
-            if memory_used >= byte_prefix["GB"]:
-                memory_usage = memory_used / byte_prefix["GB"]
-                unit = "GB"
-            elif memory_used >= byte_prefix["MB"]:
-                memory_usage = memory_used / byte_prefix["MB"]
-                unit = "MB"
-            elif memory_used >= byte_prefix["KB"]:
-                memory_usage = memory_used / byte_prefix["KB"]
-                unit = "KB"
-            else:
-                unit = "bytes"
-            memory_usage = f"{memory_usage:.2f} {unit}"
-        else:
-            memory_usage = ""
-        return memory_usage
+
+            # Parse wall time based on platform
+            if self.platform == Platform.Linux and "Elapsed (wall clock) time" in line:
+                # Elapsed (wall clock) time (h:mm:ss or m:ss): 0:46.59
+                time_parts = line.strip().split()[-1].split(":")
+                time_parts.reverse()
+                units = [1, 60, 3600]
+                walltime = sum(float(t) * u for t, u in zip(time_parts, units, strict=False))
+            elif self.platform == Platform.MacOS and " real " in line:
+                # 1.55 real  0.65 user  0.32 sys
+                walltime = float(line.strip().split()[0])
+
+        unit = "KB" if self.platform == Platform.Linux else "B"
+        memory_str = memory_with_units(memory_used, unit=unit, digits=3)
+        return memory_str, walltime
 
     @property
     def _build_cmd(self) -> list[str]:
@@ -353,8 +353,9 @@ class Profiler:
         warning_str = f" ({n_warns} {'warning' if n_warns == 1 else 'warnings'})" if n_warns > 0 else ""
 
         if capture.stderr is not None and self.platform != Platform.Windows:
-            rss = self.get_memory_rss(capture.stderr)
-            rss_report = f"Max RSS Memory Usage: {rss}\n" if rss else ""
+            ubt_rss, ubt_walltime = self.get_usr_bin_time_data(capture.stderr)
+            rss_report = f"Max RSS Memory Usage: {ubt_rss}\n" if ubt_rss else ""
+            rss_report += f"Wall Time: {ubt_walltime:.3f} seconds\n" if ubt_walltime > 0 else ""
         else:
             rss_report = ""
 

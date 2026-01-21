@@ -48,12 +48,43 @@ class ProfileDetails:
     copy_mb_per_s: float
     memory_samples: list[tuple[float, float]]
 
+    @classmethod
+    def from_scalene_dict(cls, data: dict[str, Any], file_path: str) -> "ProfileDetails":
+        """Create ProfileDetails from raw scalene JSON data.
+
+        Args:
+            data: Dictionary containing scalene profile data for a line or function
+            file_path: The file path to associate with this profile entry
+
+        Returns:
+            ProfileDetails instance with properly typed and mapped fields.
+
+        """
+        return cls(
+            file_path=file_path,
+            name=data.get("line", ""),
+            line_number=int(data.get("lineno", 0)),
+            python_percentage=float(data.get("n_cpu_percent_python", 0)),
+            native_percentage=float(data.get("n_cpu_percent_c", 0)),
+            system_percentage=float(data.get("n_sys_percent", 0)),
+            peak_memory=float(data.get("n_peak_mb", 0)),
+            copy_mb_per_s=float(data.get("n_copy_mb_s", 0)),
+            memory_samples=list(data.get("memory_samples", [])),
+            memory_python_percentage=float(data.get("n_python_fraction", 0)) * 100,
+            timeline_percentage=float(data.get("n_usage_fraction", 0)) * 100,
+        )
+
     @cached_property
     def has_memory_info(self) -> bool:
         """Determine if a line used significant memory."""
         return bool(
             self.peak_memory > 0 or self.memory_python_percentage > 0 or self.timeline_percentage > 0 or self.memory_samples
         )
+
+    @cached_property
+    def has_data(self) -> bool:
+        """Determine if this profile entry contains any meaningful data."""
+        return bool(self.total_percentage > 0 or self.has_memory_info or self.copy_mb_per_s > 0)
 
     @cached_property
     def peak_memory_info(self) -> str:
@@ -115,51 +146,12 @@ def parse_json(filename: str | Path) -> ProfileData:
         file_percentage[file_path] = info.get("percent_cpu_time", 0)
         lines = info.get("lines", []) if isinstance(info, dict) else []
         for line in lines:
-            python_pct = float(line.get("n_cpu_percent_python", 0))
-            native_pct = float(line.get("n_cpu_percent_c", 0))
-            system_pct = float(line.get("n_sys_percent", 0))
-            peak_mem = float(line.get("n_peak_mb", 0))
-            copy_mb = float(line.get("n_copy_mb_s", 0))
-            mem_samples = list(line.get("memory_samples", []))
-            mem_py_pct = float(line.get("n_python_fraction", 0)) * 100
-            timeline_pct = float(line.get("n_usage_fraction", 0)) * 100
-
-            if not any([python_pct, native_pct, system_pct, peak_mem, copy_mb, mem_samples, mem_py_pct, timeline_pct]):
-                continue
-
-            line_profs[file_path].append(
-                ProfileDetails(
-                    file_path=file_path,
-                    name=line.get("line", ""),
-                    line_number=int(line.get("lineno", 0)),
-                    python_percentage=python_pct,
-                    native_percentage=native_pct,
-                    system_percentage=system_pct,
-                    peak_memory=peak_mem,
-                    copy_mb_per_s=copy_mb,
-                    memory_samples=mem_samples,
-                    memory_python_percentage=mem_py_pct,
-                    timeline_percentage=timeline_pct,
-                )
-            )
+            profile = ProfileDetails.from_scalene_dict(line, file_path)
+            if profile.has_data:
+                line_profs[file_path].append(profile)
 
         funcs = info.get("functions", []) if isinstance(info, dict) else []
-        function_profs.extend(
-            ProfileDetails(
-                file_path=file_path,
-                name=fn.get("line", ""),
-                line_number=int(fn.get("lineno", 0)),
-                python_percentage=float(fn.get("n_cpu_percent_python", 0)),
-                native_percentage=float(fn.get("n_cpu_percent_c", 0)),
-                system_percentage=float(fn.get("n_sys_percent", 0)),
-                peak_memory=float(fn.get("n_peak_mb", 0)),
-                copy_mb_per_s=float(fn.get("n_copy_mb_s", 0)),
-                memory_samples=list(fn.get("memory_samples", [])),
-                memory_python_percentage=float(fn.get("n_python_fraction", 0)) * 100,
-                timeline_percentage=float(fn.get("n_usage_fraction", 0)) * 100,
-            )
-            for fn in funcs
-        )
+        function_profs.extend(ProfileDetails.from_scalene_dict(fn, file_path) for fn in funcs)
 
     keys = ["max_footprint_mb", "growth_rate", "start_time_absolute", "start_time_perf"]
     details = {k: content.get(k, -1) for k in keys}
