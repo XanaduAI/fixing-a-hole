@@ -345,17 +345,19 @@ class Profiler:
         profile_data = ProfileSummary(self.output_json)
         self.json_to_tables(ncols)
         profile_summary = profile_data.summary()
-        memory = "" if self.cpu_only else f"using {profile_data.max_memory} of RAM"
-        finished = f"Finished in {profile_data.walltime or 0:,.3f} seconds {memory}"
+        memory = "" if self.cpu_only else f"using {profile_data.max_memory} of heap RAM"
+        finished = f"\nFinished in {profile_data.walltime or 0:,.3f} seconds {memory}."
 
         log_info = self.log_file.read_text() if self.log_file.exists() else ""
         n_warns = log_info.count("WARNING")
         warning_str = f" ({n_warns} {'warning' if n_warns == 1 else 'warnings'})" if n_warns > 0 else ""
+        logs_plain = f"\nCheck logs {self.log_path}{warning_str}\n" if log_info else ""
+        logs_colored = f"\nCheck logs {Colour.purple(self.log_path)}{Colour.ORANGE(warning_str)}\n" if log_info else ""
 
         if capture.stderr is not None and self.platform != Platform.Windows:
             ubt_rss, ubt_walltime = self.get_usr_bin_time_data(capture.stderr)
-            rss_report = f"Max RSS Memory Usage: {ubt_rss}\n" if ubt_rss else ""
-            rss_report += f"Wall Time: {ubt_walltime:.3f} seconds\n" if ubt_walltime > 0 else ""
+            rss_report = f"\nMax RSS Memory Usage: {ubt_rss}" if ubt_rss else ""
+            rss_report += f"\nTotal Wall Time: {ubt_walltime:.3f} seconds\n" if ubt_walltime > 0 else ""
         else:
             rss_report = ""
 
@@ -364,12 +366,10 @@ class Profiler:
             reporter = StackReporter(self.output_json)
             stack_report = reporter.report_stacks_for_top_functions(top_n=5)
 
-        preamble += f"{finished}.\n{rss_report}"
-        preamble += f"Check logs {self.log_path}{warning_str}\n" if log_info else ""
-        results = f"{preamble}{profile_summary}\n{stack_report}"
+        results = f"{preamble}{finished}{rss_report}{logs_plain}{profile_summary}\n{stack_report}"
         self.output_summary.write_text(results, encoding="utf-8")
 
-        summary = f"{finished}{Colour.orange(warning_str)}.\n{rss_report}{profile_summary}"
+        summary = f"{finished}{rss_report}{logs_colored}{profile_summary}"
         if self.trace:
             summary += f"\nSee {Colour.purple(self.path_to_summary)} for the stack traces of top function calls.\n"
         return summary

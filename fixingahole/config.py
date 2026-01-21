@@ -20,6 +20,8 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
+from colours import Colour
+
 
 def _detect_virtualenv() -> str:
     """Find the virtual environment path for the current Python executable."""
@@ -68,7 +70,15 @@ def _get_config() -> dict[str, Any]:
         return {}
 
     with Path.open(pyproject_path, "rb") as f:
-        data = tomllib.load(f)
+        try:
+            data = tomllib.load(f)
+        except tomllib.TOMLDecodeError as exc:
+            Colour.print(
+                Colour.RED("Error:"),
+                f"{exc} while reading",
+                Colour.purple(Path(*(pyproject_path.parts[-2:]))),
+            )
+            sys.exit(5)  # Failure to read or write data.
     tools = data.get("tool", {})
     return tools.get("fixingahole", {})
 
