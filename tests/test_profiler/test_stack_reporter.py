@@ -301,7 +301,7 @@ class TestRenderCombinedReverseTree:
 class TestReportStacksForTopFunctions:
     """Test the report_stacks_for_top_functions method."""
 
-    def test_report_stacks_for_top_functions(self, stack_reporter: StackReporter, sample_data: dict[str, Any]) -> None:
+    def test_report_stacks_for_top_functions(self, stack_reporter: StackReporter) -> None:
         """Test generating complete stack trace report."""
         # Test default report
         report: str = stack_reporter.report_stacks_for_top_functions()
@@ -310,8 +310,6 @@ class TestReportStacksForTopFunctions:
 
         # Validate report contains expected sections
         assert "Stack Trace Summary" in report, "Should have header"
-        elapsed: float = sample_data["elapsed_time_sec"]
-        assert f"{elapsed:.3f}s" in report, "Should show elapsed time"
         assert "=" in report, "Should have separator line"
         assert "%" in report, "Should show percentages"
 

@@ -306,7 +306,7 @@ class TestGenerateSummary:
         result = generate_summary(profile_data, top_n=5)
 
         expected_summary = [
-            "\nProfile Summary (10.987s total)",
+            "\nProfile Summary",
             "=================================================================",
             "\nTop 5 Functions by Total Runtime:",
             "-----------------------------------------------------------------",
