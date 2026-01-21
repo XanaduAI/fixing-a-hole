@@ -91,11 +91,8 @@ class StackReporter:
 
         if len(report) > 0:
             width = max(len(line) for line in report) + 5
-            report = [
-                f"\nStack Trace Summary ({round(self.data['elapsed_time_sec'], 3):.3f}s total)",
-                "=" * width,
-                *report,
-            ]
+            divider = "=" * width
+            report = ["\nStack Trace Summary", divider, *report, divider]
         return "\n".join(report)
 
     @staticmethod

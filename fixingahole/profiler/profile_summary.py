@@ -193,7 +193,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
             has_memory_info = has_memory_info or func.has_memory_info
 
     width = max_func_name_length + 40
-    message = [f"\nProfile Summary ({profile_data.walltime or 0:,.3f}s total)", "=" * width]
+    message = ["\nProfile Summary", "=" * width]
 
     # Top functions by total runtime percentage
     top_functions: list[ProfileDetails] = sorted(functions, key=lambda f: f.total_percentage, reverse=True)[:top_n]

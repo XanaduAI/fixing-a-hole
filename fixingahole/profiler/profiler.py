@@ -142,6 +142,16 @@ class Profiler:
         return self._output_file.with_name("profile_summary.txt")
 
     @property
+    def path_to_summary(self) -> Path:
+        """A relative path (from repo root) to the Scalene output."""
+        try:
+            return self.output_summary.relative_to(ROOT_DIR)
+        except ValueError:
+            # output_summary is not in the subpath of ROOT_DIR
+            #  OR one path is relative and the other is absolute
+            return self.output_summary
+
+    @property
     def output_path(self) -> Path:
         """A relative path (from repo root) to the Scalene output."""
         try:
@@ -329,13 +339,15 @@ class Profiler:
         """Gather all the details and logs and consicely present them to the user."""
         from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
+        if not self.output_json.exists():
+            return "No summary available"
+
         profile_data = ProfileSummary(self.output_json)
         self.json_to_tables(ncols)
         profile_summary = profile_data.summary()
         memory = "" if self.cpu_only else f"using {profile_data.max_memory} of RAM"
         finished = f"Finished in {profile_data.walltime or 0:,.3f} seconds {memory}"
 
-        results = self.output_file.read_text()
         log_info = self.log_file.read_text() if self.log_file.exists() else ""
         n_warns = log_info.count("WARNING")
         warning_str = f" ({n_warns} {'warning' if n_warns == 1 else 'warnings'})" if n_warns > 0 else ""
@@ -351,14 +363,14 @@ class Profiler:
             reporter = StackReporter(self.output_json)
             stack_report = reporter.report_stacks_for_top_functions(top_n=5)
 
-        preamble += f"{finished}.\n"
+        preamble += f"{finished}.\n{rss_report}"
         preamble += f"Check logs {self.log_path}{warning_str}\n" if log_info else ""
-        results = f"{preamble}\n{rss_report}{profile_summary}\n{stack_report}"
+        results = f"{preamble}{profile_summary}\n{stack_report}"
         self.output_summary.write_text(results, encoding="utf-8")
 
-        summary = f"{profile_summary}{finished}{Colour.orange(warning_str)}.\n{rss_report}\n"
+        summary = f"{finished}{Colour.orange(warning_str)}.\n{rss_report}{profile_summary}"
         if self.trace:
-            summary += stack_report
+            summary += f"\nSee {Colour.purple(self.path_to_summary)} for the stack traces of top function calls.\n"
         return summary
 
     def run_profiler(self, preamble: str = "\n") -> None:
