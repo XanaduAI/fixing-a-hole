@@ -77,10 +77,10 @@ Additional information for each option can also be found below.
 ```bash
 --cpu/--memory
 ```
-The main options are `--cpu` vs `--memory`. By default, `fixing-a-hole` will profile the
-RSS memory usage of the script/experiment. _However_, additional CPU overhead is
-required in order to determine the _heap_ memory usage of the script. The slowdown varies
-depending on the script, but may be as low as 1.2x to as much as 4x or more.
+The main options are `--cpu` vs `--memory`. By default, `fixing-a-hole` will try to
+profile the RSS memory usage of the script/experiment. _However_, additional CPU overhead
+is required in order to determine the _heap_ memory usage of the script. The slowdown
+varies depending on the script, but may be as low as 1.2x to as much as 4x or more.
 Again, it really depends on the script itself.
 The _heap_ memory profiling (using the `--memory` flag) provides line-by-line blame for
 memory usage.
@@ -140,6 +140,21 @@ it, those 5 seconds will count towards how long it took your code to run. If you
 like to temporarily disable generating plots, you can profile your code with the
 `--no-plots` flag. This will temporarily prevent your code from generating plots without
 modifying your code.
+
+```bash
+--live
+```
+If you would like periodic readouts of the profiling _while_ the profiling is happening, then
+you can set the `--live` flag to a value (in seconds). However, this may cause additional,
+unintentional side effects.
+
+```bash
+--ignore
+```
+If there are specific folders within your repo that you would like to ignore while profiling,
+you can either set them globally in your `pyproject.toml` or you can specify each directory
+individually when invoking the profiler, i.e. `--ignore foo --ignore bar`. These are resolved
+relative to the directory you invoked the profiler from.
 
 ## Results
 

@@ -74,7 +74,7 @@ def find_path(
     pattern: str | Path,
     in_dir: str | Path = "",
     *,
-    exclude: list[str | Path] | None = None,
+    exclude: list[str] | list[Path] | None = None,
     return_suffix: None = None,
 ) -> Path: ...
 
@@ -84,7 +84,7 @@ def find_path(
     pattern: str | Path,
     in_dir: str | Path = "",
     *,
-    exclude: list[str | Path] | None = None,
+    exclude: list[str] | list[Path] | None = None,
     return_suffix: str,
 ) -> tuple[Path, list[Path]]: ...
 

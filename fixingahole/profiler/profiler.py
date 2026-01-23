@@ -26,7 +26,7 @@ from colours import Colour
 from sympy import nextprime
 from typer import Exit
 
-from fixingahole import OUTPUT_DIR, ROOT_DIR
+from fixingahole import IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR
 from fixingahole.profiler.utils import FileWatcher, LogLevel, Spinner, date, memory_with_units
 
 
@@ -52,7 +52,8 @@ class Profiler:
         loglevel: LogLevel = LogLevel.CRITICAL,
         noplots: bool = False,
         trace: bool = True,
-        live_update: bool = False,
+        live_update: float = float("inf"),
+        ignore_dirs: list[Path] | None = None,
         **_: dict,
     ) -> None:
         self.cpu_only = cpu_only
@@ -62,15 +63,15 @@ class Profiler:
         #  Assert correct python environment.
         self.assert_platform_os()
 
-        self.script_args = python_script_args if python_script_args is not None else []
-        self.detailed = detailed
-        self.loglevel = loglevel
-        self.noplots = noplots
-        self._output_file = Path.cwd() / "profile_results.txt"
-        self.cli_inputs = ""
-        self._precision_limit = 10
-        self.trace = trace
-        self.live_update = live_update
+        self.script_args: list[str] = python_script_args if python_script_args is not None else []
+        self.detailed: bool = detailed
+        self.loglevel: LogLevel = loglevel
+        self.noplots: bool = noplots
+        self._output_file: Path = Path.cwd() / "profile_results.txt"
+        self._precision_limit: int = 10
+        self.trace: bool = trace
+        self.live_update: float = live_update
+        self.ignored_folders: list[Path] = ignore_dirs if ignore_dirs is not None else []
 
         # Prepare the results folder.
         if path.is_file():
@@ -111,14 +112,14 @@ class Profiler:
     @property
     def excluded_folders(self) -> str:
         """Scalene flag to exclude system python directory when profiling all modules."""
-        exclude_dir = None
-        if platform.system() == "Windows":
-            appdata = os.getenv("APPDATA")
-            exclude_dir = Path(appdata) if appdata else Path(sys.prefix)
-        else:
-            exclude_dir = Path(sys.executable).resolve().parents[1]
-        # Do not exclude directories that are within the repo.
-        return f"--profile-exclude {exclude_dir}" if not exclude_dir.is_relative_to(ROOT_DIR) else ""
+        exclude_dir: list[Path] = [
+            Path(os.getenv("APPDATA") or sys.prefix)
+            if platform.system() == "Windows"
+            else Path(sys.executable).resolve().parents[1]
+        ]
+        exclude_dir.extend([folder for folder in IGNORE_DIRS if folder != OUTPUT_DIR])
+        exclude_dir.extend([folder for folder in self.ignored_folders if folder != OUTPUT_DIR])
+        return f"--profile-exclude {','.join(map(str, exclude_dir))}"
 
     @property
     def output_file(self) -> Path:
@@ -217,11 +218,9 @@ class Profiler:
             code_to_profile = Profiler.convert_ipynb_to_py(code_to_profile)
 
         code_lines = code_to_profile.split("\n")
-        divider = ["\n\n"] + ["####################################"] * 3 + ["\n\n"]
         profile_prefix = []
         profile_suffix = []
         logger = [
-            "\n### Add extras for profiling. ###\n",
             "import sys",
             "import logging",
             "from pathlib import Path",
@@ -233,7 +232,6 @@ class Profiler:
         profile_prefix += logger
         if self.noplots:
             profile_prefix += [
-                "### Prevent plots from rendering for profiling. ###",
                 "from unittest.mock import patch, MagicMock",
                 "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())",
                 "patch_plotly = patch('plotly.graph_objects.Figure.show', new=MagicMock())",
@@ -244,14 +242,9 @@ class Profiler:
                 "patch_plt.stop()",
                 "patch_plotly.stop()",
             ]
-        profile_prefix += [
-            "from scalene import scalene_profiler",
-            "scalene_profiler.start()",
-        ]
-        profile_suffix = ["scalene_profiler.stop()", *profile_suffix]
 
         code_to_profile = "\n".join(
-            profile_prefix + divider + code_lines + divider + profile_suffix,
+            ["; ".join(profile_prefix), *code_lines, "; ".join(profile_suffix)],
         )
         self.profile_file.write_text(code_to_profile, encoding="utf-8")
 
@@ -298,26 +291,30 @@ class Profiler:
         sampling_detail = self.get_memory_precision()
         ncols = max(160, len(str(self.profile_file)) + 75)
         usr_bin_time = ""
-        if self.platform == Platform.MacOS:
-            usr_bin_time = "/usr/bin/time -l"
-        elif self.platform == Platform.Linux:
-            usr_bin_time = "/usr/bin/time -v"
+        if Path("/usr/bin/time").exists():
+            if self.platform == Platform.MacOS:
+                usr_bin_time = "/usr/bin/time -l"
+            elif self.platform == Platform.Linux:
+                usr_bin_time = "/usr/bin/time -v"
 
         cmd = [
             usr_bin_time,
             f"{sys.executable} -m scalene run",
-            "--reduced-profile --cpu-only",
-            "--json --stacks" if self.trace else "",
-            f"--profile-all {self.excluded_folders}" if self.detailed else "",
-            f"--memory {sampling_detail}" if not self.cpu_only else "",
-            f"--program-path {ROOT_DIR} --column-width={ncols}",
-            f"--profile-interval=5 --outfile={self.output_json}",
+            "--stacks" if self.trace else "",
+            "--profile-all" if self.detailed else "",
+            self.excluded_folders,
+            f"--memory {sampling_detail}" if not self.cpu_only else "--cpu-only",
+            f"--program-path {ROOT_DIR}",
+            f"--column-width {ncols}",
+            f"--profile-interval {self.live_update}" if 0 < self.live_update < float("inf") else "",
+            f"--outfile {self.output_json}",
         ]
         cmd.append(str(self.profile_file))
         if self.script_args != []:
             cmd.append("---")
             cmd.extend(self.script_args)
         cmd_str = " ".join(cmd).strip()
+        Colour.print(cmd_str)
         return cmd_str.split()
 
     def json_to_tables(self, ncols: int) -> None:
@@ -345,8 +342,8 @@ class Profiler:
         profile_data = ProfileSummary(self.output_json)
         self.json_to_tables(ncols)
         profile_summary = profile_data.summary()
-        memory = "" if self.cpu_only else f"using {profile_data.max_memory} of heap RAM"
-        finished = f"\nFinished in {profile_data.walltime or 0:,.3f} seconds {memory}."
+        memory = "" if self.cpu_only else f" using {profile_data.max_memory} of heap RAM"
+        finished = f"\nFinished in {profile_data.walltime or 0:,.3f} seconds{memory}"
 
         log_info = self.log_file.read_text() if self.log_file.exists() else ""
         n_warns = log_info.count("WARNING")
@@ -369,19 +366,19 @@ class Profiler:
         results = f"{preamble}{finished}{rss_report}{logs_plain}{profile_summary}\n{stack_report}"
         self.output_summary.write_text(results, encoding="utf-8")
 
-        summary = f"{finished}{rss_report}{logs_colored}{profile_summary}"
-        if self.trace:
-            summary += f"\nSee {Colour.purple(self.path_to_summary)} for the stack traces of top function calls.\n"
+        summary = f"{finished}{rss_report}{logs_colored}{profile_summary}\nSee {Colour.purple(self.path_to_summary)}"
+        summary += " for the stack traces of top function calls.\n" if self.trace else " for a copy of this summary.\n"
         return summary
 
     def run_profiler(self, preamble: str = "\n") -> None:
         """Profile the python script using Scalene."""
+        Colour.print(f"See {Colour.purple(self.output_path)} for details.")
         ncols = max(160, len(str(self.profile_file)) + 75)
         try:
             # Profile the code.
-            with Spinner(f"See {Colour.purple(self.output_path)} for details."):
+            with Spinner():
                 watcher = None
-                if self.live_update:
+                if self.live_update > 0:
                     watcher = FileWatcher(file_path=self.output_json, on_change_callback=lambda: self.json_to_tables(ncols))
                     watcher.start()
                 try:

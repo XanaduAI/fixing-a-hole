@@ -135,7 +135,6 @@ class TestProfilerInit:
         assert profiler.noplots is False
         assert profiler.filestem == basic_name()
         assert profiler.python_file == mock_file
-        assert not profiler.cli_inputs
 
     def test_init_with_bad_path(self, tmp_path: Path):
         """Test profiler initialization with path that doesn't exist."""
@@ -396,11 +395,6 @@ class TestProfilerCodePreparation:
         assert "import logging" in profile_content
         assert f"log_file = Path(r'{profiler.log_file}')" in profile_content
         assert f"logging.basicConfig(filename=log_file, level=logging.{profiler.loglevel.name})" in profile_content
-
-        # Should contain scalene profiler setup
-        assert "from scalene import scalene_profiler" in profile_content
-        assert "scalene_profiler.start()" in profile_content
-        assert "scalene_profiler.stop()" in profile_content
 
         # Should contain original code
         assert "print('hello world')" in profile_content

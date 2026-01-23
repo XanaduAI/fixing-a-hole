@@ -189,8 +189,10 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
 
     # Top functions by total runtime percentage
     top_functions: list[ProfileDetails] = sorted(functions, key=lambda f: f.total_percentage, reverse=True)[:top_n]
+    top_functions = [fn for fn in top_functions if fn.total_percentage >= threshold]
+    n: int = len(top_functions)
     message += [
-        f"\nTop {len(top_functions)} Functions by Total Runtime:",
+        f"\nTop {f'{n} Functions' if n > 1 else 'Function'} by Total Runtime:",
         "-" * width,
     ]
     for i, func in enumerate(top_functions, 1):
@@ -205,9 +207,10 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     if has_memory_info:
         memory_functions: list[ProfileDetails] = sorted(functions, key=lambda f: f.peak_memory, reverse=True)[:top_n]
         memory_functions: list[ProfileDetails] = [f for f in memory_functions if f.peak_memory]
+        n: int = len(memory_functions)
         if memory_functions:
             message += [
-                f"\nTop {len(memory_functions)} Functions by Memory Usage:",
+                f"\nTop {f'{n} Functions' if n > 1 else 'Function'} by Memory Usage:",
                 "-" * width,
             ]
             for i, func in enumerate(memory_functions, 1):
@@ -285,8 +288,8 @@ def render_tree(
         current_prefix = prefix + (ang if is_last_item else tee)
         next_prefix = prefix + (blk if is_last_item else bar)
 
-        functions = data.get("_functions", [])
-        children = data.get("_children", {})
+        functions: list[ProfileDetails] = sorted(data.get("_functions", []), key=lambda f: f.total_percentage, reverse=True)
+        children: dict[str, ...] = data.get("_children", {})
 
         if functions:
             total_runtime = sum(f.total_percentage for f in functions)
