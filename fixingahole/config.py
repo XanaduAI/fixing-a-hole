@@ -16,11 +16,52 @@
 import os
 import sys
 import tomllib
+from enum import Enum
 from functools import cache
 from pathlib import Path
 from typing import Any
 
 from colours import Colour
+
+
+class DurationOption(Enum):
+    """Duration options."""
+
+    absolute = "absolute"  # ex. 4.32 seconds
+    relative = "relative"  # ex. 73.2%
+
+
+class Duration:
+    """Distinguish how to display duration times."""
+
+    _instance = None
+
+    def __new__(cls, value: str) -> "Duration":
+        """Make a singleton instance."""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            try:
+                cls._instance.duration_mode = DurationOption(value)
+            except ValueError as err:
+                Colour.print(Colour.RED("ValueError:"), str(err), "check 'tool.fixingahole' configuration in pyproject.toml.")
+                sys.exit(1)
+        return cls._instance
+
+    @classmethod
+    @property
+    def is_relative(cls) -> bool:
+        """Determine if the duration mode is relative."""
+        if cls._instance is None:
+            return True
+        return cls._instance.duration_mode == DurationOption.relative
+
+    @classmethod
+    @property
+    def is_absolute(cls) -> bool:
+        """Determine if the duration mode is relative."""
+        if cls._instance is None:
+            return False
+        return cls._instance.duration_mode == DurationOption.absolute
 
 
 def _detect_virtualenv() -> str:
@@ -116,3 +157,4 @@ def _get_ignore_directories(config: dict[str, Any], output_path: Path) -> list[P
 ROOT_DIR = _get_root_dir(_get_config())
 OUTPUT_DIR = _get_output_dir(_get_config())
 IGNORE_DIRS = _get_ignore_directories(_get_config(), OUTPUT_DIR)
+DURATION = Duration(_get_config().get("duration", "relative"))

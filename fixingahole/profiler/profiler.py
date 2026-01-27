@@ -217,10 +217,10 @@ class Profiler:
         if self.python_file.suffix == ".ipynb":
             code_to_profile = Profiler.convert_ipynb_to_py(code_to_profile)
 
-        code_lines = code_to_profile.split("\n")
-        profile_prefix = []
-        profile_suffix = []
-        logger = [
+        code_lines: list[str] = code_to_profile.split("\n")
+        profile_prefix: list[str] = []
+        profile_suffix: list[str] = []
+        logger: list[str] = [
             "import sys",
             "import logging",
             "from pathlib import Path",
@@ -244,7 +244,7 @@ class Profiler:
             ]
 
         code_to_profile = "\n".join(
-            ["; ".join(profile_prefix), *code_lines, "; ".join(profile_suffix)],
+            ["; ".join([ln for ln in profile_prefix if ln]), *code_lines, "; ".join([ln for ln in profile_suffix if ln])],
         )
         self.profile_file.write_text(code_to_profile, encoding="utf-8")
 
@@ -314,7 +314,6 @@ class Profiler:
             cmd.append("---")
             cmd.extend(self.script_args)
         cmd_str = " ".join(cmd).strip()
-        Colour.print(cmd_str)
         return cmd_str.split()
 
     def json_to_tables(self, ncols: int) -> None:
@@ -378,7 +377,7 @@ class Profiler:
             # Profile the code.
             with Spinner():
                 watcher = None
-                if self.live_update > 0:
+                if 0 < self.live_update < float("inf"):
                     watcher = FileWatcher(file_path=self.output_json, on_change_callback=lambda: self.json_to_tables(ncols))
                     watcher.start()
                 try:

@@ -17,7 +17,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from colours import Colour as _Colour
 
-from fixingahole.config import IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR
+from fixingahole.config import DURATION, IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR
 from fixingahole.profiler.profile_summary import ProfileSummary
 from fixingahole.profiler.profiler import Profiler
 from fixingahole.profiler.utils import LogLevel
@@ -48,6 +48,7 @@ def about() -> None:
 
 
 __all__ = [
+    "DURATION",
     "IGNORE_DIRS",
     "OUTPUT_DIR",
     "ROOT_DIR",

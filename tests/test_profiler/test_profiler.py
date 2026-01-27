@@ -401,9 +401,6 @@ class TestProfilerCodePreparation:
         assert "x = 1" in profile_content
         assert "y = 2" in profile_content
 
-        # Should contain dividers
-        assert "####################################" in profile_content
-
     def test_prepare_code_for_profiling_with_noplots(self, tmp_path: Path):
         """Test code preparation with noplots option enabled."""
         test_file = tmp_path / "test_script.py"

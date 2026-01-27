@@ -16,6 +16,7 @@
 import subprocess
 from pathlib import Path
 
+from colours import Colour
 from typer.testing import CliRunner
 
 from fixingahole import ROOT_DIR
@@ -37,7 +38,7 @@ class TestProfilerRunProfiler:
         """Test that the CLI fails to profile a directory."""
         result = runner.invoke(cli.app, ["profile", str(mock_file.parent)])
         assert result.exit_code == 1, print_error(result)
-        assert "Error: cannot profile a directory." in result.stdout
+        assert "Error: cannot profile a directory." in Colour.remove_ansi(result.stdout)
 
     def test_profiler_cli_call_relative_path(self, mock_file: Path, root_dir: Path):
         """Test how the CLI invokes the profiler."""

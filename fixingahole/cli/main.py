@@ -91,7 +91,7 @@ def profile(
         bool,
         typer.Option(
             "--no-plots",
-            help="Remove plotting functions from script.",
+            help="Prevent plotting functions from running while profiling a script.",
             show_default=True,
         ),
     ] = False,

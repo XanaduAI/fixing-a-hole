@@ -241,25 +241,33 @@ class TestRenderTree:
         """Test rendering tree with single file."""
         profile_data = parse_json(example_json)
         tree = build_module_tree(profile_data.functions_by_file)
-        result = render_tree(tree)
-        assert len(result) == 8
+        result = render_tree(tree, profile_data.walltime, threshold=0)
         expected_tree = [
             "├─ performance (6 func, 99.65% total)",
             "│  └─ advanced.py (6 func, 99.65% total)",
-            "│     └─ data_serialization.......................99.57% ( 80 MB)",
+            "│     ├─ data_serialization.......................99.57% ( 80 MB)",
+            "│     ├─ fourier_analysis..........................0.03% (153 MB)",
+            "│     ├─ statistical_analysis......................0.02% ( 76 MB)",
+            "│     ├─ matrix_operations.........................0.02% ( 36 MB)",
+            "│     ├─ monte_carlo_simulation....................0.01% ( 76 MB)",
+            "│     └─ recursive_computation.....................0.00%",
             "│     ",
             "└─ numpy (3 func, 0.00% total)",
             "   └─ _core (3 func, 0.00% total)",
             "      └─ _methods.py (3 func, 0.00% total)",
+            "         ├─ _mean..................................0.00%",
+            "         ├─ _var...................................0.00% (153 MB)",
+            "         └─ _std...................................0.00%",
             "         ",
         ]
+        assert len(result) == len(expected_tree)
         assert result == expected_tree
 
     def test_render_tree_with_threshold(self, example_json: Path):
         """Test rendering tree with threshold filtering."""
         profile_data = parse_json(example_json)
         tree = build_module_tree(profile_data.functions_by_file)
-        result = render_tree(tree, threshold=0.0)
+        result = render_tree(tree, profile_data.walltime, threshold=0.0)
         assert len(result) == 16
         expected_tree = [
             "├─ performance (6 func, 99.65% total)",
@@ -287,44 +295,58 @@ class TestGenerateSummary:
 
     def test_generate_summary_empty_profile(self):
         """Test generating summary from empty profile."""
-        profile_data = ProfileData(functions=[], lines={}, files={}, walltime=None, max_memory=None, samples=[], details={})
+        profile_data = ProfileData(functions=[], lines={}, files={}, walltime=0, max_memory="", samples=[], details={})
         result = generate_summary(profile_data)
         assert "No functions to summarize" in result
 
     def test_generate_summary_real_profile(self, example_json: Path):
         """Test generating summary from real profile data."""
         profile_data = parse_json(example_json)
-        result = generate_summary(profile_data, top_n=5)
+        result = generate_summary(profile_data, top_n=10, threshold=0)
 
         expected_summary = [
             "\nProfile Summary",
             "=================================================================",
-            "\nTop Function by Total Runtime:",
+            "\nTop 9 Functions by Total Runtime:",
             "-----------------------------------------------------------------",
-            " 1. data_serialization         99.6% (advanced.py:144)",
-            "\nTop 5 Functions by Memory Usage:",
+            " 1. data_serialization        99.57% (advanced.py:144)",
+            " 2. fourier_analysis           0.03% (advanced.py:108)",
+            " 3. statistical_analysis       0.02% (advanced.py:72)",
+            " 4. matrix_operations          0.02% (advanced.py:35)",
+            " 5. monte_carlo_simulation     0.01% (advanced.py:56)",
+            " 6. _mean                      0.00% (_methods.py:117)",
+            " 7. _var                       0.00% (_methods.py:150)",
+            " 8. recursive_computation      0.00% (advanced.py:135)",
+            " 9. _std                       0.00% (_methods.py:220)",
+            "\nTop 6 Functions by Memory Usage:",
             "-----------------------------------------------------------------",
             " 1. fourier_analysis            153 MB (advanced.py)",
             " 2. _var                        153 MB (_methods.py)",
             " 3. data_serialization           80 MB (advanced.py)",
             " 4. statistical_analysis         76 MB (advanced.py)",
             " 5. monte_carlo_simulation       76 MB (advanced.py)",
+            " 6. matrix_operations            36 MB (advanced.py)",
             "\nFunctions by Module:",
             "-----------------------------------------------------------------",
             "├─ performance (6 func, 99.65% total)",
             "│  └─ advanced.py (6 func, 99.65% total)",
-            "│     └─ data_serialization.......................99.57% ( 80 MB)",
+            "│     ├─ data_serialization.......................99.57% ( 80 MB)",
+            "│     ├─ fourier_analysis..........................0.03% (153 MB)",
+            "│     ├─ statistical_analysis......................0.02% ( 76 MB)",
+            "│     ├─ matrix_operations.........................0.02% ( 36 MB)",
+            "│     ├─ monte_carlo_simulation....................0.01% ( 76 MB)",
+            "│     └─ recursive_computation.....................0.00%",
             "│",
             "└─ numpy (3 func, 0.00% total)",
             "   └─ _core (3 func, 0.00% total)",
             "      └─ _methods.py (3 func, 0.00% total)",
-            "",
-            "",
-            "=================================================================",
-            "",
+            "         ├─ _mean..................................0.00%",
+            "         ├─ _var...................................0.00% (153 MB)",
+            "         └─ _std...................................0.00%",
+            "\n\n=================================================================\n",
         ]
-
-        assert result == "\n".join(expected_summary)
+        expected_summary = "\n".join(expected_summary)
+        assert result == expected_summary
 
 
 class TestProfileSummaryExtraction:
