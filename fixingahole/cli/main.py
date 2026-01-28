@@ -21,7 +21,7 @@ import typer
 from colours import Colour
 from typer import Exit
 
-from fixingahole import IGNORE_DIRS, ROOT_DIR, LogLevel, Profiler
+from fixingahole import IGNORE_DIRS, ROOT_DIR, LogLevel, Profiler, ProfileSummary
 from fixingahole.profiler.utils import find_path
 
 app = typer.Typer(
@@ -31,12 +31,6 @@ app = typer.Typer(
 ModuleType = type(typer)
 
 
-@app.command(
-    no_args_is_help=True,
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-    rich_help_panel="Utilities",
-    epilog=":copyright: Xanadu Quantum Technologies",
-)
 def profile(
     *,
     filename: Annotated[
@@ -51,7 +45,8 @@ def profile(
         bool,
         typer.Option(
             "--cpu/--memory",
-            help="Profile the CPU runtime or the memory usage of the script or notebook.",
+            "-c/-m",
+            help="Profile only the CPU runtime or both CPU and memory usage of the script or notebook.",
             show_default=True,
         ),
     ] = True,
@@ -60,7 +55,7 @@ def profile(
         typer.Option(
             "--detailed",
             "-d",
-            help="Also profile how imported libraries and modules are used.",
+            help="Also profile how external libraries and modules are used.",
             show_default=True,
         ),
     ] = False,
@@ -69,15 +64,18 @@ def profile(
         typer.Option(
             "--precision",
             "-p",
-            help="Level of memory sampling precision, (less precision, faster) -10 <= precision <= 10 (more precision, slower)",
-            show_default=True,
+            help="Level of memory sampling precision. -10 is fastest, least precise; 10 is slowest, most precise.",
+            show_default="0",
+            min=-10,
+            max=10,
         ),
     ] = None,
     trace: Annotated[
         bool,
         typer.Option(
             "--trace/--no-trace",
-            help="Print the stack traces for the most expensive function calls.",
+            "-t/-nt",
+            help="Capture the stack traces for the most expensive function calls.",
             show_default=True,
         ),
     ] = True,
@@ -86,7 +84,7 @@ def profile(
         typer.Option(
             "--log-level",
             "-l",
-            help="Log level to capture.",
+            help="Log level to capture while profiling.",
             case_sensitive=False,
             show_default=True,
         ),
@@ -95,18 +93,28 @@ def profile(
         bool,
         typer.Option(
             "--no-plots",
-            help="Remove plotting functions from script.",
+            "-np",
+            help="Prevent plotting functions from running while profiling a script.",
             show_default=True,
         ),
     ] = False,
     live: Annotated[
-        bool,
+        float,
         typer.Option(
-            "--live/--no-live",
-            help="Update the profile output every 5 seconds as the profiling happens.",
+            help="Update the profile output every so many seconds as the profiling happens.",
+            show_default=True,
+            min=1,
+        ),
+    ] = float("inf"),
+    ignore: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--ignore",
+            "-i",
+            help="Specific folders to ignore while profiling. Paths are resolved relative to the current directory.",
             show_default=True,
         ),
-    ] = False,
+    ] = None,
 ) -> None:
     """Profile a python script or Jupyter notebook."""
     # Find and Prepare script for profiling.
@@ -119,6 +127,7 @@ def profile(
         if python_file.is_dir():
             Colour.ORANGE.print(Colour.red_error("Error: cannot profile a directory."))
             raise typer.Exit(code=1)
+    ignore_dirs: list[Path] = [Path(p).resolve() for p in ignore] if ignore is not None else []
 
     profiler = Profiler(
         path=python_file,
@@ -130,6 +139,7 @@ def profile(
         noplots=noplots,
         trace=trace,
         live_update=live,
+        ignore_dirs=ignore_dirs,
     )
 
     cli_args = sys.argv
@@ -142,6 +152,54 @@ def profile(
         "for speed." if cpu_only else "for memory usage.",
     )
     profiler.run_profiler(preamble=preamble)
+
+
+# Register the profile function as a command in this CLI
+app.command(
+    no_args_is_help=True,
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    rich_help_panel="Utilities",
+    epilog=":copyright: Xanadu Quantum Technologies",
+)(profile)
+
+
+@app.command(
+    no_args_is_help=True,
+    rich_help_panel="Utilities",
+    epilog=":copyright: Xanadu Quantum Technologies",
+)
+def summarize(
+    filename: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the script or notebook to profile.",
+            show_default=False,
+        ),
+    ],
+    top_n: Annotated[
+        int,
+        typer.Option(
+            "-n",
+            help="Show only up to the top n functions.",
+            show_default=True,
+            min=1,
+        ),
+    ] = 10,
+    threshold: Annotated[
+        float,
+        typer.Option(
+            "-t",
+            help="Only report functions with at least this percent of CPU time.",
+            show_default=True,
+            min=0,
+        ),
+    ] = 0.1,
+) -> str:
+    """Summarize a Scalene JSON profile."""
+    file = find_path(filename, in_dir=ROOT_DIR)
+    summary = ProfileSummary(file).summary(top_n, threshold)
+    Colour.print(summary)
+    return summary
 
 
 def version_callback(value: bool) -> None:

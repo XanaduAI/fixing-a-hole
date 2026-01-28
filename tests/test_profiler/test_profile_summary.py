@@ -241,25 +241,33 @@ class TestRenderTree:
         """Test rendering tree with single file."""
         profile_data = parse_json(example_json)
         tree = build_module_tree(profile_data.functions_by_file)
-        result = render_tree(tree)
-        assert len(result) == 8
+        result = render_tree(tree, profile_data.walltime, threshold=0)
         expected_tree = [
             "├─ performance (6 func, 99.65% total)",
             "│  └─ advanced.py (6 func, 99.65% total)",
-            "│     └─ data_serialization.......................99.57% ( 80 MB)",
+            "│     ├─ data_serialization.......................99.57% ( 80 MB)",
+            "│     ├─ fourier_analysis..........................0.03% (153 MB)",
+            "│     ├─ statistical_analysis......................0.02% ( 76 MB)",
+            "│     ├─ matrix_operations.........................0.02% ( 36 MB)",
+            "│     ├─ monte_carlo_simulation....................0.01% ( 76 MB)",
+            "│     └─ recursive_computation.....................0.00%",
             "│     ",
             "└─ numpy (3 func, 0.00% total)",
             "   └─ _core (3 func, 0.00% total)",
             "      └─ _methods.py (3 func, 0.00% total)",
+            "         ├─ _mean..................................0.00%",
+            "         ├─ _var...................................0.00% (153 MB)",
+            "         └─ _std...................................0.00%",
             "         ",
         ]
+        assert len(result) == len(expected_tree)
         assert result == expected_tree
 
     def test_render_tree_with_threshold(self, example_json: Path):
         """Test rendering tree with threshold filtering."""
         profile_data = parse_json(example_json)
         tree = build_module_tree(profile_data.functions_by_file)
-        result = render_tree(tree, threshold=0.0)
+        result = render_tree(tree, profile_data.walltime, threshold=0.0)
         assert len(result) == 16
         expected_tree = [
             "├─ performance (6 func, 99.65% total)",
@@ -287,48 +295,58 @@ class TestGenerateSummary:
 
     def test_generate_summary_empty_profile(self):
         """Test generating summary from empty profile."""
-        profile_data = ProfileData(functions=[], lines={}, files={}, walltime=None, max_memory=None, samples=[], details={})
+        profile_data = ProfileData(functions=[], lines={}, files={}, walltime=0, max_memory="", samples=[], details={})
         result = generate_summary(profile_data)
         assert "No functions to summarize" in result
 
     def test_generate_summary_real_profile(self, example_json: Path):
         """Test generating summary from real profile data."""
         profile_data = parse_json(example_json)
-        result = generate_summary(profile_data, top_n=5)
+        result = generate_summary(profile_data, top_n=10, threshold=0)
 
         expected_summary = [
             "\nProfile Summary",
             "=================================================================",
-            "\nTop 5 Functions by Total Runtime:",
+            "\nTop 9 Functions by Total Runtime:",
             "-----------------------------------------------------------------",
-            " 1. data_serialization         99.6% (advanced.py:144)",
-            " 2. fourier_analysis            0.0% (advanced.py:108)",
-            " 3. statistical_analysis        0.0% (advanced.py:72)",
-            " 4. matrix_operations           0.0% (advanced.py:35)",
-            " 5. monte_carlo_simulation      0.0% (advanced.py:56)",
-            "\nTop 5 Functions by Memory Usage:",
+            " 1. data_serialization        99.57% (advanced.py:144)",
+            " 2. fourier_analysis           0.03% (advanced.py:108)",
+            " 3. statistical_analysis       0.02% (advanced.py:72)",
+            " 4. matrix_operations          0.02% (advanced.py:35)",
+            " 5. monte_carlo_simulation     0.01% (advanced.py:56)",
+            " 6. _mean                      0.00% (_methods.py:117)",
+            " 7. _var                       0.00% (_methods.py:150)",
+            " 8. recursive_computation      0.00% (advanced.py:135)",
+            " 9. _std                       0.00% (_methods.py:220)",
+            "\nTop 6 Functions by Memory Usage:",
             "-----------------------------------------------------------------",
             " 1. fourier_analysis            153 MB (advanced.py)",
             " 2. _var                        153 MB (_methods.py)",
             " 3. data_serialization           80 MB (advanced.py)",
             " 4. statistical_analysis         76 MB (advanced.py)",
             " 5. monte_carlo_simulation       76 MB (advanced.py)",
+            " 6. matrix_operations            36 MB (advanced.py)",
             "\nFunctions by Module:",
             "-----------------------------------------------------------------",
             "├─ performance (6 func, 99.65% total)",
             "│  └─ advanced.py (6 func, 99.65% total)",
-            "│     └─ data_serialization.......................99.57% ( 80 MB)",
+            "│     ├─ data_serialization.......................99.57% ( 80 MB)",
+            "│     ├─ fourier_analysis..........................0.03% (153 MB)",
+            "│     ├─ statistical_analysis......................0.02% ( 76 MB)",
+            "│     ├─ matrix_operations.........................0.02% ( 36 MB)",
+            "│     ├─ monte_carlo_simulation....................0.01% ( 76 MB)",
+            "│     └─ recursive_computation.....................0.00%",
             "│",
             "└─ numpy (3 func, 0.00% total)",
             "   └─ _core (3 func, 0.00% total)",
             "      └─ _methods.py (3 func, 0.00% total)",
-            "",
-            "",
-            "=================================================================",
-            "",
+            "         ├─ _mean..................................0.00%",
+            "         ├─ _var...................................0.00% (153 MB)",
+            "         └─ _std...................................0.00%",
+            "\n\n=================================================================\n",
         ]
-
-        assert result == "\n".join(expected_summary)
+        expected_summary = "\n".join(expected_summary)
+        assert result == expected_summary
 
 
 class TestProfileSummaryExtraction:
@@ -370,39 +388,6 @@ class TestProfileSummaryExtraction:
         # Check that some functions have memory data
         funcs_with_memory = [f for f in parser.data.functions if f.has_memory_info]
         assert len(funcs_with_memory) > 0
-
-    def test_generate_summary(self, advanced_profile_json: Path):
-        """Test generating a summary from the profile with actual data validation."""
-        parser = ProfileSummary(filename=advanced_profile_json)
-        summary = parser.summary(top_n=5)
-
-        # Verify summary contains expected sections
-        assert "Profile Summary" in summary
-        assert "Top 5 Functions by Total Runtime" in summary
-        assert "Functions by Memory Usage" in summary
-        assert "Functions by Module" in summary
-
-        # Validate that actual function names from the JSON appear in the summary
-        assert "data_serialization" in summary, "Top function should appear in summary"
-        assert "fourier_analysis" in summary, "Should contain fourier_analysis function"
-        assert "advanced.py" in summary, "Should contain actual file name from data"
-
-        # Validate that the top function appears with correct percentage
-        # data_serialization has ~97.96% total (97.33% C + 0.63% Python)
-        assert "data_serialization" in summary
-        assert "99.6%" in summary, "Top function should show with correct percentage"
-
-        # Validate memory information from actual data
-        # fourier_analysis has 152.59 MB peak memory
-        assert "153 MB" in summary, "Should show memory usage from actual data"
-        assert "_var" in summary, "Should show numpy function with memory data"
-
-        # Validate file references match actual data
-        assert "advanced.py:144" in summary or "advanced.py" in summary, "Should reference actual file and line number"
-
-        # Validate module tree structure from data
-        assert "performance" in summary, "Should show performance module from file path"
-        assert "numpy" in summary, "Should show numpy module from dependencies"
 
     def test_nonexistent_file(self, tmp_path: Path):
         """Test handling of non-existent profile file."""

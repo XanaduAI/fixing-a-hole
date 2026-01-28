@@ -1,12 +1,12 @@
 [project]
 name = "FixingAHole"
-version = "0.2.0"
+version = "0.2.1"
 description = "Integrating Scalene into Python projects."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "colours",
-    "scalene>=2.0.1",
+    "scalene>=2.1.0",
     "sympy>=1.14.0",
     "typer>=0.20.0",
     "watchdog>=6.0.0",
@@ -104,7 +104,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.pylint]
-max-locals = 20
+max-locals = 25
 max-args = 10
 
 [tool.ruff.lint.flake8-annotations]

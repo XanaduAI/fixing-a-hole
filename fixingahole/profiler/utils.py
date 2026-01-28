@@ -54,6 +54,20 @@ def date() -> str:
     return datetime.datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
 
 
+def format_time(duration: float, max_val: float = 0) -> str:
+    """Format a float of seconds as human readable."""
+    hours = int(duration // 3600)
+    minutes = int((duration % 3600) // 60)
+    seconds = int(duration % 60)
+    mxhr = int(max_val // 3600)
+    mxmn = int((max_val % 3600) // 60)
+    if hours > 0 or mxhr > 0:
+        return f"{hours:2d}:{minutes:02d}:{seconds:02d}"
+    if minutes > 0 or mxmn > 0:
+        return f"{minutes:02d}:{seconds:02d}"
+    return f"{duration:.3f} sec"
+
+
 def memory_with_units(memory: float, unit: str = "MB", digits: int = 0) -> str:
     """Convert memory float to string with units."""
     byte_prefix = {
@@ -74,7 +88,7 @@ def find_path(
     pattern: str | Path,
     in_dir: str | Path = "",
     *,
-    exclude: list[str | Path] | None = None,
+    exclude: list[str] | list[Path] | None = None,
     return_suffix: None = None,
 ) -> Path: ...
 
@@ -84,7 +98,7 @@ def find_path(
     pattern: str | Path,
     in_dir: str | Path = "",
     *,
-    exclude: list[str | Path] | None = None,
+    exclude: list[str] | list[Path] | None = None,
     return_suffix: str,
 ) -> tuple[Path, list[Path]]: ...
 

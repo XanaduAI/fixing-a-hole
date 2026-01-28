@@ -28,8 +28,8 @@ from typing import Any
 from colours import Colour
 from typer import Exit
 
-from fixingahole import ROOT_DIR
-from fixingahole.profiler.utils import installed_modules, memory_with_units
+from fixingahole import DURATION, ROOT_DIR
+from fixingahole.profiler.utils import format_time, installed_modules, memory_with_units
 
 
 @dataclass(frozen=True)
@@ -104,8 +104,8 @@ class ProfileData:
     functions: list[ProfileDetails]
     lines: dict[str, list[ProfileDetails]]
     files: dict[str, float]
-    walltime: float | None
-    max_memory: str | None
+    walltime: float
+    max_memory: str
     samples: list[tuple[float, float]]
     details: dict[str, float]
 
@@ -140,21 +140,21 @@ def parse_json(filename: str | Path) -> ProfileData:
     walltime = content.get("elapsed_time_sec", 0)
     max_memory = memory_with_units(content.get("max_footprint_mb", 0), digits=3)
 
-    files = content.get("files", {}) if isinstance(content, dict) else {}
+    files: dict[str, dict[str, Any]] = content.get("files", {}) if isinstance(content, dict) else {}
     file_percentage: dict[str, float] = {}
     for file_path, info in files.items():
         file_percentage[file_path] = info.get("percent_cpu_time", 0)
-        lines = info.get("lines", []) if isinstance(info, dict) else []
+        lines: list[dict[str, Any]] = info.get("lines", []) if isinstance(info, dict) else []
         for line in lines:
             profile = ProfileDetails.from_scalene_dict(line, file_path)
             if profile.has_data:
                 line_profs[file_path].append(profile)
 
-        funcs = info.get("functions", []) if isinstance(info, dict) else []
+        funcs: list[dict[str, Any]] = info.get("functions", []) if isinstance(info, dict) else []
         function_profs.extend(ProfileDetails.from_scalene_dict(fn, file_path) for fn in funcs)
 
-    keys = ["max_footprint_mb", "growth_rate", "start_time_absolute", "start_time_perf"]
-    details = {k: content.get(k, -1) for k in keys}
+    keys: list[str] = ["max_footprint_mb", "growth_rate", "start_time_absolute", "start_time_perf"]
+    details: dict[str, float] = {k: content.get(k, -1) for k in keys}
 
     return ProfileData(
         functions=function_profs,
@@ -185,18 +185,30 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
             has_memory_info = has_memory_info or func.has_memory_info
 
     width = max_func_name_length + 40
-    message = ["\nProfile Summary", "=" * width]
+    message: list[str] = ["\nProfile Summary", "=" * width]
 
     # Top functions by total runtime percentage
     top_functions: list[ProfileDetails] = sorted(functions, key=lambda f: f.total_percentage, reverse=True)[:top_n]
-    message += [
-        f"\nTop {len(top_functions)} Functions by Total Runtime:",
-        "-" * width,
-    ]
+    top_functions = [fn for fn in top_functions if fn.total_percentage >= threshold]
+    n: int = len(top_functions)
+    if n == 0:
+        message += [
+            "\nNo functions to summarize by Total Runtime",
+            "-" * width,
+        ]
+    else:
+        message += [
+            f"\nTop {f'{n} Functions' if n > 1 else 'Function'} by Total Runtime:",
+            "-" * width,
+        ]
     for i, func in enumerate(top_functions, 1):
         file_name = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
         lineno = func.line_number
-        runtime_info = f"{func.total_percentage:>5.1f}%"
+        runtime_info = (
+            f"{func.total_percentage:>5.2f}%"
+            if DURATION.is_relative()
+            else format_time(func.total_percentage * profile_data.walltime / 100, profile_data.walltime)
+        )
         message.append(
             f"{i:2d}. {func.name:<{max_func_name_length}} {runtime_info:<6} ({file_name}:{lineno})",
         )
@@ -205,22 +217,22 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     if has_memory_info:
         memory_functions: list[ProfileDetails] = sorted(functions, key=lambda f: f.peak_memory, reverse=True)[:top_n]
         memory_functions: list[ProfileDetails] = [f for f in memory_functions if f.peak_memory]
+        n: int = len(memory_functions)
         if memory_functions:
             message += [
-                f"\nTop {len(memory_functions)} Functions by Memory Usage:",
+                f"\nTop {f'{n} Functions' if n > 1 else 'Function'} by Memory Usage:",
                 "-" * width,
             ]
             for i, func in enumerate(memory_functions, 1):
-                file_name = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
+                file_name: str = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
                 message.append(
                     f"{i:2d}. {func.name:<{max_func_name_length}} {func.peak_memory_info:>8} ({file_name})",
                 )
 
     message.append("\nFunctions by Module:")
     message.append("-" * width)
-
     module_tree = build_module_tree(by_file)
-    tree = render_tree(module_tree, max_func_name_length=max_func_name_length, threshold=threshold)
+    tree = render_tree(module_tree, profile_data.walltime, max_func_name_length=max_func_name_length, threshold=threshold)
     message.extend(tree)
     message.append("")
 
@@ -264,7 +276,11 @@ def get_all_functions_in_tree(tree_dict: dict[str, Any]) -> list:
 
 
 def render_tree(
-    tree_dict: dict[str, Any], prefix: str = "", max_func_name_length: int = 50, threshold: float = 0.1
+    tree_dict: dict[str, Any],
+    walltime: float,
+    prefix: str = "",
+    max_func_name_length: int = 50,
+    threshold: float = 0.1,
 ) -> list[str]:
     """Render the module tree with proper indentation."""
     lines = []
@@ -285,32 +301,55 @@ def render_tree(
         current_prefix = prefix + (ang if is_last_item else tee)
         next_prefix = prefix + (blk if is_last_item else bar)
 
-        functions = data.get("_functions", [])
-        children = data.get("_children", {})
+        functions: list[ProfileDetails] = sorted(data.get("_functions", []), key=lambda f: f.total_percentage, reverse=True)
+        functions = [f for f in functions if f.total_percentage >= threshold or f.has_memory_info]
+        children: dict[str, Any] = data.get("_children", {})
 
         if functions:
             total_runtime = sum(f.total_percentage for f in functions)
-            file_display = f"{name} ({len(functions)} func, {total_runtime:.2f}% total)"
+            dur = (
+                f"{total_runtime:.2f}% total"
+                if DURATION.is_relative()
+                else format_time(total_runtime * walltime / 100, walltime)
+            )
+            file_display = f"{name} ({len(functions)} func, {dur})"
             lines.append(f"{current_prefix}{file_display}")
 
             funcs = [
                 fn
                 for fn in sorted(functions, key=lambda f: f.total_percentage, reverse=True)
-                if fn.total_percentage >= threshold
+                if fn.total_percentage >= threshold or fn.has_memory_info
             ]
             for j, func in enumerate(funcs):
                 func_is_last = j == len(funcs) - 1
                 func_prefix = next_prefix + (ang if func_is_last else tee)
                 peak_mem = f" ({func.peak_memory_info})" if func.has_memory_info else ""
-                runtime_info = f"{func.total_percentage:.>5.2f}%{peak_mem}"
+                runtime_info = (
+                    f"{func.total_percentage:.>5.2f}%"
+                    if DURATION.is_relative()
+                    else format_time(func.total_percentage * walltime / 100, walltime)
+                ) + f"{peak_mem}"
                 lines.append(f"{func_prefix}{func.name:.<{max_func_name_length - len(func_prefix)}}{runtime_info}")
             lines.append(next_prefix)
         elif children:
-            total_runtime = sum(f.total_percentage for file_funcs in get_all_functions_in_tree(children) for f in file_funcs)
-            function_count = sum(len(file_funcs) for file_funcs in get_all_functions_in_tree(children))
-            dir_display = f"{name} ({function_count} func, {total_runtime:.2f}% total)"
+            total_runtime = 0
+            function_count = 0
+            has_memory_info = False
+            for file_funcs in get_all_functions_in_tree(children):
+                for f in file_funcs:
+                    total_runtime += f.total_percentage
+                    has_memory_info: bool = has_memory_info or f.has_memory_info
+                    function_count += 1 if f.total_percentage >= threshold or f.has_memory_info else 0
+            if total_runtime < threshold and not has_memory_info:
+                return lines
+            dur = (
+                f"{total_runtime:.2f}% total"
+                if DURATION.is_relative()
+                else format_time(total_runtime * walltime / 100, walltime)
+            )
+            dir_display = f"{name} ({function_count} func, {dur})"
             lines.append(f"{current_prefix}{dir_display}")
-            lines.extend(render_tree(children, next_prefix, threshold=threshold))
+            lines.extend(render_tree(children, walltime, next_prefix, threshold=threshold))
 
     return lines
 
