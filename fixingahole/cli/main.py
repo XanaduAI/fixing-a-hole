@@ -45,7 +45,8 @@ def profile(
         bool,
         typer.Option(
             "--cpu/--memory",
-            help="Profile the CPU runtime or the memory usage of the script or notebook.",
+            "-c/-m",
+            help="Profile only the CPU runtime or both CPU and memory usage of the script or notebook.",
             show_default=True,
         ),
     ] = True,
@@ -54,7 +55,7 @@ def profile(
         typer.Option(
             "--detailed",
             "-d",
-            help="Also profile how imported libraries and modules are used.",
+            help="Also profile how external libraries and modules are used.",
             show_default=True,
         ),
     ] = False,
@@ -73,7 +74,8 @@ def profile(
         bool,
         typer.Option(
             "--trace/--no-trace",
-            help="Print the stack traces for the most expensive function calls.",
+            "-t/-nt",
+            help="Capture the stack traces for the most expensive function calls.",
             show_default=True,
         ),
     ] = True,
@@ -82,7 +84,7 @@ def profile(
         typer.Option(
             "--log-level",
             "-l",
-            help="Log level to capture.",
+            help="Log level to capture while profiling.",
             case_sensitive=False,
             show_default=True,
         ),
@@ -91,6 +93,7 @@ def profile(
         bool,
         typer.Option(
             "--no-plots",
+            "-np",
             help="Prevent plotting functions from running while profiling a script.",
             show_default=True,
         ),
@@ -106,7 +109,9 @@ def profile(
     ignore: Annotated[
         list[Path] | None,
         typer.Option(
-            help="Specific folders to ignore while profiling.",
+            "--ignore",
+            "-i",
+            help="Specific folders to ignore while profiling. Paths are resolved relative to the current directory.",
             show_default=True,
         ),
     ] = None,
@@ -191,7 +196,8 @@ def summarize(
     ] = 0.1,
 ) -> str:
     """Summarize a Scalene JSON profile."""
-    summary = ProfileSummary(filename).summary(top_n, threshold)
+    file = find_path(filename, in_dir=ROOT_DIR)
+    summary = ProfileSummary(file).summary(top_n, threshold)
     Colour.print(summary)
     return summary
 

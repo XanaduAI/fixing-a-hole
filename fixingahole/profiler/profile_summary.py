@@ -191,16 +191,22 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     top_functions: list[ProfileDetails] = sorted(functions, key=lambda f: f.total_percentage, reverse=True)[:top_n]
     top_functions = [fn for fn in top_functions if fn.total_percentage >= threshold]
     n: int = len(top_functions)
-    message += [
-        f"\nTop {f'{n} Functions' if n > 1 else 'Function'} by Total Runtime:",
-        "-" * width,
-    ]
+    if n == 0:
+        message += [
+            "\nNo functions to summarize by Total Runtime",
+            "-" * width,
+        ]
+    else:
+        message += [
+            f"\nTop {f'{n} Functions' if n > 1 else 'Function'} by Total Runtime:",
+            "-" * width,
+        ]
     for i, func in enumerate(top_functions, 1):
         file_name = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
         lineno = func.line_number
         runtime_info = (
             f"{func.total_percentage:>5.2f}%"
-            if DURATION.is_relative
+            if DURATION.is_relative()
             else format_time(func.total_percentage * profile_data.walltime / 100, profile_data.walltime)
         )
         message.append(
@@ -297,12 +303,14 @@ def render_tree(
 
         functions: list[ProfileDetails] = sorted(data.get("_functions", []), key=lambda f: f.total_percentage, reverse=True)
         functions = [f for f in functions if f.total_percentage >= threshold or f.has_memory_info]
-        children: dict[str, ...] = data.get("_children", {})
+        children: dict[str, Any] = data.get("_children", {})
 
         if functions:
             total_runtime = sum(f.total_percentage for f in functions)
             dur = (
-                f"{total_runtime:.2f}% total" if DURATION.is_relative else format_time(total_runtime * walltime / 100, walltime)
+                f"{total_runtime:.2f}% total"
+                if DURATION.is_relative()
+                else format_time(total_runtime * walltime / 100, walltime)
             )
             file_display = f"{name} ({len(functions)} func, {dur})"
             lines.append(f"{current_prefix}{file_display}")
@@ -318,7 +326,7 @@ def render_tree(
                 peak_mem = f" ({func.peak_memory_info})" if func.has_memory_info else ""
                 runtime_info = (
                     f"{func.total_percentage:.>5.2f}%"
-                    if DURATION.is_relative
+                    if DURATION.is_relative()
                     else format_time(func.total_percentage * walltime / 100, walltime)
                 ) + f"{peak_mem}"
                 lines.append(f"{func_prefix}{func.name:.<{max_func_name_length - len(func_prefix)}}{runtime_info}")
@@ -335,7 +343,9 @@ def render_tree(
             if total_runtime < threshold and not has_memory_info:
                 return lines
             dur = (
-                f"{total_runtime:.2f}% total" if DURATION.is_relative else format_time(total_runtime * walltime / 100, walltime)
+                f"{total_runtime:.2f}% total"
+                if DURATION.is_relative()
+                else format_time(total_runtime * walltime / 100, walltime)
             )
             dir_display = f"{name} ({function_count} func, {dur})"
             lines.append(f"{current_prefix}{dir_display}")

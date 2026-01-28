@@ -119,6 +119,7 @@ class Profiler:
         ]
         exclude_dir.extend([folder for folder in IGNORE_DIRS if folder != OUTPUT_DIR])
         exclude_dir.extend([folder for folder in self.ignored_folders if folder != OUTPUT_DIR])
+        Colour.RED.print(f"--profile-exclude {','.join(map(str, exclude_dir))}")
         return f"--profile-exclude {','.join(map(str, exclude_dir))}"
 
     @property
@@ -259,7 +260,7 @@ class Profiler:
         """
         memory_used = -1.0
         walltime = -1.0
-        rss_line = "Maximum resident set size (kbytes)" if self.platform == Platform.Linux else "maximum resident set size"
+        rss_line: str = "Maximum resident set size (kbytes)" if self.platform == Platform.Linux else "maximum resident set size"
 
         for line in stderr.splitlines():
             if rss_line in line:
@@ -313,7 +314,7 @@ class Profiler:
         if self.script_args != []:
             cmd.append("---")
             cmd.extend(self.script_args)
-        cmd_str = " ".join(cmd).strip()
+        cmd_str = " ".join([ln.strip() for ln in cmd if ln]).strip()
         return cmd_str.split()
 
     def json_to_tables(self, ncols: int) -> None:
@@ -365,8 +366,9 @@ class Profiler:
         results = f"{preamble}{finished}{rss_report}{logs_plain}{profile_summary}\n{stack_report}"
         self.output_summary.write_text(results, encoding="utf-8")
 
-        summary = f"{finished}{rss_report}{logs_colored}{profile_summary}\nSee {Colour.purple(self.path_to_summary)}"
-        summary += " for the stack traces of top function calls.\n" if self.trace else " for a copy of this summary.\n"
+        summary = f"{finished}{rss_report}{logs_colored}{profile_summary}"
+        desc: str = "the stack traces of top function calls." if self.trace else "a copy of this summary."
+        summary += f"\nSee {Colour.purple(self.path_to_summary)} for {desc}\n"
         return summary
 
     def run_profiler(self, preamble: str = "\n") -> None:

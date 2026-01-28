@@ -48,7 +48,6 @@ class Duration:
         return cls._instance
 
     @classmethod
-    @property
     def is_relative(cls) -> bool:
         """Determine if the duration mode is relative."""
         if cls._instance is None:
@@ -56,7 +55,6 @@ class Duration:
         return cls._instance.duration_mode == DurationOption.relative
 
     @classmethod
-    @property
     def is_absolute(cls) -> bool:
         """Determine if the duration mode is relative."""
         if cls._instance is None:
