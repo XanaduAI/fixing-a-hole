@@ -119,7 +119,6 @@ class Profiler:
         ]
         exclude_dir.extend([folder for folder in IGNORE_DIRS if folder != OUTPUT_DIR])
         exclude_dir.extend([folder for folder in self.ignored_folders if folder != OUTPUT_DIR])
-        Colour.RED.print(f"--profile-exclude {','.join(map(str, exclude_dir))}")
         return f"--profile-exclude {','.join(map(str, exclude_dir))}"
 
     @property
