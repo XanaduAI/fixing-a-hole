@@ -32,7 +32,7 @@ app = typer.Typer(
 ModuleType = type(typer)
 
 
-def profile(
+def profile(  # noqa: PLR0913
     *,
     filename: Annotated[
         str,

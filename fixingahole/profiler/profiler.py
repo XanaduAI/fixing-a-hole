@@ -41,7 +41,7 @@ class Platform(Enum):
 class Profiler:
     """Class for managing profiling."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         path: Path,
