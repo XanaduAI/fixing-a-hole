@@ -260,8 +260,6 @@ class TestRenderCombinedReverseTree:
 
         tree, call_info = StackReporter.build_combined_reverse_tree(traces)
         lines: list[str] = stack_reporter.render_combined_reverse_tree(tree, call_info, is_root=False)
-        print("\n\n")
-        print(*lines, sep="\n")
 
         # Validate output structure
         assert isinstance(lines, list)

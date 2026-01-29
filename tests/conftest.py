@@ -77,13 +77,13 @@ def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def print_error(res: Result) -> None:
     """Trace errors thrown by the CLI."""
-    print(res)
-    print(res.stdout)
+    print(res)  # noqa: T201
+    print(res.stdout)  # noqa: T201
     exc: BaseException | None = res.exception
     if exc is not None and (tb := exc.__traceback__) is not None:
-        print(f"{tb=}")
+        print(f"{tb=}")  # noqa: T201
         while tb.tb_next:
-            print(tb.tb_frame)
+            print(tb.tb_frame)  # noqa: T201
             tb = tb.tb_next
-        print(tb.tb_frame)
+        print(tb.tb_frame)  # noqa: T201
         return

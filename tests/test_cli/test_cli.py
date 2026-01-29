@@ -41,7 +41,6 @@ class TestProfilerSummarize:
         # Should exit with nonzero and print error
         assert result.exit_code == 1, "Should be error code 1."
         output = Colour.remove_ansi(result.stdout).replace("\n", "")
-        print(output)
         assert f"No files in {tmp_path.name} with name: {missing_path} were found." == output
 
     def test_summarize_cli_options(self, example_json: Path):
