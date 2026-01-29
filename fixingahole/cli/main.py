@@ -21,7 +21,8 @@ import typer
 from colours import Colour
 from typer import Exit
 
-from fixingahole import IGNORE_DIRS, ROOT_DIR, LogLevel, Profiler, ProfileSummary
+from fixingahole import DURATION, IGNORE_DIRS, ROOT_DIR, LogLevel, Profiler, ProfileSummary
+from fixingahole.config import DurationOption
 from fixingahole.profiler.utils import find_path
 
 app = typer.Typer(
@@ -115,10 +116,20 @@ def profile(
             show_default=True,
         ),
     ] = None,
+    duration: Annotated[
+        DurationOption | None,
+        typer.Option(
+            help="Specific folders to ignore while profiling. Paths are resolved relative to the current directory.",
+            show_default=True,
+            hidden=True,
+        ),
+    ] = None,
 ) -> None:
     """Profile a python script or Jupyter notebook."""
     # Find and Prepare script for profiling.
     Colour.blue.print("Initializing...")
+    if duration is not None:
+        DURATION.update(duration.value)
     full_path = (ROOT_DIR / filename).resolve()
     if full_path.exists() and not full_path.is_dir():
         python_file = full_path

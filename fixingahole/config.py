@@ -16,6 +16,7 @@
 import os
 import sys
 import tomllib
+import traceback
 from enum import Enum
 from functools import cache
 from pathlib import Path
@@ -40,11 +41,7 @@ class Duration:
         """Make a singleton instance."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            try:
-                cls._instance.duration_mode = DurationOption(value)
-            except ValueError as err:
-                Colour.print(Colour.RED("ValueError:"), str(err), "check 'tool.fixingahole' configuration in pyproject.toml.")
-                sys.exit(1)
+            cls.update(value)
         return cls._instance
 
     @classmethod
@@ -60,6 +57,20 @@ class Duration:
         if cls._instance is None:
             return False
         return cls._instance.duration_mode == DurationOption.absolute
+
+    @classmethod
+    def update(cls, value: str) -> None:
+        """Set the duration mode."""
+        try:
+            cls._instance.duration_mode = DurationOption(value)  # ty:ignore[invalid-assignment]
+        except ValueError as err:
+            Colour.print(Colour.RED("ValueError:"), str(err), "check 'tool.fixingahole' configuration in pyproject.toml.")
+            sys.exit(1)
+        except AttributeError:
+            # This is very unlikely to occur because the DURATION singleton is initialized on importing this file.
+            #  However, in case someone misuses Duration, this will print the line where the error occured from.
+            Colour.print(next(iter(traceback.format_stack(limit=2))), Colour.RED("Error:"), "initialize before updating.")
+            sys.exit(1)
 
 
 def _detect_virtualenv() -> str:
