@@ -196,7 +196,7 @@ Python and allocations made by libraries (see the original
 - Memory fragmentation overhead
 - Kernel memory structures associated with your process
 
-**Limitations of Heap Memory:**
+**Limitations of Heap Memory Profiling:**
 - Incurs significant CPU overhead due to tracking allocations
 - Cannot predict if memory usage will trigger an out of memory (OOM) error since it's incomplete
 
@@ -219,7 +219,7 @@ by the operating system. This includes all memory pages currently resident in ph
 - Memory that has been allocated but not yet paged into physical RAM
 - Future memory growth patterns
 
-**Limitations of RSS Memory:**
+**Limitations of RSS Memory Profiling:**
 - Provides no attribution to specific code locations
 - Can be misleading when processes share memory pages
 - Doesn't account for swap space usage, which could prevent OOM
