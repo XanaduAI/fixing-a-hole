@@ -175,16 +175,29 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
 
     has_memory_info = False
     max_func_name_length = 0
+    max_file_name_length = 0
+    max_lineno_length = 0
     by_file = profile_data.functions_by_file
-    for file_functions in by_file.values():
+    for file, file_functions in by_file.items():
         for func in file_functions:
             max_func_name_length = max(
                 len(func.name) + 3,
                 max_func_name_length,
             )
+            max_file_name_length = max(
+                len(Path(file).name) + 3,
+                max_file_name_length,
+            )
+            max_lineno_length = max(
+                len(str(func.line_number)),
+                max_lineno_length,
+            )
             has_memory_info = has_memory_info or func.has_memory_info
 
-    width = max_func_name_length + 40
+    runtime_width = 6
+    mem_width = 8
+    whitespace_width = 7
+    width = max_func_name_length + max_file_name_length + max(runtime_width, mem_width) + whitespace_width + max_lineno_length
     message: list[str] = ["\nProfile Summary", "=" * width]
 
     # Top functions by total runtime percentage
@@ -210,7 +223,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
             else format_time(func.total_percentage * profile_data.walltime / 100, profile_data.walltime)
         )
         message.append(
-            f"{i:2d}. {func.name:<{max_func_name_length}} {runtime_info:<6} ({file_name}:{lineno})",
+            f"{i:2d}. {func.name:<{max_func_name_length}} {runtime_info:<{runtime_width}} ({file_name}:{lineno})",
         )
 
     # Add memory summary if available
@@ -225,14 +238,16 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
             ]
             for i, func in enumerate(memory_functions, 1):
                 file_name: str = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
+                lineno = func.line_number
                 message.append(
-                    f"{i:2d}. {func.name:<{max_func_name_length}} {func.peak_memory_info:>8} ({file_name})",
+                    f"{i:2d}. {func.name:<{max_func_name_length}} {func.peak_memory_info:>{mem_width}} ({file_name}:{lineno})",
                 )
 
     message.append("\nFunctions by Module:")
     message.append("-" * width)
-    module_tree = build_module_tree(by_file)
-    tree = render_tree(module_tree, profile_data.walltime, max_func_name_length=max_func_name_length, threshold=threshold)
+    module_tree, depth = build_module_tree(by_file)
+    tree_width = max_func_name_length + (depth * 3)
+    tree = render_tree(module_tree, profile_data.walltime, max_func_name_length=tree_width, threshold=threshold)
     message.extend(tree)
     message.append("")
 
@@ -240,13 +255,15 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     return "\n".join(line.rstrip() for line in message)
 
 
-def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> dict[str, Any]:
-    """Build a hierarchical tree structure from file paths."""
+def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> tuple[dict[str, Any], int]:
+    """Build a hierarchical tree structure from file paths and compute the tree's max depth."""
     modules = installed_modules()
     tree: dict[str, Any] = {}
     files = by_file_dict.keys()
     common_root = Path(os.path.commonpath(files if len(files) > 1 else [*files, ROOT_DIR]))
+    depth = 0
     for file_path, file_functions in by_file_dict.items():
+        d = 1
         parts = Path(file_path).relative_to(common_root).parts
         for i, part in enumerate(parts):
             if part in modules:
@@ -260,8 +277,11 @@ def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> dict[str
             if i == len(parts) - 1:
                 current[part]["_functions"] = file_functions
             else:
+                d += 1
+                depth = max(d, depth)
                 current = current[part]["_children"]
-    return tree
+    depth += 1
+    return tree, depth
 
 
 def get_all_functions_in_tree(tree_dict: dict[str, Any]) -> list:
@@ -329,7 +349,7 @@ def render_tree(
                     if DURATION.is_relative()
                     else format_time(func.total_percentage * walltime / 100, walltime)
                 ) + f"{peak_mem}"
-                lines.append(f"{func_prefix}{func.name:.<{max_func_name_length - len(func_prefix)}}{runtime_info}")
+                lines.append(f"{func_prefix}{func.name:.<{max(max_func_name_length - len(func_prefix), 2)}}{runtime_info}")
             lines.append(next_prefix)
         elif children:
             total_runtime = 0
@@ -349,7 +369,15 @@ def render_tree(
             )
             dir_display = f"{name} ({function_count} func, {dur})"
             lines.append(f"{current_prefix}{dir_display}")
-            lines.extend(render_tree(children, walltime, next_prefix, threshold=threshold))
+            lines.extend(
+                render_tree(
+                    children,
+                    walltime=walltime,
+                    prefix=next_prefix,
+                    max_func_name_length=max_func_name_length,
+                    threshold=threshold,
+                )
+            )
 
     return lines
 

@@ -202,11 +202,12 @@ class TestBuildModuleTree:
     def test_build_module_tree_real_profile(self, example_json: Path):
         """Test building tree from real profile data."""
         profile_data = parse_json(example_json)
-        tree = build_module_tree(profile_data.functions_by_file)
+        tree, depth = build_module_tree(profile_data.functions_by_file)
 
         # Should create a hierarchical structure
         assert tree is not None
         assert len(tree) > 0
+        assert depth == 4
 
         # Each node should have _functions and _children keys
         for node in tree.values():
@@ -222,9 +223,10 @@ class TestGetAllFunctionsInTree:
     def test_get_all_functions_in_tree_flat(self, example_json: Path):
         """Test getting functions from flat tree."""
         profile_data = parse_json(example_json)
-        tree = build_module_tree(profile_data.functions_by_file)
+        tree, depth = build_module_tree(profile_data.functions_by_file)
         result = get_all_functions_in_tree(tree)
         assert len(result) == 2
+        assert depth == 4
         for i, n_funcs in enumerate([6, 3]):
             assert len(result[i]) == n_funcs
 
@@ -240,7 +242,7 @@ class TestRenderTree:
     def test_render_tree_single_file(self, example_json: Path):
         """Test rendering tree with single file."""
         profile_data = parse_json(example_json)
-        tree = build_module_tree(profile_data.functions_by_file)
+        tree, depth = build_module_tree(profile_data.functions_by_file)
         result = render_tree(tree, profile_data.walltime, threshold=0)
         expected_tree = [
             "├─ performance (6 func, 99.65% total)",
@@ -260,14 +262,16 @@ class TestRenderTree:
             "         └─ _std...................................0.00%",
             "         ",
         ]
+        assert depth == 4
         assert len(result) == len(expected_tree)
         assert result == expected_tree
 
     def test_render_tree_with_threshold(self, example_json: Path):
         """Test rendering tree with threshold filtering."""
         profile_data = parse_json(example_json)
-        tree = build_module_tree(profile_data.functions_by_file)
+        tree, depth = build_module_tree(profile_data.functions_by_file)
         result = render_tree(tree, profile_data.walltime, threshold=0.0)
+        assert depth == 4
         assert len(result) == 16
         expected_tree = [
             "├─ performance (6 func, 99.65% total)",
@@ -306,9 +310,9 @@ class TestGenerateSummary:
 
         expected_summary = [
             "\nProfile Summary",
-            "=================================================================",
+            "=========================================================",
             "\nTop 9 Functions by Total Runtime:",
-            "-----------------------------------------------------------------",
+            "---------------------------------------------------------",
             " 1. data_serialization        99.57% (advanced.py:144)",
             " 2. fourier_analysis           0.03% (advanced.py:108)",
             " 3. statistical_analysis       0.02% (advanced.py:72)",
@@ -319,31 +323,31 @@ class TestGenerateSummary:
             " 8. recursive_computation      0.00% (advanced.py:135)",
             " 9. _std                       0.00% (_methods.py:220)",
             "\nTop 6 Functions by Memory Usage:",
-            "-----------------------------------------------------------------",
-            " 1. fourier_analysis            153 MB (advanced.py)",
-            " 2. _var                        153 MB (_methods.py)",
-            " 3. data_serialization           80 MB (advanced.py)",
-            " 4. statistical_analysis         76 MB (advanced.py)",
-            " 5. monte_carlo_simulation       76 MB (advanced.py)",
-            " 6. matrix_operations            36 MB (advanced.py)",
+            "---------------------------------------------------------",
+            " 1. fourier_analysis            153 MB (advanced.py:108)",
+            " 2. _var                        153 MB (_methods.py:150)",
+            " 3. data_serialization           80 MB (advanced.py:144)",
+            " 4. statistical_analysis         76 MB (advanced.py:72)",
+            " 5. monte_carlo_simulation       76 MB (advanced.py:56)",
+            " 6. matrix_operations            36 MB (advanced.py:35)",
             "\nFunctions by Module:",
-            "-----------------------------------------------------------------",
+            "---------------------------------------------------------",
             "├─ performance (6 func, 99.65% total)",
             "│  └─ advanced.py (6 func, 99.65% total)",
-            "│     ├─ data_serialization.......................99.57% ( 80 MB)",
-            "│     ├─ fourier_analysis..........................0.03% (153 MB)",
-            "│     ├─ statistical_analysis......................0.02% ( 76 MB)",
-            "│     ├─ matrix_operations.........................0.02% ( 36 MB)",
-            "│     ├─ monte_carlo_simulation....................0.01% ( 76 MB)",
-            "│     └─ recursive_computation.....................0.00%",
+            "│     ├─ data_serialization..........99.57% ( 80 MB)",
+            "│     ├─ fourier_analysis.............0.03% (153 MB)",
+            "│     ├─ statistical_analysis.........0.02% ( 76 MB)",
+            "│     ├─ matrix_operations............0.02% ( 36 MB)",
+            "│     ├─ monte_carlo_simulation.......0.01% ( 76 MB)",
+            "│     └─ recursive_computation........0.00%",
             "│",
             "└─ numpy (3 func, 0.00% total)",
             "   └─ _core (3 func, 0.00% total)",
             "      └─ _methods.py (3 func, 0.00% total)",
-            "         ├─ _mean..................................0.00%",
-            "         ├─ _var...................................0.00% (153 MB)",
-            "         └─ _std...................................0.00%",
-            "\n\n=================================================================\n",
+            "         ├─ _mean.....................0.00%",
+            "         ├─ _var......................0.00% (153 MB)",
+            "         └─ _std......................0.00%",
+            "\n\n=========================================================\n",
         ]
         expected_summary = "\n".join(expected_summary)
         assert result == expected_summary
