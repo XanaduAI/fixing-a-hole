@@ -71,7 +71,7 @@ class TestDuration:
             Duration("invalid")
 
     def test_singleton_absolute(self):
-        """Test test the Duration object is a singleton, when absolute."""
+        """Test that the Duration object is a singleton, when absolute."""
         # Reset singleton for test isolation
         config.Duration._instance = None
         d1 = Duration("absolute")
@@ -81,7 +81,7 @@ class TestDuration:
         assert not Duration.is_relative(), Duration.is_relative()
 
     def test_singleton_relative(self):
-        """Test test the Duration object is a singleton, when relative."""
+        """Test that the Duration object is a singleton, when relative."""
         # Reset singleton for test isolation
         config.Duration._instance = None
         d1 = Duration("relative")
@@ -89,3 +89,33 @@ class TestDuration:
         assert d1 is d2
         assert Duration.is_relative()
         assert not Duration.is_absolute()
+
+    def test_singleton_relative_then_absolute(self):
+        """Test that the Duration object is a singleton.
+
+        Show that instatiating another instance does not update it.
+        """
+        # Reset singleton for test isolation
+        config.Duration._instance = None
+        d1 = Duration("relative")
+        d2 = Duration("absolute")
+        assert d1 is d2
+        assert Duration.is_relative()
+        assert not Duration.is_absolute()
+
+    def test_singleton_relative_then_update_to_absolute(self):
+        """Test test the Duration object is a singleton, but that it can be updated."""
+        # Reset singleton for test isolation
+        config.Duration._instance = None
+        d1 = Duration("relative")
+        d1.update("absolute")
+        assert Duration.is_absolute()
+        assert not Duration.is_relative()
+
+    def test_singleton_update_before_instantiation(self):
+        """Test test the Duration object cannot be updated before instatiation."""
+        # Reset singleton for test isolation
+        config.Duration._instance = None
+        with pytest.raises(SystemExit) as exc:
+            Duration.update("relative")
+        assert exc.value.code == 1

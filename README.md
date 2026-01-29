@@ -38,9 +38,9 @@ your repo will provide the best results for profiling code within your repo.
 1. The profiling results are saved in the specified `output` directory. The default is set as
 `performance/` relative to the `root` directory.
 1. Additional directories to `ignore` can be also specified. By default, the `.git`, `.venv`, and
-`output` (`performance/`) directories, relative to `root` are not searched when looking for
-scripts to profile and when providing a profiling breakdown and summary (see the `--ignore` flag).
-1. When generating a profile summary, you can specify wh
+`output` (`performance/`) directories, relative to `root` are not searched when looking for scripts
+to profile and when providing a profiling breakdown and summary (also see the `--ignore` flag to
+temporarily ignore folders relative to the current directory when profiling).
 
 The following is an example configuration:
 ```text
@@ -280,80 +280,82 @@ one long execution or repeated calls to a less expensive function call.
 ```text
 fixingahole profile advanced.py --memory
 
-Finished in 9.308 seconds using 767.800 MB of heap RAM
-Max RSS Memory Usage: 1.706 GB
-Total Wall Time: 10.210 seconds
+Finished in 9.318 seconds using 1.376 GB of heap RAM
+Max RSS Memory Usage: 1.958 GB
+Total Wall Time: 9.950 seconds
 
-Check logs performance/advanced/20260126_145848/logs.log (6 warnings)
+Check logs performance/advanced/20260129_201440/logs.log (6 warnings)
 
 Profile Summary
-=================================================================
+=========================================================
 
-Top 6 Functions by Total Runtime:
------------------------------------------------------------------
- 1. data_serialization         70.6% (advanced.py:122)
- 2. fourier_analysis           15.5% (advanced.py:84)
- 3. statistical_analysis        7.3% (advanced.py:48)
- 4. matrix_operations           2.1% (advanced.py:15)
- 5. monte_carlo_simulation      0.9% (advanced.py:36)
- 6. recursive_computation       0.2% (advanced.py:113)
+Top 7 Functions by Total Runtime:
+---------------------------------------------------------
+ 1. data_serialization        74.37% (advanced.py:122)
+ 2. fourier_analysis          14.19% (advanced.py:84)
+ 3. statistical_analysis       6.77% (advanced.py:48)
+ 4. matrix_operations          1.91% (advanced.py:15)
+ 5. monte_carlo_simulation     0.46% (advanced.py:36)
+ 6. main                       0.12% (advanced.py:145)
+ 7. recursive_computation      0.10% (advanced.py:113)
 
 Top 5 Functions by Memory Usage:
------------------------------------------------------------------
- 1. fourier_analysis            610 MB (advanced.py)
- 2. data_serialization          400 MB (advanced.py)
- 3. monte_carlo_simulation      114 MB (advanced.py)
- 4. statistical_analysis         77 MB (advanced.py)
- 5. matrix_operations            30 MB (advanced.py)
+---------------------------------------------------------
+ 1. fourier_analysis            610 MB (advanced.py:84)
+ 2. data_serialization          207 MB (advanced.py:122)
+ 3. statistical_analysis         76 MB (advanced.py:48)
+ 4. monte_carlo_simulation       76 MB (advanced.py:36)
+ 5. matrix_operations            37 MB (advanced.py:15)
 
 Functions by Module:
------------------------------------------------------------------
-└─ performance (7 func, 96.58% total)
-   └─ advanced (7 func, 96.58% total)
-      └─ 20260126_145848 (7 func, 96.58% total)
-         └─ advanced.py (7 func, 96.58% total)
-            ├─ data_serialization.................70.59% (400 MB)
-            ├─ fourier_analysis...................15.48% (610 MB)
-            ├─ statistical_analysis................7.34% ( 77 MB)
-            ├─ matrix_operations...................2.14% ( 30 MB)
-            ├─ monte_carlo_simulation..............0.85% (114 MB)
-            └─ recursive_computation...............0.18%
+---------------------------------------------------------
+└─ performance (7 func, 97.92% total)
+   └─ advanced (7 func, 97.92% total)
+      └─ 20260129_201440 (7 func, 97.92% total)
+         └─ advanced.py (7 func, 97.92% total)
+            ├─ data_serialization.......74.37% (207 MB)
+            ├─ fourier_analysis.........14.19% (610 MB)
+            ├─ statistical_analysis......6.77% ( 76 MB)
+            ├─ matrix_operations.........1.91% ( 37 MB)
+            ├─ monte_carlo_simulation....0.46% ( 76 MB)
+            ├─ main......................0.12%
+            └─ recursive_computation.....0.10%
 
 
-=================================================================
+=========================================================
 
 
 Stack Trace Summary
 ===========================================================================
 
-data_serialization, (69.89%)
-  └─ performance/advanced/20260126_145848/advanced.py:181; main
-     └─ performance/advanced/20260126_145848/advanced.py:192; <module>
-        n_calls: 370
+data_serialization, (71.85%)
+  └─ performance/advanced/20260129_201440/advanced.py:181; main
+     └─ performance/advanced/20260129_201440/advanced.py:192; <module>
+        n_calls: 338
 
 
-fourier_analysis, (12.82%)
-  └─ performance/advanced/20260126_145848/advanced.py:171; main
-     └─ performance/advanced/20260126_145848/advanced.py:192; <module>
-        n_calls: 12
+fourier_analysis, (10.15%)
+  └─ performance/advanced/20260129_201440/advanced.py:171; main
+     └─ performance/advanced/20260129_201440/advanced.py:192; <module>
+        n_calls: 13
 
 
-statistical_analysis, (5.93%)
-  └─ performance/advanced/20260126_145848/advanced.py:166; main
-     └─ performance/advanced/20260126_145848/advanced.py:192; <module>
-        n_calls: 18
+statistical_analysis, (4.84%)
+  └─ performance/advanced/20260129_201440/advanced.py:166; main
+     └─ performance/advanced/20260129_201440/advanced.py:192; <module>
+        n_calls: 20
 
 
-matrix_operations, (1.79%)
-  └─ performance/advanced/20260126_145848/advanced.py:156; main
-     └─ performance/advanced/20260126_145848/advanced.py:192; <module>
-        n_calls: 4
+matrix_operations, (1.55%)
+  └─ performance/advanced/20260129_201440/advanced.py:156; main
+     └─ performance/advanced/20260129_201440/advanced.py:192; <module>
+        n_calls: 6
 
 
-monte_carlo_simulation, (0.57%)
-  └─ performance/advanced/20260126_145848/advanced.py:161; main
-     └─ performance/advanced/20260126_145848/advanced.py:192; <module>
-        n_calls: 2
+monte_carlo_simulation, (0.40%)
+  └─ performance/advanced/20260129_201440/advanced.py:161; main
+     └─ performance/advanced/20260129_201440/advanced.py:192; <module>
+        n_calls: 1
 
 ===========================================================================
 ```

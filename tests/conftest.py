@@ -19,6 +19,15 @@ from pathlib import Path
 import pytest
 from click.testing import Result
 
+from fixingahole.config import Duration
+
+
+@pytest.fixture(autouse=True)
+def set_duration() -> None:
+    """Make sure that the Duration singleton is always reset."""
+    Duration("relative")
+    Duration.update("relative")
+
 
 def basic_name(suffix: str = "") -> str:
     """Return a basic name for testing."""

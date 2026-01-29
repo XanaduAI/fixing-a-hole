@@ -69,7 +69,11 @@ class Duration:
         except AttributeError:
             # This is very unlikely to occur because the DURATION singleton is initialized on importing this file.
             #  However, in case someone misuses Duration, this will print the line where the error occured from.
-            Colour.print(next(iter(traceback.format_stack(limit=2))), Colour.RED("Error:"), "initialize before updating.")
+            Colour.print(
+                next(iter(traceback.format_stack(limit=2))),
+                Colour.RED("Error:"),
+                f"initialize {Colour.BLUE('Duration')} instance before updating.",
+            )
             sys.exit(1)
 
 

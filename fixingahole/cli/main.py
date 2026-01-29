@@ -119,8 +119,7 @@ def profile(
     duration: Annotated[
         DurationOption | None,
         typer.Option(
-            help="Specific folders to ignore while profiling. Paths are resolved relative to the current directory.",
-            show_default=True,
+            help="Temporarily set whether the summary shows duration times as 'absolute' or 'relative' values.",
             hidden=True,
         ),
     ] = None,
