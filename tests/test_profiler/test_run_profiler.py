@@ -29,7 +29,7 @@ class TestProfilerRunProfiler:
 
     def test_run_profiler_success(self, mock_file: Path):
         """Test successful profiler run."""
-        profiler = Profiler(path=mock_file, precision=5, loglevel=LogLevel.INFO, live_update=True)
+        profiler = Profiler(path=mock_file, precision=5, loglevel=LogLevel.INFO, live_update=1)
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
         assert exc_info.value.exit_code == 0

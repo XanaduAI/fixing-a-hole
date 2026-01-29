@@ -11,13 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Helper code for testing the FlamingPy CLI tools."""
+"""Helper code for running tests."""
 
 import contextlib
 from pathlib import Path
 
 import pytest
 from click.testing import Result
+
+from fixingahole.config import Duration
+
+
+@pytest.fixture(autouse=True)
+def set_duration() -> None:
+    """Make sure that the Duration singleton is always reset."""
+    Duration("relative")
+    Duration.update("relative")
 
 
 def basic_name(suffix: str = "") -> str:
@@ -68,13 +77,13 @@ def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def print_error(res: Result) -> None:
     """Trace errors thrown by the CLI."""
-    print(res)
-    print(res.stdout)
+    print(res)  # noqa: T201
+    print(res.stdout)  # noqa: T201
     exc: BaseException | None = res.exception
     if exc is not None and (tb := exc.__traceback__) is not None:
-        print(f"{tb=}")
+        print(f"{tb=}")  # noqa: T201
         while tb.tb_next:
-            print(tb.tb_frame)
+            print(tb.tb_frame)  # noqa: T201
             tb = tb.tb_next
-        print(tb.tb_frame)
+        print(tb.tb_frame)  # noqa: T201
         return

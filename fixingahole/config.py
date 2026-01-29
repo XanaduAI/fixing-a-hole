@@ -16,11 +16,65 @@
 import os
 import sys
 import tomllib
+import traceback
+from enum import Enum
 from functools import cache
 from pathlib import Path
 from typing import Any
 
 from colours import Colour
+
+
+class DurationOption(Enum):
+    """Duration options."""
+
+    absolute = "absolute"  # ex. 4.32 seconds
+    relative = "relative"  # ex. 73.2%
+
+
+class Duration:
+    """Distinguish how to display duration times."""
+
+    _instance = None
+
+    def __new__(cls, value: str) -> "Duration":
+        """Make a singleton instance."""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls.update(value)
+        return cls._instance
+
+    @classmethod
+    def is_relative(cls) -> bool:
+        """Determine if the duration mode is relative."""
+        if cls._instance is None:
+            return True
+        return cls._instance.duration_mode == DurationOption.relative
+
+    @classmethod
+    def is_absolute(cls) -> bool:
+        """Determine if the duration mode is relative."""
+        if cls._instance is None:
+            return False
+        return cls._instance.duration_mode == DurationOption.absolute
+
+    @classmethod
+    def update(cls, value: str) -> None:
+        """Set the duration mode."""
+        try:
+            cls._instance.duration_mode = DurationOption(value)  # ty:ignore[invalid-assignment]
+        except ValueError as err:
+            Colour.print(Colour.RED("ValueError:"), str(err), "check 'tool.fixingahole' configuration in pyproject.toml.")
+            sys.exit(1)
+        except AttributeError:
+            # This is very unlikely to occur because the DURATION singleton is initialized on importing this file.
+            #  However, in case someone misuses Duration, this will print the line where the error occured from.
+            Colour.print(
+                next(iter(traceback.format_stack(limit=2))),
+                Colour.RED("Error:"),
+                f"initialize {Colour.BLUE('Duration')} instance before updating.",
+            )
+            sys.exit(1)
 
 
 def _detect_virtualenv() -> str:
@@ -99,15 +153,15 @@ def _get_output_dir(config: dict[str, Any]) -> Path:
     return (ROOT_DIR / output_path).resolve()
 
 
-def _get_ignore_directories(config: dict[str, Any], output_path: Path) -> list[str | Path]:
+def _get_ignore_directories(config: dict[str, Any], output_path: Path) -> list[Path]:
     """Get the list of directories to ignore when searching for files."""
     ignore_dirs: str | list[str] = config.get("ignore", [output_path])
     if not isinstance(ignore_dirs, list):
         if isinstance(ignore_dirs, str):
-            ignore_dirs: list[str | Path] = [Path(ignore_dirs)]
+            ignore_dirs: list[Path] = [Path(ignore_dirs)]
         else:
             return [output_path]
-    ignore_dirs: list[str | Path] = [Path(path).resolve() for path in ignore_dirs if Path(path).resolve().is_dir()]
+    ignore_dirs: list[Path] = [p for path in ignore_dirs if (p := Path(path).resolve()).is_dir()]
     if output_path not in ignore_dirs:
         ignore_dirs.append(output_path)
     return ignore_dirs
@@ -116,3 +170,4 @@ def _get_ignore_directories(config: dict[str, Any], output_path: Path) -> list[s
 ROOT_DIR = _get_root_dir(_get_config())
 OUTPUT_DIR = _get_output_dir(_get_config())
 IGNORE_DIRS = _get_ignore_directories(_get_config(), OUTPUT_DIR)
+DURATION = Duration(_get_config().get("duration", "relative"))
