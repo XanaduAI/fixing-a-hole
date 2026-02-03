@@ -59,7 +59,7 @@ class Profiler:
         trace: bool = True,
         live_update: float = float("inf"),
         ignore_dirs: list[Path] | None = None,
-        output_dir: Path | str | None = None,
+        output_dir: Path = OUTPUT_DIR,
         in_place: bool = True,
         **_: dict,
     ) -> None:
@@ -74,26 +74,28 @@ class Profiler:
         self.detailed: bool = detailed
         self.loglevel: LogLevel = loglevel
         self.noplots: bool = noplots
-        self._output_file: Path = Path.cwd() / "profile_results.txt"
+        self._output_name: str = "profile_results"
+        self._output_file: Path = Path.cwd() / f"{self._output_name}.txt"
         self._precision_limit: int = 10
         self.trace: bool = trace
         self.live_update: float = live_update
         self.ignored_folders: list[Path] = ignore_dirs if ignore_dirs is not None else []
+        self.run_count: int = 0
 
         # Prepare the results folder.
-        if path.is_file() and output_dir is None:
+        if path.is_file() and output_dir == OUTPUT_DIR:
             self.python_file = path
             self.filestem = self.python_file.stem.replace(" ", "_")
             self.profile_root = OUTPUT_DIR / self.filestem / date()
             self.profile_root.mkdir(parents=True, exist_ok=True)
             self.profile_file = self.python_file if in_place else self.profile_root / f"{self.filestem}.py"
-            self.output_file = self.profile_root / "profile_results.txt"
+            self.output_file = self._output_name
             if not in_place:
                 self.prepare_code_for_profiling()
-        elif path.is_file() and output_dir is not None:
+        elif path.is_file() and output_dir != OUTPUT_DIR:
             self.python_file = path
             self.filestem = self.python_file.stem.replace(" ", "_")
-            self.profile_root = OUTPUT_DIR / output_dir
+            self.profile_root = output_dir
             self.profile_root.mkdir(parents=True, exist_ok=True)
             self.profile_file = self.python_file if in_place else self.profile_root / f"{self.filestem}.py"
             self.output_file = self.profile_root / "profile_results.txt"
@@ -134,23 +136,25 @@ class Profiler:
             if platform.system() == "Windows"
             else Path(sys.executable).resolve().parents[1]
         ]
-        exclude_dir.extend(IGNORE_DIRS)
-        exclude_dir.extend(self.ignored_folders)
+        exclude_dir.extend([folder for folder in IGNORE_DIRS if folder != OUTPUT_DIR])
+        exclude_dir.extend(self.ignored_folders)  # allow users to ignore the OUTPUT_DIR if they want to.
         return f"--profile-exclude {','.join(map(str, exclude_dir))}"
 
     @property
     def output_file(self) -> Path:
         """The location of the Scalene output."""
-        return self._output_file
+        name = f"{self._output_file.name}_{self.run_count}" if self.run_count > 0 else self._output_file.name
+        return (self._output_file.parent / name).with_suffix(".txt")
 
     @output_file.setter
     def output_file(self, value: str | Path) -> None:
         """Location of the Scalene output."""
-        self._output_file = Path(value)
-        counter = 0
-        while self._output_file.exists():
-            self._output_file = self._output_file.parent / f"{self._output_file.stem}{counter}{self._output_file.suffix}"
-        self._output_file.touch()
+        if isinstance(value, Path):
+            self._output_file = value
+            return
+        self._output_name = value
+        self._output_file = self.profile_root / self._output_name
+        self.output_file.touch()
 
     @property
     def output_json(self) -> Path:
@@ -159,7 +163,7 @@ class Profiler:
 
     @property
     def output_summary(self) -> Path:
-        """The location of the Scalene JSON output."""
+        """The location of the summary file."""
         if "results" in self.output_file.name:
             return self.output_file.parent / self.output_file.name.replace("results", "summary")
         return self.output_file.with_name("profile_summary.txt")
@@ -194,7 +198,7 @@ class Profiler:
     @property
     def log_file(self) -> Path:
         """The location of the logs caught during profiling."""
-        return self.profile_root / "logs.log"
+        return self.output_file.with_name("profile_logs.log")
 
     @property
     def log_path(self) -> Path:
@@ -452,4 +456,5 @@ class Profiler:
             Colour.print(text)
             if raise_exit:
                 raise Exit(code=0)
+            self.run_count += 1
             return summary

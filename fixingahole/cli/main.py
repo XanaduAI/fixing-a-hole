@@ -13,6 +13,8 @@
 # limitations under the License.
 """Command-line entrypoints integrated Scalene profiler Fixing-a-Hole."""
 
+import json
+import math
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -21,7 +23,7 @@ import typer
 from colours import Colour
 from typer import Exit
 
-from fixingahole import DURATION, IGNORE_DIRS, ROOT_DIR, LogLevel, Profiler, ProfileSummary
+from fixingahole import DURATION, IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR, LogLevel, Profiler, ProfileSummary
 from fixingahole.config import DurationOption
 from fixingahole.profiler.utils import find_path
 
@@ -42,6 +44,15 @@ def profile(  # noqa: PLR0913
         ),
     ],
     python_script_args: typer.Context,
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-directory",
+            "-o",
+            help="Directory to save the results to.",
+            show_default=True,
+        ),
+    ] = OUTPUT_DIR,
     cpu_only: Annotated[
         bool,
         typer.Option(
@@ -131,6 +142,14 @@ def profile(  # noqa: PLR0913
             show_default=True,
         ),
     ] = False,
+    repeat: Annotated[
+        int,
+        typer.Option(
+            help="The number of times to profile the script to average the results.",
+            show_default=True,
+            min=1,
+        ),
+    ] = 1,
 ) -> None:
     """Profile a python script or Jupyter notebook."""
     # Find and Prepare script for profiling.
@@ -159,6 +178,7 @@ def profile(  # noqa: PLR0913
         live_update=live,
         ignore_dirs=ignore_dirs,
         in_place=in_place,
+        output_dir=output_dir,
     )
 
     cli_args = sys.argv
@@ -168,9 +188,22 @@ def profile(  # noqa: PLR0913
     Colour.print(
         Colour.blue("Profiling:"),
         Colour.green(profiler.profile_path),
-        "for speed." if cpu_only else "for memory usage.",
+        "for speed." if profiler.cpu_only else "for memory usage.",
     )
-    profiler.run_profiler(preamble=preamble)
+
+    n: int = math.ceil(math.log10(repeat))
+    for _ in range(repeat):
+        summary = profiler.run_profiler(preamble=preamble, raise_exit=(repeat == 1))
+        if summary is not None:
+            function_data: dict[str, dict[str, float]] = {}
+            for f in summary.data.functions:
+                key = f"{Path(f.file_path).relative_to(ROOT_DIR)}::{f.name}"
+                function_data[key] = {
+                    "user": (f.python_percentage + f.native_percentage) * summary.walltime / 100,
+                    "system": f.system_percentage * summary.walltime / 100,
+                } | ({"memory": f.peak_memory / 1024} if not profiler.cpu_only else {})
+            data: Path = profiler.profile_root / f"_benchmark_data_{profiler.run_count:0{n}d}.json"
+            data.write_text(json.dumps(function_data))
 
 
 # Register the profile function as a command in this CLI

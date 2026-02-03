@@ -389,8 +389,8 @@ class ProfileSummary:
 
     def __init__(self, filename: str | Path):
         self.data = parse_json(filename)
-        self.walltime: float | None = self.data.walltime
-        self.max_memory: str | None = self.data.max_memory
+        self.walltime: float = self.data.walltime
+        self.max_memory: str = self.data.max_memory
 
     def summary(self, top_n: int = 10, threshold: float = 0.1) -> str:
         """Generate a summary of the profiling results."""
