@@ -21,6 +21,8 @@ import subprocess
 import sys
 from enum import Enum
 from pathlib import Path
+from subprocess import CompletedProcess
+from typing import TYPE_CHECKING
 
 from colours import Colour
 from sympy import nextprime
@@ -28,6 +30,9 @@ from typer import Exit
 
 from fixingahole import IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR
 from fixingahole.profiler.utils import FileWatcher, LogLevel, Spinner, date, memory_with_units
+
+if TYPE_CHECKING:
+    from fixingahole import ProfileSummary
 
 
 class Platform(Enum):
@@ -54,6 +59,8 @@ class Profiler:
         trace: bool = True,
         live_update: float = float("inf"),
         ignore_dirs: list[Path] | None = None,
+        output_dir: Path | str | None = None,
+        in_place: bool = True,
         **_: dict,
     ) -> None:
         self.cpu_only = cpu_only
@@ -74,14 +81,24 @@ class Profiler:
         self.ignored_folders: list[Path] = ignore_dirs if ignore_dirs is not None else []
 
         # Prepare the results folder.
-        if path.is_file():
+        if path.is_file() and output_dir is None:
             self.python_file = path
             self.filestem = self.python_file.stem.replace(" ", "_")
             self.profile_root = OUTPUT_DIR / self.filestem / date()
             self.profile_root.mkdir(parents=True, exist_ok=True)
-            self.profile_file = self.profile_root / f"{self.filestem}.py"
+            self.profile_file = self.python_file if in_place else self.profile_root / f"{self.filestem}.py"
             self.output_file = self.profile_root / "profile_results.txt"
-            self.prepare_code_for_profiling()
+            if not in_place:
+                self.prepare_code_for_profiling()
+        elif path.is_file() and output_dir is not None:
+            self.python_file = path
+            self.filestem = self.python_file.stem.replace(" ", "_")
+            self.profile_root = OUTPUT_DIR / output_dir
+            self.profile_root.mkdir(parents=True, exist_ok=True)
+            self.profile_file = self.python_file if in_place else self.profile_root / f"{self.filestem}.py"
+            self.output_file = self.profile_root / "profile_results.txt"
+            if not in_place:
+                self.prepare_code_for_profiling()
         elif path.is_dir():
             pass
         elif not path.exists():
@@ -117,8 +134,8 @@ class Profiler:
             if platform.system() == "Windows"
             else Path(sys.executable).resolve().parents[1]
         ]
-        exclude_dir.extend([folder for folder in IGNORE_DIRS if folder != OUTPUT_DIR])
-        exclude_dir.extend([folder for folder in self.ignored_folders if folder != OUTPUT_DIR])
+        exclude_dir.extend(IGNORE_DIRS)
+        exclude_dir.extend(self.ignored_folders)
         return f"--profile-exclude {','.join(map(str, exclude_dir))}"
 
     @property
@@ -130,37 +147,49 @@ class Profiler:
     def output_file(self, value: str | Path) -> None:
         """Location of the Scalene output."""
         self._output_file = Path(value)
+        counter = 0
+        while self._output_file.exists():
+            self._output_file = self._output_file.parent / f"{self._output_file.stem}{counter}{self._output_file.suffix}"
         self._output_file.touch()
 
     @property
     def output_json(self) -> Path:
         """The location of the Scalene JSON output."""
-        return self._output_file.with_suffix(".json")
+        return self.output_file.with_suffix(".json")
 
     @property
     def output_summary(self) -> Path:
         """The location of the Scalene JSON output."""
-        return self._output_file.with_name("profile_summary.txt")
+        if "results" in self.output_file.name:
+            return self.output_file.parent / self.output_file.name.replace("results", "summary")
+        return self.output_file.with_name("profile_summary.txt")
 
     @property
     def path_to_summary(self) -> Path:
-        """A relative path (from repo root) to the Scalene output."""
-        try:
+        """A relative path to the summary file."""
+        with contextlib.suppress(ValueError):
             return self.output_summary.relative_to(ROOT_DIR)
-        except ValueError:
-            # output_summary is not in the subpath of ROOT_DIR
-            #  OR one path is relative and the other is absolute
-            return self.output_summary
+        # output_summary is not in the subpath of ROOT_DIR
+        #  OR one path is relative and the other is absolute
+        return self.output_summary
 
     @property
     def output_path(self) -> Path:
         """A relative path (from repo root) to the Scalene output."""
-        try:
+        with contextlib.suppress(ValueError):
             return self.output_file.relative_to(ROOT_DIR)
-        except ValueError:
-            # output_file is not in the subpath of ROOT_DIR
-            #  OR one path is relative and the other is absolute
-            return self.output_file
+        # output_file is not in the subpath of ROOT_DIR
+        #  OR one path is relative and the other is absolute
+        return self.output_file
+
+    @property
+    def profile_path(self) -> Path:
+        """A relative path script being profiled."""
+        with contextlib.suppress(ValueError):
+            return self.profile_file.relative_to(ROOT_DIR)
+        # profile_file is not in the subpath of ROOT_DIR
+        #  OR one path is relative and the other is absolute
+        return self.profile_file
 
     @property
     def log_file(self) -> Path:
@@ -170,7 +199,11 @@ class Profiler:
     @property
     def log_path(self) -> Path:
         """A relative path (from the repo root) of the logs caught during profiling."""
-        return self.log_file.relative_to(ROOT_DIR)
+        with contextlib.suppress(ValueError):
+            return self.log_file.relative_to(ROOT_DIR)
+        # log_file is not in the subpath of ROOT_DIR
+        #  OR one path is relative and the other is absolute
+        return self.log_file
 
     @property
     def precision_limit(self) -> int:
@@ -331,12 +364,14 @@ class Profiler:
         if result.returncode == 0 and result.stdout:
             self.output_file.write_text(Colour.remove_ansi(result.stdout))
 
-    def summarize(self, preamble: str, capture: subprocess.CompletedProcess, ncols: int = 128) -> str:
+    def summarize(
+        self, preamble: str, capture: CompletedProcess, ncols: int = 128
+    ) -> tuple[str, None] | tuple[str, "ProfileSummary"]:
         """Gather all the details and logs and consicely present them to the user."""
         from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
         if not self.output_json.exists():
-            return "No summary available"
+            return "No summary available", None
 
         profile_data = ProfileSummary(self.output_json)
         self.json_to_tables(ncols)
@@ -368,9 +403,9 @@ class Profiler:
         summary = f"{finished}{rss_report}{logs_colored}{profile_summary}"
         desc: str = "the stack traces of top function calls." if self.trace else "a copy of this summary."
         summary += f"\nSee {Colour.purple(self.path_to_summary)} for {desc}\n"
-        return summary
+        return summary, profile_data
 
-    def run_profiler(self, preamble: str = "\n") -> None:
+    def run_profiler(self, preamble: str = "\n", raise_exit: bool = True) -> "ProfileSummary | None":
         """Profile the python script using Scalene."""
         Colour.print(f"See {Colour.purple(self.output_path)} for details.")
         ncols = max(160, len(str(self.profile_file)) + 75)
@@ -413,5 +448,8 @@ class Profiler:
             Colour.RED.print(message)
             raise Exit(code=1) from ki
         else:
-            Colour.print(self.summarize(preamble, capture, ncols))
-            raise Exit(code=0)
+            text, summary = self.summarize(preamble, capture, ncols)
+            Colour.print(text)
+            if raise_exit:
+                raise Exit(code=0)
+            return summary

@@ -123,6 +123,14 @@ def profile(  # noqa: PLR0913
             hidden=True,
         ),
     ] = None,
+    in_place: Annotated[
+        bool,
+        typer.Option(
+            "--in-place/--not-in-place",
+            help="Profile the script where it is instead from the output directory.",
+            show_default=True,
+        ),
+    ] = False,
 ) -> None:
     """Profile a python script or Jupyter notebook."""
     # Find and Prepare script for profiling.
@@ -150,6 +158,7 @@ def profile(  # noqa: PLR0913
         trace=trace,
         live_update=live,
         ignore_dirs=ignore_dirs,
+        in_place=in_place,
     )
 
     cli_args = sys.argv
@@ -158,7 +167,7 @@ def profile(  # noqa: PLR0913
 
     Colour.print(
         Colour.blue("Profiling:"),
-        Colour.green(python_file.relative_to(python_file.parents[1])),
+        Colour.green(profiler.profile_path),
         "for speed." if cpu_only else "for memory usage.",
     )
     profiler.run_profiler(preamble=preamble)

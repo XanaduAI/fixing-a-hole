@@ -255,14 +255,17 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     return "\n".join(line.rstrip() for line in message)
 
 
-def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> tuple[dict[str, Any], int]:
+def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]], threshold: float = 0.1) -> tuple[dict[str, Any], int]:
     """Build a hierarchical tree structure from file paths and compute the tree's max depth."""
     modules = installed_modules()
     tree: dict[str, Any] = {}
-    files = by_file_dict.keys()
+    files: list[str] = [file for file in by_file_dict if file[0] != "<" and file[-1] != ">"]
     common_root = Path(os.path.commonpath(files if len(files) > 1 else [*files, ROOT_DIR]))
     depth = 0
-    for file_path, file_functions in by_file_dict.items():
+    for file_path in files:
+        file_functions = by_file_dict[file_path]
+        if not any(True for f in file_functions if f.total_percentage >= threshold or f.has_memory_info):
+            continue
         d = 1
         parts = Path(file_path).relative_to(common_root).parts
         for i, part in enumerate(parts):
@@ -273,7 +276,6 @@ def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> tuple[di
         for i, part in enumerate(parts):
             if part not in current:
                 current[part] = {"_functions": [], "_children": {}}
-
             if i == len(parts) - 1:
                 current[part]["_functions"] = file_functions
             else:
