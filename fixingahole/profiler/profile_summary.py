@@ -39,6 +39,7 @@ class ProfileDetails:
     name: str
     file_path: str
     line_number: int
+    walltime: float
     memory_python_percentage: float
     peak_memory: float
     python_percentage: float
@@ -64,6 +65,7 @@ class ProfileDetails:
             file_path=file_path,
             name=data.get("line", ""),
             line_number=int(data.get("lineno", 0)),
+            walltime=float(data.get("walltime", 0)),
             python_percentage=float(data.get("n_cpu_percent_python", 0)),
             native_percentage=float(data.get("n_cpu_percent_c", 0)),
             system_percentage=float(data.get("n_sys_percent", 0)),
@@ -95,6 +97,21 @@ class ProfileDetails:
     def total_percentage(self) -> float:
         """Return the total percentage of the runtime."""
         return self.python_percentage + self.native_percentage + self.system_percentage
+
+    @cached_property
+    def total_time(self) -> float:
+        """Return the absolute value of the amount of runtime this function took (in seconds)."""
+        return self.total_percentage * self.walltime / 100.0
+
+    @cached_property
+    def user_time(self) -> float:
+        """Return the absolute value of the amount of user runtime this function took (in seconds)."""
+        return (self.python_percentage + self.native_percentage) * self.walltime / 100.0
+
+    @cached_property
+    def system_time(self) -> float:
+        """Return the absolute value of the amount of system runtime this function took (in seconds)."""
+        return self.system_percentage * self.walltime / 100.0
 
 
 @dataclass(frozen=True)
@@ -129,7 +146,7 @@ def parse_json(filename: str | Path) -> ProfileData:
     """Parse profile results provided as a JSON dictionary."""
     profile_path = Path(filename)
     if not profile_path.exists():
-        Colour.print(Colour.RED("Error:"), "profile", Colour.purple(filename), "does not exist.")
+        Colour.error(f"Error: profile {Colour.purple(filename)} does not exist.")
         raise Exit(code=66)  # Cannot open input: A specified file or input cannot be accessed.
 
     content = json.loads(profile_path.read_text(encoding="utf-8"))
@@ -151,7 +168,7 @@ def parse_json(filename: str | Path) -> ProfileData:
                 line_profs[file_path].append(profile)
 
         funcs: list[dict[str, Any]] = info.get("functions", []) if isinstance(info, dict) else []
-        function_profs.extend(ProfileDetails.from_scalene_dict(fn, file_path) for fn in funcs)
+        function_profs.extend(ProfileDetails.from_scalene_dict(fn | {"walltime": walltime}, file_path) for fn in funcs)
 
     keys: list[str] = ["max_footprint_mb", "growth_rate", "start_time_absolute", "start_time_perf"]
     details: dict[str, float] = {k: content.get(k, -1) for k in keys}

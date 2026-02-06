@@ -83,6 +83,7 @@ class Profiler:
         self.run_count: int = 0
 
         # Prepare the results folder.
+        path = Path(path)
         if path.is_file() and output_dir == OUTPUT_DIR:
             self.python_file = path
             self.filestem = self.python_file.stem.replace(" ", "_")
@@ -104,11 +105,7 @@ class Profiler:
         elif path.is_dir():
             pass
         elif not path.exists():
-            Colour.print(
-                Colour.RED("Error:"),
-                Colour.purple(path),
-                "does not exist.",
-            )
+            Colour.error(f"Error: {Colour.purple(path)} does not exist.")
             raise Exit(code=127)
 
     def assert_platform_os(self) -> None:
@@ -151,6 +148,7 @@ class Profiler:
         """Location of the Scalene output."""
         if isinstance(value, Path):
             self._output_file = value
+            self.output_file.touch()
             return
         self._output_name = value
         self._output_file = self.profile_root / self._output_name
@@ -229,9 +227,7 @@ class Profiler:
                 executable.extend(cell["source"] + ["\n"])
         executable = "".join(executable)
         if not executable:
-            Colour.ORANGE.print(
-                Colour.red_error("Error: notebook does not contain any executable code."),
-            )
+            Colour.error("Error: notebook does not contain any executable code.")
             raise Exit(code=1)
         return executable
 
@@ -441,7 +437,7 @@ class Profiler:
                     continue
                 output = exc_output.decode() if isinstance(exc_output, bytes) else exc_output
                 if output.strip():
-                    Colour.print(Colour.RED("\nExecution Error:\n"), Colour.red_error(output.strip()))
+                    Colour.error(Colour.RED("\nExecution Error:\n"), output.strip())
             raise Exit(code=1) from exc
         except KeyboardInterrupt as ki:
             # Make sure to indicate in the profile_results.txt of the interruption.
@@ -449,7 +445,7 @@ class Profiler:
             with contextlib.suppress(KeyboardInterrupt):
                 self.json_to_tables(ncols)
             self.output_file.write_text(message + self.output_file.read_text(), encoding="utf-8")
-            Colour.RED.print(message)
+            Colour.error(message)
             raise Exit(code=1) from ki
         else:
             text, summary = self.summarize(preamble, capture, ncols)

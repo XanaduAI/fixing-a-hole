@@ -79,10 +79,10 @@ class TestProfilerRunProfiler:
             profiler.run_profiler()
 
         assert exc_info.value.exit_code == 1
-        mock_run.assert_called_once()
+        mock_run.assert_called()
         assert "Profiling interrupted by user." in profiler.output_file.read_text()
 
-    def test_run_profiler_with_script_args_and_logs(self, mock_file: Path):
+    def test_run_profiler_with_script_args_and_logs(self, mock_file: Path, root_dir: Path):
         """Test profiler run with script arguments."""
         args = ["arg1=value1", "arg2=value2"]
         profiler = Profiler(
@@ -90,6 +90,8 @@ class TestProfilerRunProfiler:
             python_script_args=args,
             precision=5,
             loglevel=LogLevel.INFO,
+            output_dir=root_dir / "performance",
+            in_place=False,
         )
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()

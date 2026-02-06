@@ -20,6 +20,7 @@ from colours import Colour as _Colour
 from fixingahole.config import DURATION, IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR
 from fixingahole.profiler.profile_summary import ProfileSummary
 from fixingahole.profiler.profiler import Profiler
+from fixingahole.profiler.stats_manager import StatisticsManager
 from fixingahole.profiler.utils import LogLevel
 
 try:
@@ -55,4 +56,5 @@ __all__ = [
     "LogLevel",
     "ProfileSummary",
     "Profiler",
+    "StatisticsManager",
 ]

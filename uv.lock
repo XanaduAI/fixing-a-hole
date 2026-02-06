@@ -72,8 +72,8 @@ wheels = [
 
 [[package]]
 name = "colours"
-version = "0.1.1"
-source = { git = "https://github.com/XanaduAI/colours.git?rev=61c77e904fe0f0479043138ce14c5ba730d9d2c0#61c77e904fe0f0479043138ce14c5ba730d9d2c0" }
+version = "0.1.2"
+source = { git = "https://github.com/XanaduAI/colours.git?rev=42a28e035c2cc2570461766108dc071ce891e3f9#42a28e035c2cc2570461766108dc071ce891e3f9" }
 dependencies = [
     { name = "rich" },
 ]
@@ -209,7 +209,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "colours", git = "https://github.com/XanaduAI/colours.git?rev=61c77e904fe0f0479043138ce14c5ba730d9d2c0" },
+    { name = "colours", git = "https://github.com/XanaduAI/colours.git?rev=42a28e035c2cc2570461766108dc071ce891e3f9" },
     { name = "scalene", specifier = ">=2.1.0" },
     { name = "sympy", specifier = ">=1.14.0" },
     { name = "typer", specifier = ">=0.20.0" },

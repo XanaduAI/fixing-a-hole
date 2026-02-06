@@ -232,9 +232,9 @@ class TestProfilerProperties:
         # Should be created by touch()
         assert Path(new_output_str).exists()
 
-    def test_output_path_property_within_root(self, mock_file: Path):
+    def test_output_path_property_within_root(self, mock_file: Path, root_dir: Path):
         """Test output_path property when output_file is within ROOT_DIR."""
-        profiler = Profiler(path=mock_file)
+        profiler = Profiler(path=mock_file, output_dir=root_dir / "performance")
         # output_path should be relative to ROOT_DIR
         output_path = profiler.output_path
         assert not output_path.is_absolute()
@@ -244,24 +244,24 @@ class TestProfilerProperties:
         external_dir = Path(root_dir).parent / "external"
         external_dir.mkdir(exist_ok=True, parents=True)
 
-        profiler = Profiler(path=mock_file)
+        profiler = Profiler(path=mock_file, output_dir=root_dir / "performance")
         profiler.output_file = external_dir / "output.txt"
 
         # output_path should return absolute path when outside ROOT_DIR
         output_path = profiler.output_path
         assert output_path == profiler.output_file
 
-    def test_log_file_property(self, mock_file: Path):
+    def test_log_file_property(self, mock_file: Path, root_dir: Path):
         """Test the log_file property."""
-        profiler = Profiler(path=mock_file)
+        profiler = Profiler(path=mock_file, output_dir=root_dir / "performance")
 
         log_file = profiler.log_file
-        assert log_file.name == "logs.log"
+        assert log_file.name == "profile_logs.log"
         assert profiler.profile_root in log_file.parents
 
-    def test_log_path_property(self, mock_file: Path):
+    def test_log_path_property(self, mock_file: Path, root_dir: Path):
         """Test the log_path property."""
-        profiler = Profiler(path=mock_file)
+        profiler = Profiler(path=mock_file, output_dir=root_dir / "performance")
 
         log_path = profiler.log_path
         # Should be relative to ROOT_DIR

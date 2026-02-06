@@ -16,13 +16,14 @@
 import datetime
 import importlib.metadata
 from collections.abc import Callable
+from contextlib import nullcontext
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
 from typing import TYPE_CHECKING, overload
 
 from colours import Colour
-from rich._spinners import SPINNERS  # noqa: PLC2701
+from rich._spinners import SPINNERS
 from rich.live import Live
 from rich.spinner import Spinner as rich_Spinner
 from typer import Exit
@@ -33,6 +34,9 @@ from fixingahole import ROOT_DIR
 
 if TYPE_CHECKING:
     from watchdog.observers.api import BaseObserver
+
+# Remove the difficult to see "toggle" spinners from the available options.
+SPINNERS = {k: v for k, v in SPINNERS.items() if "toggle" not in k}
 
 
 class LogLevel(Enum):
@@ -90,6 +94,7 @@ def find_path(
     *,
     exclude: list[str] | list[Path] | None = None,
     return_suffix: None = None,
+    subfolder_only: None = None,
 ) -> Path: ...
 
 
@@ -100,6 +105,7 @@ def find_path(
     *,
     exclude: list[str] | list[Path] | None = None,
     return_suffix: str,
+    subfolder_only: bool = False,
 ) -> tuple[Path, list[Path]]: ...
 
 
@@ -109,6 +115,7 @@ def find_path(
     *,
     exclude: list[str | Path] | None = None,
     return_suffix: str | None = None,
+    subfolder_only: bool | None = None,
 ) -> Path | tuple[Path, list[Path]]:
     """Find files or directories in the repository.
 
@@ -117,6 +124,7 @@ def find_path(
         in_dir: Directory to search within
         exclude: List of patterns to exclude from search
         return_suffix: If the pattern is a directory, returns a tuple of (dir_path, files_in_dir_with_suffix)
+        subfolder_only: Searches only the immediate subdirectory for files in combination with `return_suffix`.
 
     Returns:
         Path object for the found item, or tuple of (Path, list[Path]) if return_contents=True
@@ -148,24 +156,32 @@ def find_path(
         case 1:
             result: Path = options.pop()
             if return_suffix is not None:
-                return result, [path for path in result.rglob(f"*{return_suffix}") if "__pycache__" not in str(path)]
+                glob = result.glob(f"*{return_suffix}") if subfolder_only else result.rglob(f"*{return_suffix}")
+                paths = [path for path in glob if "__pycache__" not in str(path)]
+                if len(paths) == 0 and subfolder_only:
+                    Colour.error(
+                        Colour.red("No files were found in"),
+                        f"{Colour.purple(result.name)} of type {Colour.purple(return_suffix)}",
+                    )
+                    raise Exit(code=1)
+                return result, paths
             return result
         case 0:
-            Colour.print(
+            Colour.error(
                 Colour.red(f"No {file_or_folder} in"),
                 f"{Colour.purple(in_dir.name)} with name:",
                 f"{Colour.green(pattern)} were found.",
             )
             raise Exit(code=1)
         case _:
-            Colour.print(
+            Colour.error(
                 Colour.red(f"Many {file_or_folder} with name:"),
                 f"{Colour.green(pattern)} were found in",
                 f"{Colour.purple(in_dir.name)}.",
                 "Please be more specific.",
             )
             for path in options:
-                Colour.purple.print(path.relative_to(ROOT_DIR))
+                Colour.error(Colour.purple(path.relative_to(ROOT_DIR)))
             raise Exit(code=1)
 
 
@@ -183,8 +199,16 @@ def installed_modules() -> set[str]:
 class Spinner(Live):
     """An abstraction of rich.spinner.Spinner with Live context."""
 
+    def __new__(cls, message: str = "", *, style: str | None = None, speed: float = 1.0) -> "Spinner | nullcontext":  # noqa: ARG004
+        """Create a Spinner or nullcontext based on Colour.quiet flag."""
+        if Colour.quiet:
+            return nullcontext()
+        return super().__new__(cls)
+
     def __init__(self, message: str = "", *, style: str | None = None, speed: float = 1.0) -> None:
         """Abstraction of rich.spinner.Spinner with Live context."""
+        if Colour.quiet:
+            return
         spinner = rich_Spinner(choice(sorted(SPINNERS.keys())), message, style=style, speed=speed)
         super().__init__(spinner, refresh_per_second=20)
 

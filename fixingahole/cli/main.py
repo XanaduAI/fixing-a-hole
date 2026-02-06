@@ -14,7 +14,6 @@
 """Command-line entrypoints integrated Scalene profiler Fixing-a-Hole."""
 
 import json
-import math
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -23,7 +22,7 @@ import typer
 from colours import Colour
 from typer import Exit
 
-from fixingahole import DURATION, IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR, LogLevel, Profiler, ProfileSummary
+from fixingahole import DURATION, IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR, LogLevel, Profiler, ProfileSummary, StatisticsManager
 from fixingahole.config import DurationOption
 from fixingahole.profiler.utils import find_path
 
@@ -145,14 +144,26 @@ def profile(  # noqa: PLR0913
     repeat: Annotated[
         int,
         typer.Option(
+            "--repeat",
+            "-r",
             help="The number of times to profile the script to average the results.",
             show_default=True,
             min=1,
         ),
     ] = 1,
+    quiet: Annotated[
+        bool,
+        typer.Option(
+            "--quiet/",
+            "-q/",
+            help="Prevent any printed statements (summary outputs) while profiling.",
+        ),
+    ] = False,
 ) -> None:
     """Profile a python script or Jupyter notebook."""
     # Find and Prepare script for profiling.
+    if quiet:
+        Colour.quiet = True
     Colour.blue.print("Initializing...")
     if duration is not None:
         DURATION.update(duration.value)
@@ -162,7 +173,7 @@ def profile(  # noqa: PLR0913
     else:
         python_file: Path = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS)
         if python_file.is_dir():
-            Colour.ORANGE.print(Colour.red_error("Error: cannot profile a directory."))
+            Colour.error(Colour.ORANGE("Error: cannot profile a directory."))
             raise typer.Exit(code=1)
     ignore_dirs: list[Path] = [Path(p).resolve() for p in ignore] if ignore is not None else []
 
@@ -191,19 +202,14 @@ def profile(  # noqa: PLR0913
         "for speed." if profiler.cpu_only else "for memory usage.",
     )
 
-    n: int = math.ceil(math.log10(repeat))
+    stats = StatisticsManager()
     for _ in range(repeat):
         summary = profiler.run_profiler(preamble=preamble, raise_exit=(repeat == 1))
         if summary is not None:
-            function_data: dict[str, dict[str, float]] = {}
-            for f in summary.data.functions:
-                key = f"{Path(f.file_path).relative_to(ROOT_DIR)}::{f.name}"
-                function_data[key] = {
-                    "user": (f.python_percentage + f.native_percentage) * summary.walltime / 100,
-                    "system": f.system_percentage * summary.walltime / 100,
-                } | ({"memory": f.peak_memory / 1024} if not profiler.cpu_only else {})
-            data: Path = profiler.profile_root / f"_benchmark_data_{profiler.run_count:0{n}d}.json"
-            data.write_text(json.dumps(function_data))
+            stats.insert(summary)
+    if stats.count > 1:
+        stats.save_as_json(profiler.output_file.with_name("function_stats_average.json"), stats.average())
+        stats.save_as_json(profiler.output_file.with_name("function_stats_std.json"), stats.std())
 
 
 # Register the profile function as a command in this CLI
@@ -224,7 +230,7 @@ def summarize(
     filename: Annotated[
         str,
         typer.Argument(
-            help="Name of the script or notebook to profile.",
+            help="Name Scalene JSON profile to summarize.",
             show_default=False,
         ),
     ],
@@ -252,6 +258,30 @@ def summarize(
     summary = ProfileSummary(file).summary(top_n, threshold)
     Colour.print(summary)
     return summary
+
+
+@app.command(
+    no_args_is_help=True,
+    rich_help_panel="Utilities",
+    epilog=":copyright: Xanadu Quantum Technologies",
+)
+def stats(
+    folder: Annotated[
+        str,
+        typer.Argument(
+            help="Name of the folder containing multiple Scalene JSON profiles to generate stats for.",
+            show_default=False,
+        ),
+    ],
+) -> StatisticsManager:
+    """Generate statistics for a group of Scalene JSON profiles."""
+    stats = StatisticsManager()
+    _, files = find_path(folder, in_dir=ROOT_DIR, return_suffix=".json", subfolder_only=True)
+    for file in files:
+        summary = ProfileSummary(file)
+        stats.insert(summary)
+    Colour.print(json.dumps(stats.stats(), indent=2))
+    return stats
 
 
 def version_callback(value: bool) -> None:

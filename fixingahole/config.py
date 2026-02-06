@@ -64,15 +64,14 @@ class Duration:
         try:
             cls._instance.duration_mode = DurationOption(value)  # ty:ignore[invalid-assignment]
         except ValueError as err:
-            Colour.print(Colour.RED("ValueError:"), str(err), "check 'tool.fixingahole' configuration in pyproject.toml.")
+            Colour.error("ValueError:", str(err), "check 'tool.fixingahole' configuration in pyproject.toml.")
             sys.exit(1)
         except AttributeError:
             # This is very unlikely to occur because the DURATION singleton is initialized on importing this file.
             #  However, in case someone misuses Duration, this will print the line where the error occured from.
-            Colour.print(
+            Colour.error(
                 next(iter(traceback.format_stack(limit=2))),
-                Colour.RED("Error:"),
-                f"initialize {Colour.BLUE('Duration')} instance before updating.",
+                f"Error: initialize {Colour.BLUE('Duration')} instance before updating.",
             )
             sys.exit(1)
 
@@ -127,11 +126,7 @@ def _get_config() -> dict[str, Any]:
         try:
             data = tomllib.load(f)
         except tomllib.TOMLDecodeError as exc:
-            Colour.print(
-                Colour.RED("Error:"),
-                f"{exc} while reading",
-                Colour.purple(Path(*(pyproject_path.parts[-2:]))),
-            )
+            Colour.error(f"Error: {exc} while reading {Colour.purple(Path(*(pyproject_path.parts[-2:])))}")
             sys.exit(5)  # Failure to read or write data.
     tools = data.get("tool", {})
     return tools.get("fixingahole", {})
