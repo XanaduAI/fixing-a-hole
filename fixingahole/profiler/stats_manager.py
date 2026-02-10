@@ -99,7 +99,7 @@ class StatisticsManager:
             infos = {
                 "repo": lambda repo: Path(str(repo.remotes.origin.url)).stem,
                 "branch": lambda repo: repo.active_branch.name,
-                "commit": lambda repo: repo.active_branch.commit,
+                "commit": lambda repo: repo.head.object.hexsha,
             }
             for info, method in infos.items():
                 try:
