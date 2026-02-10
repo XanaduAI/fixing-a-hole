@@ -278,18 +278,18 @@ def stats(
         ),
     ],
     output_file: Annotated[
-        str | None,
+        str,
         typer.Option(
             "--output-file",
             "-o",
             help="Filename to save the results to within the folder.",
             show_default=True,
         ),
-    ] = None,
+    ] = "function_stats.json",
     metadata: Annotated[
         bool,
         typer.Option(
-            help="Capture and save the git repo metadata.",
+            help="Capture and save the git repo metadata (repo name, branch name, commit hash, UTC date and time).",
             show_default=True,
         ),
     ] = True,
@@ -307,7 +307,7 @@ def stats(
     for file in files:
         summary = ProfileSummary(file)
         stats.insert(summary)
-    stats_file = directory / "function_stats.json" if output_file is None else (directory / output_file).with_suffix(".json")
+    stats_file = (directory / output_file).with_suffix(".json")
     data = stats.stats()
     data = stats.save_as_json(stats_file, data, save_metadata=metadata, sort=sort)
     Colour.print(json.dumps(data, indent=2))

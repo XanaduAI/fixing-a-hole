@@ -149,9 +149,27 @@ unintentional side effects.
 --ignore
 ```
 If there are specific folders within your repo that you would like to ignore while profiling, you
-can either set them globally in your `pyproject.toml` or you can specify each directory
-individually when invoking the profiler, i.e. `--ignore foo --ignore bar`. These are resolved
-relative to the directory you invoked the profiler from. But you can also set absolute paths.
+can either configure them globally in your `pyproject.toml` or you can specify each directory
+individually when invoking the profiler, i.e. `--ignore foo --ignore /home/bar/baz`. These are
+resolved relative to the directory you invoked the profiler from. But you can also set absolute
+paths.
+
+```bash
+--in-place
+```
+By default, a timestamped copy of the script you profile will be saved in the `output` directory
+alongside the profile results and summary. This also allows `fixing-a-hole` to disable plot
+generation without modifying your code. The downside of this is that the profiling results may
+reference the duplicated script as a module separate from your repo. If you do _not_ need to also
+suppress plot generation or adjust the log-level capture, then using the `--in-place` flag will
+provide a more expected and more consistent profiling result.
+
+```bash
+--repeat
+```
+If there is a need to benchmark a script by profiling it repeatedly and then compute the average
+and standard deviation of the results, then using the `--repeat` flag will do this for you. See
+also the [benchmarking](#benchmarking) section below.
 
 ## Results
 
@@ -166,6 +184,20 @@ generated.
 
 See below for a portion of an example profile of `tests/scripts/advanced.py` and how to interpret
 it.
+
+### Benchmarking
+
+Small variations in profiling results and profiling summaries can arise from many different sources
+of noise or complications during a profiling session. In order to obtain a more stable measure of
+how changes to your code are affecting performance, you can profile the exact same script repeatedly
+and compute the average and standard deviation of the results. `fixing-a-hole` will do this
+automatically for you if you use the `--repeat` flag when profiling. Additionally, it will also try
+to save some additional metadata, such as the git repo name, git branch name, git commit hash, and
+the current UTC date and time when the statistics were generated, if possible.
+
+If multiple previous runs of the same code were made before, then these same statistics can be made
+using the `fixingahole stats <folder>` command, so long as all of the Scalene JSON files from each
+profile are in the same subfolder. See `fixingahole stats --help` for more details.
 
 ### Understanding Memory Profiling: Heap vs RSS
 
@@ -271,10 +303,10 @@ Instead of relying solely on profiling metrics, consider these approaches:
 
 The first line in the summary file is the command used to generate the results. This is followed
 by the runtime and max heap memory usage (as reported by scalene) as well as the max RSS memory
-usage and total wall time (as reported by `/usr/bin/time`, if available). If the `logs.log` file
-is not empty, then a summary is printed next. Following that, the main Profile Summary is given
-(it was also printed to stdout). Finally, if requested, the Stack Trace Summary is displayed. The
-Stack Trace Summary helps to identify whether or not expensive function calls are the result of
+usage and total wall time (as reported by `/usr/bin/time`, if available). If the `profile_logs.log`
+file is not empty, then a summary is printed next. Following that, the main Profile Summary is
+given (it was also printed to stdout). Finally, if requested, the Stack Trace Summary is displayed.
+The Stack Trace Summary helps to identify whether or not expensive function calls are the result of
 one long execution or repeated calls to a less expensive function call.
 
 ```text
@@ -284,7 +316,7 @@ Finished in 9.318 seconds using 1.376 GB of heap RAM
 Max RSS Memory Usage: 1.958 GB
 Total Wall Time: 9.950 seconds
 
-Check logs performance/advanced/20260129_201440/logs.log (6 warnings)
+Check logs performance/advanced/20260129_201440/profile_logs.log (6 warnings)
 
 Profile Summary
 =========================================================
@@ -370,7 +402,7 @@ We first see the total memory usage and memory growth rate (the scalene document
 on what "growth rate" is, or how to best interpret it). For each file that contains a significant
 portion of the runtime (≥1%) there is a table with headers which are described by the following:
 
-* **Time Python**: How much time was spent in Python code.
+* **Time Python**: How much time was spent in Python code (percent relative to the total runtime).
 * **native**: How much time was spent in non-Python code (e.g., libraries written in C/C++,
 compiled numpy, etc.).
 * **system**: How much time was spent in the system (e.g., I/O, reading and writing data).
