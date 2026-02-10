@@ -234,7 +234,7 @@ def summarize(
     filename: Annotated[
         str,
         typer.Argument(
-            help="Name Scalene JSON profile to summarize.",
+            help="Name of Scalene JSON profile to summarize.",
             show_default=False,
         ),
     ],
@@ -277,14 +277,40 @@ def stats(
             show_default=False,
         ),
     ],
+    output_file: Annotated[
+        str | None,
+        typer.Option(
+            "--output-file",
+            "-o",
+            help="Filename to save the results to within the folder.",
+            show_default=True,
+        ),
+    ] = None,
+    metadata: Annotated[
+        bool,
+        typer.Option(
+            help="Capture and save the git repo metadata.",
+            show_default=True,
+        ),
+    ] = True,
+    sort: Annotated[
+        bool,
+        typer.Option(
+            help="Sort the statistics by average user time, decending.",
+            show_default=True,
+        ),
+    ] = True,
 ) -> StatisticsManager:
     """Generate statistics for a group of Scalene JSON profiles."""
     stats = StatisticsManager()
-    _, files = find_path(folder, in_dir=ROOT_DIR, return_suffix=".json", subfolder_only=True)
+    directory, files = find_path(folder, in_dir=ROOT_DIR, return_suffix=".json", subfolder_only=True)
     for file in files:
         summary = ProfileSummary(file)
         stats.insert(summary)
-    Colour.print(json.dumps(stats.stats(), indent=2))
+    stats_file = directory / "function_stats.json" if output_file is None else (directory / output_file).with_suffix(".json")
+    data = stats.stats()
+    data = stats.save_as_json(stats_file, data, save_metadata=metadata, sort=sort)
+    Colour.print(json.dumps(data, indent=2))
     return stats
 
 

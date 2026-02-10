@@ -92,7 +92,7 @@ class StatisticsManager:
         return res
 
     @staticmethod
-    def save_as_json(filename: Path, data: dict[str, Any], *, save_metadata: bool = True, sort: bool = True) -> None:
+    def save_as_json(filename: Path, data: dict[str, Any], *, save_metadata: bool = True, sort: bool = True) -> dict[str, Any]:
         """Location to save the benchmarking statistics."""
         if sort:
             data: dict[str, Any] = dict(sorted(data.items(), key=lambda item: item[1]["user"]["avg"], reverse=True))
@@ -103,11 +103,12 @@ class StatisticsManager:
                 "repo": lambda repo: Path(str(repo.remotes.origin.url)).stem,
                 "branch": lambda repo: repo.active_branch.name,
                 "commit": lambda repo: repo.head.object.hexsha,
-                "datetime": lambda _: date(),
+                "utc_time": lambda _: date(),
             }
             for info, method in infos.items():
                 try:
                     data["metadata"][info] = str(method(repo))
                 except (TypeError, git.InvalidGitRepositoryError):
                     data["metadata"][info] = f"Failed to save git {info}."
-        filename.write_text(json.dumps(data, indent=2))
+        filename.write_text(json.dumps(data, indent=1))
+        return data
