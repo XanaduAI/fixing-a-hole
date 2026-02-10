@@ -19,6 +19,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import git
+
 from fixingahole import ROOT_DIR
 
 if TYPE_CHECKING:
@@ -36,7 +38,10 @@ class StatisticsManager:
         """Add additional function data to the stats manager."""
         self.count += 1
         for f in summary.data.functions:
-            key = f"{Path(f.file_path).relative_to(ROOT_DIR)}:{f.name}"
+            try:
+                key = f"{Path(f.file_path).relative_to(ROOT_DIR)}:{f.name}"
+            except ValueError:  # f.file_path is not in the subpath of ROOT_DIR
+                key = f"{Path(f.file_path)}:{f.name}"
             self.function_data[key].append(f)
 
     def average(self) -> dict[str, dict[str, float]]:
@@ -84,6 +89,21 @@ class StatisticsManager:
         return res
 
     @staticmethod
-    def save_as_json(filename: Path, data: dict[str, Any]) -> None:
+    def save_as_json(filename: Path, data: dict[str, Any], *, git_info: bool = True, sort: bool = True) -> None:
         """Location to save the benchmarking statistics."""
+        if sort:
+            data = dict(sorted(data.items(), key=lambda item: item[1]["user"]["avg"], reverse=True))
+        if git_info:
+            repo = git.Repo(ROOT_DIR, search_parent_directories=True)
+            data["git_info"] = {}
+            infos = {
+                "repo": lambda repo: Path(str(repo.remotes.origin.url)).stem,
+                "branch": lambda repo: repo.active_branch.name,
+                "commit": lambda repo: repo.active_branch.commit,
+            }
+            for info, method in infos.items():
+                try:
+                    data["git_info"][info] = str(method(repo))
+                except (TypeError, git.InvalidGitRepositoryError):
+                    data["git_info"][info] = f"Failed to save git {info}."
         filename.write_text(json.dumps(data, indent=2))

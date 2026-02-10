@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "colours",
+    "gitpython>=3.1.44",
     "scalene>=2.1.0",
     "sympy>=1.14.0",
     "typer>=0.20.0",
@@ -16,7 +17,7 @@ dependencies = [
 fixingahole = "fixingahole.cli.main:app"
 
 [tool.uv.sources]
-colours = { git = "https://github.com/XanaduAI/colours.git", rev = "42a28e035c2cc2570461766108dc071ce891e3f9" } # TODO: Update
+colours = { git = "https://github.com/XanaduAI/colours.git", rev = "9895fb35f149b10014aae571a766aa8a8b822423" } # TODO: Update
 
 [dependency-groups]
 dev = [

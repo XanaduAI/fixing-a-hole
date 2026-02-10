@@ -15,12 +15,13 @@
 
 import datetime
 import importlib.metadata
+import os
 from collections.abc import Callable
 from contextlib import nullcontext
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING, Any, overload
 
 from colours import Colour
 from rich._spinners import SPINNERS
@@ -36,7 +37,7 @@ if TYPE_CHECKING:
     from watchdog.observers.api import BaseObserver
 
 # Remove the difficult to see "toggle" spinners from the available options.
-SPINNERS = {k: v for k, v in SPINNERS.items() if "toggle" not in k}
+SPINNERS: dict[str, dict[str, Any]] = {k: v for k, v in SPINNERS.items() if "toggle" not in k}
 
 
 class LogLevel(Enum):
@@ -130,7 +131,7 @@ def find_path(
         Path object for the found item, or tuple of (Path, list[Path]) if return_contents=True
 
     """
-    if Path(pattern).is_absolute() and Path(pattern).exists():
+    if (abs_path := Path(pattern)).is_absolute() and abs_path.exists() and not abs_path.is_dir():
         return Path(pattern).absolute()
 
     in_dir = (ROOT_DIR / in_dir).resolve()
@@ -201,13 +202,13 @@ class Spinner(Live):
 
     def __new__(cls, message: str = "", *, style: str | None = None, speed: float = 1.0) -> "Spinner | nullcontext":  # noqa: ARG004
         """Create a Spinner or nullcontext based on Colour.quiet flag."""
-        if Colour.quiet:
+        if os.getenv("COLOURS_DISABLE_PRINT") == "true":
             return nullcontext()
         return super().__new__(cls)
 
     def __init__(self, message: str = "", *, style: str | None = None, speed: float = 1.0) -> None:
         """Abstraction of rich.spinner.Spinner with Live context."""
-        if Colour.quiet:
+        if os.getenv("COLOURS_DISABLE_PRINT") == "true":
             return
         spinner = rich_Spinner(choice(sorted(SPINNERS.keys())), message, style=style, speed=speed)
         super().__init__(spinner, refresh_per_second=20)

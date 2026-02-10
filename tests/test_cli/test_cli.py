@@ -59,6 +59,27 @@ class TestProfilerSummarize:
         assert "No functions to summarize by Total Runtime" in output
 
 
+class TestStats:
+    """Test the stats CLI command."""
+
+    def test_stats_cli(self, example_json: Path):
+        """Test stats CLI on a valid JSON profile file."""
+        tmp_dir = example_json.parent / "tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        example_json.rename(tmp_dir / example_json.name)
+        result = runner.invoke(cli.app, ["stats", str(tmp_dir)])
+        assert result.exit_code == 0, print_error(result)
+
+    def test_stats_cli_missing_file(self, tmp_path: Path):
+        """Test stats CLI with a missing file."""
+        missing_dir = "tests/scripts/data/does_not_exist"
+        result = runner.invoke(cli.app, ["stats", str(missing_dir)])
+        # Should exit with nonzero and print error
+        assert result.exit_code == 1, "Should be error code 1."
+        output = Colour.remove_ansi(result.stdout).replace("\n", "")
+        assert f"No folders in {tmp_path.name} with name: {missing_dir} were found." == output
+
+
 class TestProfilerRunProfiler:
     """Test the run_profiler method."""
 
@@ -69,7 +90,9 @@ class TestProfilerRunProfiler:
 
     def test_profile_directory(self, mock_file: Path):
         """Test that the CLI fails to profile a directory."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file.parent)])
+        tmp_dir = mock_file.parent / "tmp" / "nested" / "dir"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        result = runner.invoke(cli.app, ["profile", str(tmp_dir.relative_to(mock_file.parent))])
         assert result.exit_code == 1, print_error(result)
         assert "Error: cannot profile a directory." in Colour.remove_ansi(result.stdout)
 

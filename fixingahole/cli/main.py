@@ -14,6 +14,7 @@
 """Command-line entrypoints integrated Scalene profiler Fixing-a-Hole."""
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -162,8 +163,11 @@ def profile(  # noqa: PLR0913
 ) -> None:
     """Profile a python script or Jupyter notebook."""
     # Find and Prepare script for profiling.
+    if in_place and noplots:
+        Colour.error("Error: cannot both profile in-place AND suppress plotting.")
+        raise Exit(code=1)
     if quiet:
-        Colour.quiet = True
+        os.environ["COLOURS_DISABLE_PRINT"] = "true"
     Colour.blue.print("Initializing...")
     if duration is not None:
         DURATION.update(duration.value)
@@ -208,8 +212,8 @@ def profile(  # noqa: PLR0913
         if summary is not None:
             stats.insert(summary)
     if stats.count > 1:
-        stats.save_as_json(profiler.output_file.with_name("function_stats_average.json"), stats.average())
-        stats.save_as_json(profiler.output_file.with_name("function_stats_std.json"), stats.std())
+        stats_file = profiler.output_file.with_name("function_stats.json")
+        stats.save_as_json(stats_file, stats.stats())
 
 
 # Register the profile function as a command in this CLI
