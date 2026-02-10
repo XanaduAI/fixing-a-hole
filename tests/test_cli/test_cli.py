@@ -67,7 +67,7 @@ class TestStats:
         tmp_dir = example_json.parent / "tmp"
         tmp_dir.mkdir(parents=True, exist_ok=True)
         example_json.rename(tmp_dir / example_json.name)
-        result = runner.invoke(cli.app, ["stats", str(tmp_dir)])
+        result = runner.invoke(cli.app, ["stats", str(tmp_dir), "--no-metadata"])
         assert result.exit_code == 0, print_error(result)
 
     def test_stats_cli_missing_file(self, tmp_path: Path):
