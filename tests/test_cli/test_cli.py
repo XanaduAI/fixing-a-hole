@@ -83,16 +83,18 @@ class TestStats:
 class TestProfilerRunProfiler:
     """Test the run_profiler method."""
 
-    def test_profiler_cli_call(self, mock_file: Path):
+    def test_profiler_cli_call(self, mock_file: Path, root_dir: Path):
         """Test how the CLI invokes the profiler."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file)])
+        result = runner.invoke(cli.app, ["profile", str(mock_file), "-o", str(root_dir / "performance")])
         assert result.exit_code == 0, print_error(result)
 
-    def test_profile_directory(self, mock_file: Path):
+    def test_profile_directory(self, mock_file: Path, root_dir: Path):
         """Test that the CLI fails to profile a directory."""
         tmp_dir = mock_file.parent / "tmp" / "nested" / "dir"
         tmp_dir.mkdir(parents=True, exist_ok=True)
-        result = runner.invoke(cli.app, ["profile", str(tmp_dir.relative_to(mock_file.parent))])
+        result = runner.invoke(
+            cli.app, ["profile", str(tmp_dir.relative_to(mock_file.parent)), "-o", str(root_dir / "performance")]
+        )
         assert result.exit_code == 1, print_error(result)
         assert "Error: cannot profile a directory." in Colour.remove_ansi(result.stdout)
 
@@ -101,7 +103,7 @@ class TestProfilerRunProfiler:
         nested_dir = Path(root_dir / "nested" / "deeply")
         nested_dir.mkdir(parents=True, exist_ok=True)
         path = mock_file.rename(nested_dir / mock_file.name)
-        result = runner.invoke(cli.app, ["profile", path.name])
+        result = runner.invoke(cli.app, ["profile", path.name, "-o", str(root_dir / "performance")])
         assert result.exit_code == 0, print_error(result)
 
     def test_version_call(self):

@@ -177,7 +177,7 @@ class TestStatisticsManagerSaveAsJson:
         stats = manager.stats()
         file_path = tmp_path / "test_unsorted.json"
 
-        StatisticsManager.save_as_json(file_path, stats, sort=False, git_info=False)
+        StatisticsManager.save_as_json(file_path, stats, sort=False, save_metadata=False)
 
         assert file_path.exists()
         saved_data = json.loads(file_path.read_text())
@@ -191,7 +191,7 @@ class TestStatisticsManagerSaveAsJson:
         stats = manager.stats()
         file_path = tmp_path / "test_sorted.json"
 
-        StatisticsManager.save_as_json(file_path, stats, sort=True, git_info=False)
+        StatisticsManager.save_as_json(file_path, stats, sort=True, save_metadata=False)
 
         assert file_path.exists()
         saved_data = json.loads(file_path.read_text())

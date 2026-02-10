@@ -27,23 +27,29 @@ from fixingahole.profiler import Profiler
 class TestProfilerRunProfiler:
     """Test the run_profiler method."""
 
-    def test_run_profiler_success(self, mock_file: Path):
+    def test_run_profiler_success(self, mock_file: Path, root_dir: Path):
         """Test successful profiler run."""
-        profiler = Profiler(path=mock_file, precision=5, loglevel=LogLevel.INFO, live_update=1)
+        profiler = Profiler(
+            path=mock_file,
+            precision=5,
+            loglevel=LogLevel.INFO,
+            live_update=1,
+            output_dir=root_dir / "performance",
+        )
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
         assert exc_info.value.exit_code == 0
 
-    def test_run_profiler_cpu_only(self, mock_file: Path):
+    def test_run_profiler_cpu_only(self, mock_file: Path, root_dir: Path):
         """Test successful profiler run using only CPU."""
-        profiler = Profiler(path=mock_file, cpu_only=True)
+        profiler = Profiler(path=mock_file, cpu_only=True, output_dir=root_dir / "performance")
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
         assert exc_info.value.exit_code == 0
 
-    def test_run_profiler_detailed_mode(self, mock_file: Path):
+    def test_run_profiler_detailed_mode(self, mock_file: Path, root_dir: Path):
         """Test profiler run with detailed profiling enabled."""
-        profiler = Profiler(path=mock_file, precision=5, detailed=True)
+        profiler = Profiler(path=mock_file, precision=5, detailed=True, output_dir=root_dir / "performance")
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
 
@@ -51,7 +57,7 @@ class TestProfilerRunProfiler:
         assert "numpy" in profiler.profile_file.read_text()
 
     @patch("subprocess.run")
-    def test_run_profiler_subprocess_error(self, mock_run: MagicMock, mock_file: Path):
+    def test_run_profiler_subprocess_error(self, mock_run: MagicMock, mock_file: Path, root_dir: Path):
         """Test profiler run handling subprocess errors."""
         # Setup subprocess to raise CalledProcessError
         error = subprocess.CalledProcessError(1, ["cmd"])
@@ -59,7 +65,7 @@ class TestProfilerRunProfiler:
         error.stderr = b"stderr error message"
         mock_run.side_effect = error
 
-        profiler = Profiler(path=mock_file, precision=5)
+        profiler = Profiler(path=mock_file, precision=5, output_dir=root_dir / "performance")
 
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
@@ -68,12 +74,12 @@ class TestProfilerRunProfiler:
         mock_run.assert_called_once()
 
     @patch("subprocess.run")
-    def test_run_profiler_keyboard_interrupt(self, mock_run: MagicMock, mock_file: Path):
+    def test_run_profiler_keyboard_interrupt(self, mock_run: MagicMock, mock_file: Path, root_dir: Path):
         """Test profiler run handling keyboard interrupt."""
         # Setup subprocess to raise KeyboardInterrupt.
         mock_run.side_effect = KeyboardInterrupt()
 
-        profiler = Profiler(path=mock_file, precision=5)
+        profiler = Profiler(path=mock_file, precision=5, output_dir=root_dir / "performance")
 
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()

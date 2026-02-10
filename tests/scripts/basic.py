@@ -14,6 +14,7 @@ def main() -> None:
     """Test basic function."""
     logger.info(" ".join(argv[1:]))
     logger.warning("This is a warning.")
+    logger.critical("This is a the culprit %s.", __file__)
     sleep(0.5)
     _ = rng.uniform(size=10**5)
 

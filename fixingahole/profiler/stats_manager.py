@@ -22,8 +22,11 @@ from typing import TYPE_CHECKING, Any
 import git
 
 from fixingahole import ROOT_DIR
+from fixingahole.profiler.utils import date
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fixingahole.profiler.profile_summary import ProfileDetails, ProfileSummary
 
 
@@ -89,21 +92,22 @@ class StatisticsManager:
         return res
 
     @staticmethod
-    def save_as_json(filename: Path, data: dict[str, Any], *, git_info: bool = True, sort: bool = True) -> None:
+    def save_as_json(filename: Path, data: dict[str, Any], *, save_metadata: bool = True, sort: bool = True) -> None:
         """Location to save the benchmarking statistics."""
         if sort:
-            data = dict(sorted(data.items(), key=lambda item: item[1]["user"]["avg"], reverse=True))
-        if git_info:
+            data: dict[str, Any] = dict(sorted(data.items(), key=lambda item: item[1]["user"]["avg"], reverse=True))
+        if save_metadata:
             repo = git.Repo(ROOT_DIR, search_parent_directories=True)
-            data["git_info"] = {}
-            infos = {
+            data["metadata"]: dict[str, str] = {}
+            infos: dict[str, Callable] = {
                 "repo": lambda repo: Path(str(repo.remotes.origin.url)).stem,
                 "branch": lambda repo: repo.active_branch.name,
                 "commit": lambda repo: repo.head.object.hexsha,
+                "datetime": lambda _: date(),
             }
             for info, method in infos.items():
                 try:
-                    data["git_info"][info] = str(method(repo))
+                    data["metadata"][info] = str(method(repo))
                 except (TypeError, git.InvalidGitRepositoryError):
-                    data["git_info"][info] = f"Failed to save git {info}."
+                    data["metadata"][info] = f"Failed to save git {info}."
         filename.write_text(json.dumps(data, indent=2))

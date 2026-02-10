@@ -115,16 +115,16 @@ class TestFindPath:
 class TestProfilerInit:
     """Test the Profiler initialization and basic properties."""
 
-    def test_init(self, mock_file: Path):
+    def test_init(self, mock_file: Path, root_dir: Path):
         """Import the profiler."""
         import fixingahole.profiler as p  # noqa: PLC0415
 
-        p.Profiler(path=mock_file)
+        p.Profiler(path=mock_file, output_dir=root_dir / "performance")
 
-    def test_init_with_file_path(self, mock_file: Path):
+    def test_init_with_file_path(self, mock_file: Path, root_dir: Path):
         """Test profiler initialization with a file path."""
         precision_limit = 10
-        profiler = Profiler(path=mock_file)
+        profiler = Profiler(path=mock_file, output_dir=root_dir / "performance")
 
         assert profiler.cpu_only is False
         assert profiler.script_args == []
@@ -136,15 +136,15 @@ class TestProfilerInit:
         assert profiler.filestem == basic_name()
         assert profiler.python_file == mock_file
 
-    def test_init_with_bad_path(self, tmp_path: Path):
+    def test_init_with_bad_path(self, tmp_path: Path, root_dir: Path):
         """Test profiler initialization with path that doesn't exist."""
         for stem in ["file_does_not_exist.py", "dir_does_not_exist"]:
             with pytest.raises(Exit) as exc_info:
-                Profiler(path=tmp_path / stem)
+                Profiler(path=tmp_path / stem, output_dir=root_dir / "performance")
             err_code = 127
             assert exc_info.value.exit_code == err_code
 
-    def test_init_with_all_options(self, mock_file: Path):
+    def test_init_with_all_options(self, mock_file: Path, root_dir: Path):
         """Test profiler initialization with all options set."""
         precition_value = 3
         precision_limit = 10
@@ -157,6 +157,7 @@ class TestProfilerInit:
             loglevel=LogLevel.DEBUG,
             noplots=True,
             trace=False,
+            output_dir=root_dir / "performance",
         )
 
         assert profiler.cpu_only is True
@@ -168,33 +169,33 @@ class TestProfilerInit:
         assert profiler.noplots is True
         assert profiler.trace is False
 
-    def test_init_handles_path_with_spaces(self, tmp_path: Path):
+    def test_init_handles_path_with_spaces(self, tmp_path: Path, root_dir: Path):
         """Test profiler initialization handles file names with spaces."""
         test_file = tmp_path / "test script with spaces.py"
         test_file.write_text("print('hello world')")
-        profiler = Profiler(path=test_file)
+        profiler = Profiler(path=test_file, output_dir=root_dir / "performance")
 
         assert profiler.filestem == "test_script_with_spaces"
 
-    def test_init_precision_conversion(self, mock_file: Path):
+    def test_init_precision_conversion(self, mock_file: Path, root_dir: Path):
         """Test that precision parameter is properly converted to int."""
         value = 5
-        profiler = Profiler(path=mock_file, precision=str(value))
+        profiler = Profiler(path=mock_file, precision=str(value), output_dir=root_dir / "performance")
         assert profiler.precision == value
         assert isinstance(profiler.precision, int)
 
-    def test_init_precision_none_handling(self, mock_file: Path):
+    def test_init_precision_none_handling(self, mock_file: Path, root_dir: Path):
         """Test that None precision is handled correctly."""
-        profiler = Profiler(path=mock_file, precision=None)
+        profiler = Profiler(path=mock_file, precision=None, output_dir=root_dir / "performance")
         assert profiler.precision == 0
 
 
 class TestProfilerProperties:
     """Test the Profiler properties."""
 
-    def test_excluded_folders_property(self, mock_file: Path):
+    def test_excluded_folders_property(self, mock_file: Path, root_dir: Path):
         """Test the excluded_folders property."""
-        profiler = Profiler(path=mock_file, detailed=True)
+        profiler = Profiler(path=mock_file, detailed=True, output_dir=root_dir / "performance")
         excluded = profiler.excluded_folders
         # Should contain the system python directory exclude flag
         if sys.executable:
@@ -205,15 +206,15 @@ class TestProfilerProperties:
             else:
                 assert not excluded
 
-    def test_output_file_property_getter(self, mock_file: Path):
+    def test_output_file_property_getter(self, mock_file: Path, root_dir: Path):
         """Test the output_file property getter."""
-        profiler = Profiler(path=mock_file)
+        profiler = Profiler(path=mock_file, output_dir=root_dir / "performance")
         assert profiler.output_file is not None
         assert isinstance(profiler.output_file, Path)
 
-    def test_output_file_property_setter(self, mock_file: Path):
+    def test_output_file_property_setter(self, mock_file: Path, root_dir: Path):
         """Test the output_file property setter."""
-        profiler = Profiler(path=mock_file)
+        profiler = Profiler(path=mock_file, output_dir=root_dir / "performance")
 
         new_output = mock_file.parent / "new_output.txt"
         profiler.output_file = new_output
@@ -223,7 +224,7 @@ class TestProfilerProperties:
         assert new_output.exists()
 
         # Also test that it works with a string path.
-        profiler = Profiler(path=mock_file)
+        profiler = Profiler(path=mock_file, output_dir=root_dir / "performance")
 
         new_output_str = str(mock_file.parent / "new_output.txt")
         profiler.output_file = new_output_str
@@ -315,9 +316,9 @@ class TestProfilerMemoryPrecision:
 
     DEFAULT_THRESHOLD = 10485767
 
-    def test_get_memory_precision_default(self, mock_file: Path):
+    def test_get_memory_precision_default(self, mock_file: Path, root_dir: Path):
         """Test memory precision with default value."""
-        profiler = Profiler(path=mock_file, precision=0)
+        profiler = Profiler(path=mock_file, precision=0, output_dir=root_dir / "performance")
         result = profiler.get_memory_precision()
         assert result.startswith("--allocation-sampling-window=")
         # Should contain a prime number around 10MB
@@ -325,9 +326,9 @@ class TestProfilerMemoryPrecision:
         low, high = 10000000, 11000000
         assert low <= threshold <= high  # Around 10MB range
 
-    def test_get_memory_precision_high_verbosity(self, mock_file: Path):
+    def test_get_memory_precision_high_verbosity(self, mock_file: Path, root_dir: Path):
         """Test memory precision with high verbosity (small threshold)."""
-        profiler = Profiler(path=mock_file, precision=3)
+        profiler = Profiler(path=mock_file, precision=3, output_dir=root_dir / "performance")
         result = profiler.get_memory_precision()
         assert result.startswith("--allocation-sampling-window=")
         # Should be smaller than default (10MB / 2^3 = ~1.25MB)
@@ -335,9 +336,9 @@ class TestProfilerMemoryPrecision:
         low = 1e6
         assert low < threshold < self.DEFAULT_THRESHOLD
 
-    def test_get_memory_precision_low_verbosity(self, mock_file: Path):
+    def test_get_memory_precision_low_verbosity(self, mock_file: Path, root_dir: Path):
         """Test memory precision with low verbosity (large threshold)."""
-        profiler = Profiler(path=mock_file, precision=-3)
+        profiler = Profiler(path=mock_file, precision=-3, output_dir=root_dir / "performance")
 
         result = profiler.get_memory_precision()
 
@@ -347,31 +348,31 @@ class TestProfilerMemoryPrecision:
         high = 9e7
         assert high > threshold > self.DEFAULT_THRESHOLD
 
-    def test_get_memory_precision_clamp_values(self, mock_file: Path):
+    def test_get_memory_precision_clamp_values(self, mock_file: Path, root_dir: Path):
         """Test that precision values are clamped to a range."""
         with patch("fixingahole.profiler.utils.Colour.print") as mock_color_print:
             for test_val in [-25, 25]:
                 mock_color_print.reset_mock()
-                profiler = Profiler(path=mock_file, precision=test_val)
+                profiler = Profiler(path=mock_file, precision=test_val, output_dir=root_dir / "performance")
                 profiler.get_memory_precision()
                 limit = profiler.precision_limit
                 warning = f"Warning: -{limit} <= precision <= {limit}"
                 mock_color_print.assert_called_with(warning)
 
-    def test_adjusted_memory_precision_clamp_values(self, mock_file: Path):
+    def test_adjusted_memory_precision_clamp_values(self, mock_file: Path, root_dir: Path):
         """Test that precision values are clamped to a range."""
         for test_val in [-25, 25]:
-            profiler = Profiler(path=mock_file, precision=test_val)
+            profiler = Profiler(path=mock_file, precision=test_val, output_dir=root_dir / "performance")
             profiler.precision_limit = test_val * 2
             result = profiler.get_memory_precision()
             threshold = int(result.split("=")[1])
             default = 10485767
             assert (default / 2 ** abs(test_val)) < threshold < (default * 2 ** (abs(test_val) + 1))
 
-    def test_get_memory_precision_valid_range_no_warning(self, mock_file: Path):
+    def test_get_memory_precision_valid_range_no_warning(self, mock_file: Path, root_dir: Path):
         """Test that valid precision values don't trigger warnings."""
         with patch("fixingahole.profiler.utils.Colour.print") as mock_color_print:
-            profiler = Profiler(path=mock_file, precision=3)
+            profiler = Profiler(path=mock_file, precision=3, output_dir=root_dir / "performance")
             profiler.get_memory_precision()
             mock_color_print.assert_not_called()
 
@@ -379,13 +380,13 @@ class TestProfilerMemoryPrecision:
 class TestProfilerCodePreparation:
     """Test the prepare_code_for_profiling method."""
 
-    def test_prepare_code_for_profiling_basic(self, tmp_path: Path):
+    def test_prepare_code_for_profiling_basic(self, tmp_path: Path, root_dir: Path):
         """Test basic code preparation for profiling."""
         test_file = tmp_path / "test_script.py"
         test_code = "print('hello world')\nx = 1\ny = 2"
         test_file.write_text(test_code)
 
-        profiler = Profiler(path=test_file)
+        profiler = Profiler(path=test_file, output_dir=root_dir / "performance")
         profiler.prepare_code_for_profiling()
 
         # Check that the profile file was created and contains expected content
@@ -401,13 +402,13 @@ class TestProfilerCodePreparation:
         assert "x = 1" in profile_content
         assert "y = 2" in profile_content
 
-    def test_prepare_code_for_profiling_with_noplots(self, tmp_path: Path):
+    def test_prepare_code_for_profiling_with_noplots(self, tmp_path: Path, root_dir: Path):
         """Test code preparation with noplots option enabled."""
         test_file = tmp_path / "test_script.py"
         test_code = "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3])\nplt.show()"
         test_file.write_text(test_code)
 
-        profiler = Profiler(path=test_file, noplots=True)
+        profiler = Profiler(path=test_file, noplots=True, output_dir=root_dir / "performance")
         profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
@@ -420,7 +421,7 @@ class TestProfilerCodePreparation:
         assert "patch_plt.stop()" in profile_content
         assert "patch_plotly.stop()" in profile_content
 
-    def test_prepare_code_for_profiling_with_jupyter_notebook(self, tmp_path: Path):
+    def test_prepare_code_for_profiling_with_jupyter_notebook(self, tmp_path: Path, root_dir: Path):
         """Test code preparation with Jupyter notebook file."""
         test_file = tmp_path / "temp_notebook.ipynb"
         notebook_content = {
@@ -433,7 +434,7 @@ class TestProfilerCodePreparation:
         }
         test_file.write_text(json.dumps(notebook_content))
 
-        profiler = Profiler(path=test_file)
+        profiler = Profiler(path=test_file, output_dir=root_dir / "performance")
         profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
@@ -441,9 +442,9 @@ class TestProfilerCodePreparation:
         assert "print('hello from notebook')" in profile_content
         assert "import numpy as np" in profile_content
 
-    def test_prepare_code_for_profiling_with_warning_loglevel(self, mock_file: Path):
+    def test_prepare_code_for_profiling_with_warning_loglevel(self, mock_file: Path, root_dir: Path):
         """Test code preparation with warning log level."""
-        profiler = Profiler(path=mock_file, loglevel=LogLevel.WARNING)
+        profiler = Profiler(path=mock_file, loglevel=LogLevel.WARNING, output_dir=root_dir / "performance")
 
         profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
@@ -451,12 +452,12 @@ class TestProfilerCodePreparation:
         # Should contain warning capture
         assert "logging.captureWarnings(True)" in profile_content
 
-    def test_prepare_code_for_profiling_with_error_loglevel(self, tmp_path: Path):
+    def test_prepare_code_for_profiling_with_error_loglevel(self, tmp_path: Path, root_dir: Path):
         """Test code preparation with error log level (no warnings)."""
         test_file = tmp_path / "test_script.py"
         test_file.write_text("print('hello world')")
 
-        profiler = Profiler(path=test_file, loglevel=LogLevel.ERROR)
+        profiler = Profiler(path=test_file, loglevel=LogLevel.ERROR, output_dir=root_dir / "performance")
         profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
