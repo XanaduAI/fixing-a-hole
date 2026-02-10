@@ -15,6 +15,7 @@
 
 import subprocess
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from colours import Colour
 from typer.testing import CliRunner
@@ -34,14 +35,20 @@ class TestProfilerSummarize:
         result = runner.invoke(cli.app, ["summarize", str(example_json)])
         assert result.exit_code == 0, print_error(result)
 
-    def test_summarize_cli_missing_file(self, tmp_path: Path):
+    @patch("fixingahole.profiler.utils.Colour.error")
+    def test_summarize_cli_missing_file(self, mock_colour_error: Mock, tmp_path: Path):
         """Test summarize CLI with a missing file."""
         missing_path = "tests/scripts/data/does_not_exist.json"
         result = runner.invoke(cli.app, ["summarize", str(missing_path)])
         # Should exit with nonzero and print error
         assert result.exit_code == 1, "Should be error code 1."
-        output = Colour.remove_ansi(result.stdout).replace("\n", "")
-        assert f"No files in {tmp_path.name} with name: {missing_path} were found." == output
+        expected_output: list[str] = [
+            "No %s in %s with name: %s were found.",
+            "files",
+            f"[magenta]{tmp_path.name}[/magenta]",
+            f"[green]{missing_path}[/green]",
+        ]
+        mock_colour_error.assert_called_once_with(*expected_output)
 
     def test_summarize_cli_options(self, example_json: Path):
         """Test summarize CLI with -n and -t options."""
@@ -70,14 +77,20 @@ class TestStats:
         result = runner.invoke(cli.app, ["stats", str(tmp_dir), "--no-metadata"])
         assert result.exit_code == 0, print_error(result)
 
-    def test_stats_cli_missing_file(self, tmp_path: Path):
+    @patch("fixingahole.profiler.utils.Colour.error")
+    def test_stats_cli_missing_file(self, mock_colour_error: Mock, tmp_path: Path):
         """Test stats CLI with a missing file."""
         missing_dir = "tests/scripts/data/does_not_exist"
         result = runner.invoke(cli.app, ["stats", str(missing_dir)])
         # Should exit with nonzero and print error
         assert result.exit_code == 1, "Should be error code 1."
-        output = Colour.remove_ansi(result.stdout).replace("\n", "")
-        assert f"No folders in {tmp_path.name} with name: {missing_dir} were found." == output
+        expected_output: list[str] = [
+            "No %s in %s with name: %s were found.",
+            "folders",
+            f"[magenta]{tmp_path.name}[/magenta]",
+            f"[green]{missing_dir}[/green]",
+        ]
+        mock_colour_error.assert_called_once_with(*expected_output)
 
 
 class TestProfilerRunProfiler:

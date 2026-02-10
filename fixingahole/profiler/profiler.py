@@ -119,11 +119,10 @@ class Profiler:
                 self.platform = Platform.Windows
 
         if not self.cpu_only and self.platform == Platform.Windows:
-            Colour.RED.print("Memory profiling is not available on Windows")
-            Colour.red.print("Using --cpu")
+            Colour.error("Memory profiling is not available on Windows\nUsing --cpu")
             self.cpu_only = True
         if self.cpu_only and self.precision != 0:
-            Colour.orange.print("--precision option is not used with --cpu")
+            Colour.warning("--precision option is not used with --cpu")
 
     @property
     def excluded_folders(self) -> str:
@@ -237,7 +236,7 @@ class Profiler:
             max(-self.precision_limit, self.precision) if self.precision < 0 else min(self.precision_limit, self.precision)
         )
         if verbosity != self.precision:
-            Colour.orange.print(
+            Colour.warning(
                 f"Warning: -{self.precision_limit} <= precision <= {self.precision_limit}",
             )
         memory_threshold = 10485767  # ~ 10 MB
@@ -407,7 +406,7 @@ class Profiler:
 
     def run_profiler(self, preamble: str = "\n", raise_exit: bool = True) -> "ProfileSummary | None":
         """Profile the python script using Scalene."""
-        Colour.print(f"See {Colour.purple(self.output_path)} for details.")
+        Colour.info(f"See {Colour.purple(self.output_path)} for details.")
         ncols = max(160, len(str(self.profile_file)) + 75)
         try:
             # Profile the code.
@@ -437,7 +436,7 @@ class Profiler:
                     continue
                 output = exc_output.decode() if isinstance(exc_output, bytes) else exc_output
                 if output.strip():
-                    Colour.error(Colour.RED("\nExecution Error:\n"), output.strip())
+                    Colour.error("\nExecution Error:\n %s", output.strip())
             raise Exit(code=1) from exc
         except KeyboardInterrupt as ki:
             # Make sure to indicate in the profile_results.txt of the interruption.
@@ -449,7 +448,7 @@ class Profiler:
             raise Exit(code=1) from ki
         else:
             text, summary = self.summarize(preamble, capture, ncols)
-            Colour.print(text)
+            Colour.info(text)
             if raise_exit:
                 raise Exit(code=0)
             self.run_count += 1

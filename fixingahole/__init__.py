@@ -37,14 +37,15 @@ def about() -> None:
         scalene_version = "unknown"
 
     ignored_dirs = "".join(["\n   " + str(path) for path in IGNORE_DIRS])
-    _Colour.print(
+    _Colour.info(
+        "%s\n Version: %s\n Scalene Version: %s%s\n root: %s\n output: %s\n ignore: [%s\n]",
         _Colour.blue("Fixing-A-Hole: an integrated Scalene profiler and parser."),
-        f"\n Version: {__version__}",
-        f"\n Scalene Version: {scalene_version}",
+        __version__,
+        scalene_version,
         _Colour.blue("\nSettings:"),
-        f"\n root: {ROOT_DIR}",
-        f"\n output: {OUTPUT_DIR}",
-        f"\n ignore: [{ignored_dirs}\n]",
+        ROOT_DIR,
+        OUTPUT_DIR,
+        ignored_dirs,
     )
 
 

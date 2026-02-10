@@ -350,14 +350,14 @@ class TestProfilerMemoryPrecision:
 
     def test_get_memory_precision_clamp_values(self, mock_file: Path, root_dir: Path):
         """Test that precision values are clamped to a range."""
-        with patch("fixingahole.profiler.utils.Colour.print") as mock_color_print:
+        with patch("fixingahole.profiler.utils.Colour.warning") as mock_color_warning:
             for test_val in [-25, 25]:
-                mock_color_print.reset_mock()
+                mock_color_warning.reset_mock()
                 profiler = Profiler(path=mock_file, precision=test_val, output_dir=root_dir / "performance")
                 profiler.get_memory_precision()
                 limit = profiler.precision_limit
                 warning = f"Warning: -{limit} <= precision <= {limit}"
-                mock_color_print.assert_called_with(warning)
+                mock_color_warning.assert_called_with(warning)
 
     def test_adjusted_memory_precision_clamp_values(self, mock_file: Path, root_dir: Path):
         """Test that precision values are clamped to a range."""
@@ -371,10 +371,10 @@ class TestProfilerMemoryPrecision:
 
     def test_get_memory_precision_valid_range_no_warning(self, mock_file: Path, root_dir: Path):
         """Test that valid precision values don't trigger warnings."""
-        with patch("fixingahole.profiler.utils.Colour.print") as mock_color_print:
+        with patch("fixingahole.profiler.utils.Colour.info") as mock_color_log:
             profiler = Profiler(path=mock_file, precision=3, output_dir=root_dir / "performance")
             profiler.get_memory_precision()
-            mock_color_print.assert_not_called()
+            mock_color_log.assert_not_called()
 
 
 class TestProfilerCodePreparation:

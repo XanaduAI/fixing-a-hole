@@ -15,16 +15,14 @@
 
 import datetime
 import importlib.metadata
-import os
 from collections.abc import Callable
-from contextlib import nullcontext
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, overload
 
 from colours import Colour
-from rich._spinners import SPINNERS
+from rich._spinners import SPINNERS  # noqa: PLC2701
 from rich.live import Live
 from rich.spinner import Spinner as rich_Spinner
 from typer import Exit
@@ -37,7 +35,23 @@ if TYPE_CHECKING:
     from watchdog.observers.api import BaseObserver
 
 # Remove the difficult to see "toggle" spinners from the available options.
-SPINNERS: dict[str, dict[str, Any]] = {k: v for k, v in SPINNERS.items() if "toggle" not in k}
+for name in set(SPINNERS):
+    if "toggle" in name:
+        SPINNERS.pop(name, None)
+# Add a custom XanaduAI spinner.
+SPINNERS["xanaduai"] = {
+    "interval": 120,
+    "frames": [
+        "|XanaduAI    |",
+        "| XanaduAI   |",
+        "|  XanaduAI  |",
+        "|   XanaduAI |",
+        "|    XanaduAI|",
+        "|   XanaduAI |",
+        "|  XanaduAI  |",
+        "| XanaduAI   |",
+    ],
+}
 
 
 class LogLevel(Enum):
@@ -161,25 +175,27 @@ def find_path(
                 paths = [path for path in glob if "__pycache__" not in str(path)]
                 if len(paths) == 0 and subfolder_only:
                     Colour.error(
-                        Colour.red("No files were found in"),
-                        f"{Colour.purple(result.name)} of type {Colour.purple(return_suffix)}",
+                        "No files were found in %s of type %s",
+                        Colour.purple(result.name),
+                        Colour.purple(return_suffix),
                     )
                     raise Exit(code=1)
                 return result, paths
             return result
         case 0:
             Colour.error(
-                Colour.red(f"No {file_or_folder} in"),
-                f"{Colour.purple(in_dir.name)} with name:",
-                f"{Colour.green(pattern)} were found.",
+                "No %s in %s with name: %s were found.",
+                file_or_folder,
+                Colour.purple(in_dir.name),
+                Colour.green(pattern),
             )
             raise Exit(code=1)
         case _:
             Colour.error(
-                Colour.red(f"Many {file_or_folder} with name:"),
-                f"{Colour.green(pattern)} were found in",
-                f"{Colour.purple(in_dir.name)}.",
-                "Please be more specific.",
+                "Many %s with name: %s were found in %s. Please be more specific.",
+                file_or_folder,
+                Colour.green(pattern),
+                Colour.purple(in_dir.name),
             )
             for path in options:
                 Colour.error(Colour.purple(path.relative_to(ROOT_DIR)))
@@ -193,23 +209,15 @@ def installed_modules() -> set[str]:
         if "Name" in dist.metadata:
             modules.add(str(dist.metadata["Name"]).lower())
         elif not any("egg-info" in str(file) for file in getattr(dist, "files", [])):
-            Colour.print(Colour.ORANGE("\nWarning:"), "module missing 'Name' metadata.")
+            Colour.warning("\nWarning: module missing 'Name' metadata.")
     return modules
 
 
 class Spinner(Live):
     """An abstraction of rich.spinner.Spinner with Live context."""
 
-    def __new__(cls, message: str = "", *, style: str | None = None, speed: float = 1.0) -> "Spinner | nullcontext":  # noqa: ARG004
-        """Create a Spinner or nullcontext based on Colour.quiet flag."""
-        if os.getenv("COLOURS_DISABLE_PRINT") == "true":
-            return nullcontext()
-        return super().__new__(cls)
-
     def __init__(self, message: str = "", *, style: str | None = None, speed: float = 1.0) -> None:
         """Abstraction of rich.spinner.Spinner with Live context."""
-        if os.getenv("COLOURS_DISABLE_PRINT") == "true":
-            return
         spinner = rich_Spinner(choice(sorted(SPINNERS.keys())), message, style=style, speed=speed)
         super().__init__(spinner, refresh_per_second=20)
 

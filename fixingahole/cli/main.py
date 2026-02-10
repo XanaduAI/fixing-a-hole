@@ -14,7 +14,7 @@
 """Command-line entrypoints integrated Scalene profiler Fixing-a-Hole."""
 
 import json
-import os
+import logging
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -26,6 +26,8 @@ from typer import Exit
 from fixingahole import DURATION, IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR, LogLevel, Profiler, ProfileSummary, StatisticsManager
 from fixingahole.config import DurationOption
 from fixingahole.profiler.utils import find_path
+
+colours_logger = logging.getLogger("colours")
 
 app = typer.Typer(
     rich_markup_mode="markdown",
@@ -167,8 +169,8 @@ def profile(  # noqa: PLR0913
         Colour.error("Error: cannot both profile in-place AND suppress plotting.")
         raise Exit(code=1)
     if quiet:
-        os.environ["COLOURS_DISABLE_PRINT"] = "true"
-    Colour.blue.print("Initializing...")
+        colours_logger.setLevel(logging.ERROR)
+    Colour.blue.info("Initializing...")
     if duration is not None:
         DURATION.update(duration.value)
     full_path = (ROOT_DIR / filename).resolve()
@@ -200,7 +202,8 @@ def profile(  # noqa: PLR0913
     cli_args[0] = Path(cli_args[0]).name
     preamble = " ".join(cli_args) + "\n"
 
-    Colour.print(
+    Colour.info(
+        "%s %s %s",
         Colour.blue("Profiling:"),
         Colour.green(profiler.profile_path),
         "for speed." if profiler.cpu_only else "for memory usage.",
@@ -260,7 +263,7 @@ def summarize(
     """Summarize a Scalene JSON profile."""
     file = find_path(filename, in_dir=ROOT_DIR)
     summary = ProfileSummary(file).summary(top_n, threshold)
-    Colour.print(summary)
+    Colour.info(summary)
     return summary
 
 
@@ -310,7 +313,7 @@ def stats(
     stats_file = (directory / output_file).with_suffix(".json")
     data = stats.stats()
     data = stats.save_as_json(stats_file, data, save_metadata=metadata, sort=sort)
-    Colour.print(json.dumps(data, indent=2))
+    Colour.info(json.dumps(data, indent=2))
     return stats
 
 

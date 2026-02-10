@@ -14,7 +14,6 @@
 """Tests for the Fixing-A-Hole utilities."""
 
 import time
-from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -146,12 +145,6 @@ class TestInstalledModules:
 
 class TestSpinner:
     """Test the Spinner class."""
-
-    def test_spinner_with_colours_disabled(self, monkeypatch: pytest.MonkeyPatch):
-        """Test that Spinner returns nullcontext when COLOURS_DISABLE_PRINT is true."""
-        monkeypatch.setenv("COLOURS_DISABLE_PRINT", "true")
-        spinner = Spinner("Testing")
-        assert isinstance(spinner, type(nullcontext()))
 
     def test_spinner_normal_creation(self, monkeypatch: pytest.MonkeyPatch):
         """Test that Spinner creates normally when COLOURS_DISABLE_PRINT is not set."""
