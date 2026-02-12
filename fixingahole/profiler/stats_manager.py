@@ -30,6 +30,31 @@ if TYPE_CHECKING:
     from fixingahole.profiler.profile_summary import ProfileDetails, ProfileSummary
 
 
+def _get_dirty_files(repo: git.Repo) -> set[str]:
+    """Check the git status and return the filenames of uncommitted changes."""
+    dirty_files = set()
+
+    # 1. Check for unstaged changes (Diff between Index and Working Tree)
+    # passing None compares the Index to the Working Tree
+    dirty_files.update(item.a_path for item in repo.index.diff(None))
+
+    # 2. Check for staged changes (Diff between Index and HEAD)
+    # We compare the HEAD commit to the current Index
+    dirty_files.update(item.a_path for item in repo.index.diff("HEAD"))
+
+    return dirty_files
+
+
+def _get_used_dirty_files(repo: git.Repo, data: dict) -> list[str]:
+    """Compute the intersection of files with uncommitted changes and the profiled files."""
+    if not repo.is_dirty():
+        return []
+
+    used_files: set[str] = {f.split(":").pop(0) for f in set(data)}
+    dirty_files = _get_dirty_files(repo)
+    return list(dirty_files.intersection(used_files))
+
+
 class StatisticsManager:
     """Statistics Manager for Profile Results when Benchmarking."""
 
@@ -97,18 +122,20 @@ class StatisticsManager:
         if sort:
             data: dict[str, Any] = dict(sorted(data.items(), key=lambda item: item[1]["user"]["avg"], reverse=True))
         if save_metadata:
-            repo = git.Repo(ROOT_DIR, search_parent_directories=True)
-            data["metadata"]: dict[str, str] = {}
-            infos: dict[str, Callable] = {
+            data["metadata"]: dict[str, Any] = {}
+            metadata: dict[str, Callable] = {
                 "repo": lambda repo: Path(str(repo.remotes.origin.url)).stem,
                 "branch": lambda repo: repo.active_branch.name,
                 "commit": lambda repo: repo.head.object.hexsha,
+                "used_dirty_files": lambda repo: _get_used_dirty_files(repo, data),
                 "utc_time": lambda _: date(),
             }
-            for info, method in infos.items():
+            for info, method in metadata.items():
                 try:
-                    data["metadata"][info] = str(method(repo))
-                except (TypeError, git.InvalidGitRepositoryError):
+                    repo = git.Repo(ROOT_DIR, search_parent_directories=True)
+                    if value := method(repo):
+                        data["metadata"][info] = value
+                except (TypeError, git.InvalidGitRepositoryError, git.exc.NoSuchPathError):
                     data["metadata"][info] = f"Failed to save git {info}."
         filename.write_text(json.dumps(data, indent=1))
         return data

@@ -214,7 +214,7 @@ class TestBuildCombinedReverseTree:
         # Test with real data
         traces: list[dict[str, Any]] = StackReporter.find_stack_traces(sample_data["stacks"], "_wrapreduction")
         if not traces:
-            pytest.skip("No traces found for _wrapreduction")
+            pytest.skip.Exception("No traces found for _wrapreduction")
 
         tree, call_info = StackReporter.build_combined_reverse_tree(traces)
 

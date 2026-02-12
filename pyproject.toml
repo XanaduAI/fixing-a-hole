@@ -17,7 +17,7 @@ dependencies = [
 fixingahole = "fixingahole.cli.main:app"
 
 [tool.uv.sources]
-colours = { git = "https://github.com/XanaduAI/colours.git", rev = "8eda977faeb47a3173f00f9912a3c5092e6099f2" } # TODO: Update
+colours = { git = "https://github.com/XanaduAI/colours.git", rev = "5ef8c09cf59ebd691fae118fd52dcff87b33c023" }
 
 [dependency-groups]
 dev = [

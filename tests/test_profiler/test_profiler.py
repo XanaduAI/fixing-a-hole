@@ -146,13 +146,13 @@ class TestProfilerInit:
 
     def test_init_with_all_options(self, mock_file: Path, root_dir: Path):
         """Test profiler initialization with all options set."""
-        precition_value = 3
+        precision_value = 3
         precision_limit = 10
         profiler = Profiler(
             path=mock_file,
             python_script_args=["arg1", "arg2"],
             cpu_only=True,
-            precision=precition_value,
+            precision=precision_value,
             detailed=True,
             loglevel=LogLevel.DEBUG,
             noplots=True,
@@ -162,7 +162,7 @@ class TestProfilerInit:
 
         assert profiler.cpu_only is True
         assert profiler.script_args == ["arg1", "arg2"]
-        assert profiler.precision == precition_value
+        assert profiler.precision == precision_value
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is True
         assert profiler.loglevel == LogLevel.DEBUG

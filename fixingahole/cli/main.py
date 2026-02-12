@@ -14,7 +14,6 @@
 """Command-line entrypoints integrated Scalene profiler Fixing-a-Hole."""
 
 import json
-import logging
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -26,8 +25,6 @@ from typer import Exit
 from fixingahole import DURATION, IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR, LogLevel, Profiler, ProfileSummary, StatisticsManager
 from fixingahole.config import DurationOption
 from fixingahole.profiler.utils import find_path
-
-colours_logger = logging.getLogger("colours")
 
 app = typer.Typer(
     rich_markup_mode="markdown",
@@ -130,12 +127,12 @@ def profile(  # noqa: PLR0913
         ),
     ] = None,
     duration: Annotated[
-        DurationOption | None,
+        DurationOption,
         typer.Option(
             help="Temporarily set whether the summary shows duration times as 'absolute' or 'relative' values.",
             hidden=True,
         ),
-    ] = None,
+    ] = DurationOption.relative,
     in_place: Annotated[
         bool,
         typer.Option(
@@ -164,15 +161,15 @@ def profile(  # noqa: PLR0913
     ] = False,
 ) -> None:
     """Profile a python script or Jupyter notebook."""
-    # Find and Prepare script for profiling.
+    # Set some configuration.
+    Colour.set_log_level("error" if quiet else "info")
     if in_place and noplots:
         Colour.error("Error: cannot both profile in-place AND suppress plotting.")
         raise Exit(code=1)
-    if quiet:
-        colours_logger.setLevel(logging.ERROR)
+    DURATION.update(duration.value)
+
+    # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
-    if duration is not None:
-        DURATION.update(duration.value)
     full_path = (ROOT_DIR / filename).resolve()
     if full_path.exists() and not full_path.is_dir():
         python_file = full_path
@@ -299,7 +296,7 @@ def stats(
     sort: Annotated[
         bool,
         typer.Option(
-            help="Sort the statistics by average user time, decending.",
+            help="Sort the statistics by average user time, descending.",
             show_default=True,
         ),
     ] = True,

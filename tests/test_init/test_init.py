@@ -93,7 +93,7 @@ class TestDuration:
     def test_singleton_relative_then_absolute(self):
         """Test that the Duration object is a singleton.
 
-        Show that instatiating another instance does not update it.
+        Show that instantiating another instance does not update it.
         """
         # Reset singleton for test isolation
         config.Duration._instance = None
@@ -113,7 +113,7 @@ class TestDuration:
         assert not Duration.is_relative()
 
     def test_singleton_update_before_instantiation(self):
-        """Test test the Duration object cannot be updated before instatiation."""
+        """Test test the Duration object cannot be updated before instantiation."""
         # Reset singleton for test isolation
         config.Duration._instance = None
         with pytest.raises(SystemExit) as exc:
