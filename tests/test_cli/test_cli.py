@@ -17,6 +17,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
 from colours import Colour
 from typer.testing import CliRunner
 
@@ -96,18 +97,29 @@ class TestStats:
 class TestProfilerRunProfiler:
     """Test the run_profiler method."""
 
-    def test_profiler_cli_call(self, mock_file: Path, root_dir: Path):
+    def test_profiler_cli_call(self, mock_file: Path):
         """Test how the CLI invokes the profiler."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file), "-o", str(root_dir / "performance")])
+        result = runner.invoke(cli.app, ["profile", str(mock_file)])
         assert result.exit_code == 0, print_error(result)
 
-    def test_profile_directory(self, mock_file: Path, root_dir: Path):
+    @pytest.mark.parametrize("n_runs", [2, 3])
+    def test_profiler_repeat(self, n_runs: int, mock_file: Path, root_dir: Path):
+        """Test how the profiler handles repeated profilings."""
+        result = runner.invoke(cli.app, ["profile", str(mock_file), "--repeat", str(n_runs)])
+        assert result.exit_code == 0, print_error(result)
+        output_files: list[Path] = sorted(file for file in (root_dir / "performance").rglob("*") if file.is_file())
+        assert len(output_files) == (3 + 3 * n_runs)
+        assert len([f for f in output_files if f.suffix == ".py"]) == 1
+        assert len(logfile := [f for f in output_files if f.suffix == ".log"]) == 1  # one shared log file.
+        assert len(logfile.pop().read_text().splitlines()) == n_runs  # one warning log per run.
+        assert len([f for f in output_files if f.suffix == ".json"]) == n_runs + 1  # one JSON per run, and one stats file.
+        assert len([f for f in output_files if f.suffix == ".txt"]) == n_runs * 2  # one results and one summary per run.
+
+    def test_profile_directory(self, mock_file: Path):
         """Test that the CLI fails to profile a directory."""
         tmp_dir = mock_file.parent / "tmp" / "nested" / "dir"
         tmp_dir.mkdir(parents=True, exist_ok=True)
-        result = runner.invoke(
-            cli.app, ["profile", str(tmp_dir.relative_to(mock_file.parent)), "-o", str(root_dir / "performance")]
-        )
+        result = runner.invoke(cli.app, ["profile", str(tmp_dir.relative_to(mock_file.parent))])
         assert result.exit_code == 1, print_error(result)
         assert "Error: cannot profile a directory." in Colour.remove_ansi(result.stdout)
 
@@ -116,7 +128,7 @@ class TestProfilerRunProfiler:
         nested_dir = Path(root_dir / "nested" / "deeply")
         nested_dir.mkdir(parents=True, exist_ok=True)
         path = mock_file.rename(nested_dir / mock_file.name)
-        result = runner.invoke(cli.app, ["profile", path.name, "-o", str(root_dir / "performance")])
+        result = runner.invoke(cli.app, ["profile", path.name])
         assert result.exit_code == 0, print_error(result)
 
     def test_version_call(self):
@@ -124,3 +136,13 @@ class TestProfilerRunProfiler:
         cmd: list[str] = ["python", str(ROOT_DIR / "fixingahole" / "cli" / "main.py"), "--version"]
         result = subprocess.run(cmd, check=False, text=True, capture_output=True)
         assert result.returncode == 0, result.stdout
+
+    def test_profiler_cli_call_bad_flags_noplots_inplace(self, mock_file: Path):
+        """Test that the CLI invocation fails with bad flag combinations."""
+        result = runner.invoke(cli.app, ["profile", str(mock_file), "--in-place", "--no-plots"])
+        assert result.exit_code == 1, print_error(result)
+
+    def test_profiler_cli_call_bad_flags_filename_inplace(self, mock_file: Path):
+        """Test that the CLI invocation fails with bad flag combinations."""
+        result = runner.invoke(cli.app, ["profile", str(mock_file.with_suffix(".ipynb")), "--in-place"])
+        assert result.exit_code == 1, print_error(result)

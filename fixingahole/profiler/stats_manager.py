@@ -81,6 +81,7 @@ class StatisticsManager:
                 "user": sum(f.user_time for f in funcs) / self.count,
                 "system": sum(f.system_time for f in funcs) / self.count,
                 "memory": sum(f.peak_memory for f in funcs) / self.count,
+                "count": self.count,
             }
         return res
 
@@ -93,13 +94,14 @@ class StatisticsManager:
                 "user_std": math.sqrt(sum(pow(f.user_time - avg[key]["user"], 2) for f in funcs) / self.count),
                 "system_std": math.sqrt(sum(pow(f.system_time - avg[key]["system"], 2) for f in funcs) / self.count),
                 "memory_std": math.sqrt(sum(pow(f.peak_memory - avg[key]["memory"], 2) for f in funcs) / self.count),
+                "count": self.count,
             }
         return res
 
-    def stats(self) -> dict[str, dict[str, dict[str, float]]]:
+    def stats(self) -> dict[str, dict[str, Any]]:
         """Compute the standard deviations for each function."""
         avg = self.average()
-        res: dict[str, dict[str, dict[str, float]]] = {}
+        res: dict[str, dict[str, Any]] = {}
         for key, funcs in self.function_data.items():
             res[key] = {
                 "user": {
@@ -114,6 +116,7 @@ class StatisticsManager:
                     "avg": avg[key]["memory"],
                     "std": math.sqrt(sum(pow(f.peak_memory - avg[key]["memory"], 2) for f in funcs) / self.count),
                 },
+                "count": self.count,
             }
         return res
 

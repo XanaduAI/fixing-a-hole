@@ -27,29 +27,28 @@ from fixingahole.profiler import Profiler
 class TestProfilerRunProfiler:
     """Test the run_profiler method."""
 
-    def test_run_profiler_success(self, mock_file: Path, root_dir: Path):
+    def test_run_profiler_success(self, mock_file: Path):
         """Test successful profiler run."""
         profiler = Profiler(
             path=mock_file,
             precision=5,
             loglevel=LogLevel.INFO,
             live_update=1,
-            output_dir=root_dir / "performance",
         )
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
         assert exc_info.value.exit_code == 0
 
-    def test_run_profiler_cpu_only(self, mock_file: Path, root_dir: Path):
+    def test_run_profiler_cpu_only(self, mock_file: Path):
         """Test successful profiler run using only CPU."""
-        profiler = Profiler(path=mock_file, cpu_only=True, output_dir=root_dir / "performance")
+        profiler = Profiler(path=mock_file, cpu_only=True)
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
         assert exc_info.value.exit_code == 0
 
-    def test_run_profiler_detailed_mode(self, mock_file: Path, root_dir: Path):
+    def test_run_profiler_detailed_mode(self, mock_file: Path):
         """Test profiler run with detailed profiling enabled."""
-        profiler = Profiler(path=mock_file, precision=5, detailed=True, output_dir=root_dir / "performance")
+        profiler = Profiler(path=mock_file, precision=5, detailed=True)
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
 
@@ -57,7 +56,7 @@ class TestProfilerRunProfiler:
         assert "numpy" in profiler.profile_file.read_text()
 
     @patch("subprocess.run")
-    def test_run_profiler_subprocess_error(self, mock_run: MagicMock, mock_file: Path, root_dir: Path):
+    def test_run_profiler_subprocess_error(self, mock_run: MagicMock, mock_file: Path):
         """Test profiler run handling subprocess errors."""
         # Setup subprocess to raise CalledProcessError
         error = subprocess.CalledProcessError(1, ["cmd"])
@@ -65,7 +64,7 @@ class TestProfilerRunProfiler:
         error.stderr = b"stderr error message"
         mock_run.side_effect = error
 
-        profiler = Profiler(path=mock_file, precision=5, output_dir=root_dir / "performance")
+        profiler = Profiler(path=mock_file, precision=5)
 
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
@@ -74,12 +73,12 @@ class TestProfilerRunProfiler:
         mock_run.assert_called_once()
 
     @patch("subprocess.run")
-    def test_run_profiler_keyboard_interrupt(self, mock_run: MagicMock, mock_file: Path, root_dir: Path):
+    def test_run_profiler_keyboard_interrupt(self, mock_run: MagicMock, mock_file: Path):
         """Test profiler run handling keyboard interrupt."""
         # Setup subprocess to raise KeyboardInterrupt.
         mock_run.side_effect = KeyboardInterrupt()
 
-        profiler = Profiler(path=mock_file, precision=5, output_dir=root_dir / "performance")
+        profiler = Profiler(path=mock_file, precision=5)
 
         with pytest.raises(Exit) as exc_info:
             profiler.run_profiler()
@@ -88,7 +87,7 @@ class TestProfilerRunProfiler:
         mock_run.assert_called()
         assert "Profiling interrupted by user." in profiler.output_file.read_text()
 
-    def test_run_profiler_with_script_args_and_logs(self, mock_file: Path, root_dir: Path):
+    def test_run_profiler_with_script_args_and_logs(self, mock_file: Path):
         """Test profiler run with script arguments."""
         args = ["arg1=value1", "arg2=value2"]
         profiler = Profiler(
@@ -96,7 +95,6 @@ class TestProfilerRunProfiler:
             python_script_args=args,
             precision=5,
             loglevel=LogLevel.INFO,
-            output_dir=root_dir / "performance",
             in_place=False,
         )
         with pytest.raises(Exit) as exc_info:
@@ -112,7 +110,7 @@ class TestProfilerRunProfiler:
         assert "Check logs" in final_content
         assert "(1 warning)" in final_content
 
-    def test_run_profiler_with_script_argparse(self, mock_file_with_argparse: Path, root_dir: Path):
+    def test_run_profiler_with_script_argparse(self, mock_file_with_argparse: Path):
         """Test profiler run with script arguments."""
         args = ["--base", "10", "--power", "5"]
         profiler = Profiler(
@@ -120,7 +118,6 @@ class TestProfilerRunProfiler:
             python_script_args=args,
             precision=5,
             loglevel=LogLevel.INFO,
-            output_dir=root_dir / "performance",
             in_place=False,
         )
         with pytest.raises(Exit) as exc_info:

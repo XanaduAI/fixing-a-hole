@@ -59,7 +59,7 @@ class Profiler:
         trace: bool = True,
         live_update: float = float("inf"),
         ignore_dirs: list[Path] | None = None,
-        output_dir: Path = OUTPUT_DIR,
+        output_dir: Path | None = None,
         in_place: bool = True,
         **_: dict,
     ) -> None:
@@ -75,7 +75,7 @@ class Profiler:
         self.loglevel: LogLevel = loglevel
         self.noplots: bool = noplots
         self._output_name: str = "profile_results"
-        self._output_file: Path = Path.cwd() / f"{self._output_name}.txt"
+        self._output_file: Path = None
         self._precision_limit: int = 10
         self.trace: bool = trace
         self.live_update: float = live_update
@@ -84,26 +84,18 @@ class Profiler:
 
         # Prepare the results folder.
         path = Path(path)
-        if path.is_file() and output_dir == OUTPUT_DIR:
+        if path.is_file():
             self.python_file = path
             self.filestem = self.python_file.stem.replace(" ", "_")
-            self.profile_root = OUTPUT_DIR / self.filestem / date()
+            self.profile_root: Path = OUTPUT_DIR / self.filestem / date() if output_dir is None else output_dir
             self.profile_root.mkdir(parents=True, exist_ok=True)
-            self.profile_file = self.python_file if in_place else self.profile_root / f"{self.filestem}.py"
+            self.profile_file: Path = self.python_file if in_place else self.profile_root / f"{self.filestem}.py"
             self.output_file = self._output_name
             if not in_place:
                 self.prepare_code_for_profiling()
-        elif path.is_file() and output_dir != OUTPUT_DIR:
-            self.python_file = path
-            self.filestem = self.python_file.stem.replace(" ", "_")
-            self.profile_root = output_dir
-            self.profile_root.mkdir(parents=True, exist_ok=True)
-            self.profile_file = self.python_file if in_place else self.profile_root / f"{self.filestem}.py"
-            self.output_file = self.profile_root / "profile_results.txt"
-            if not in_place:
-                self.prepare_code_for_profiling()
         elif path.is_dir():
-            pass
+            Colour.error("Error: cannot profile a directory.")
+            raise Exit(code=1)
         elif not path.exists():
             Colour.error(f"Error: {Colour.purple(path)} does not exist.")
             raise Exit(code=127)
@@ -147,6 +139,7 @@ class Profiler:
         """Location of the Scalene output (as a .txt file)."""
         if isinstance(value, Path):
             self._output_file = value
+            self._output_name = self._output_file.stem
             self._output_file.parent.mkdir(parents=True, exist_ok=True)
             self.output_file.touch()
             return

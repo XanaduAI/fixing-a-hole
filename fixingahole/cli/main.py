@@ -44,14 +44,14 @@ def profile(  # noqa: PLR0913
     ],
     python_script_args: typer.Context,
     output_dir: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--output-directory",
             "-o",
             help="Directory to save the results to.",
-            show_default=True,
+            show_default=OUTPUT_DIR,
         ),
-    ] = OUTPUT_DIR,
+    ] = None,
     cpu_only: Annotated[
         bool,
         typer.Option(
@@ -163,10 +163,14 @@ def profile(  # noqa: PLR0913
     """Profile a python script or Jupyter notebook."""
     # Set some configuration.
     Colour.set_log_level("error" if quiet else "info")
+    DURATION.update(duration.value)
+    # Prevent later errors by catching these ones.
     if in_place and noplots:
         Colour.error("Error: cannot both profile in-place AND suppress plotting.")
         raise Exit(code=1)
-    DURATION.update(duration.value)
+    if in_place and Path(filename).suffix != ".py":
+        Colour.error("Error: can only profile '.py' files in-place.")
+        raise Exit(code=1)
 
     # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
@@ -177,13 +181,8 @@ def profile(  # noqa: PLR0913
         python_file: Path = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS)
         if python_file.is_dir():
             Colour.error("Error: cannot profile a directory.")
-            raise typer.Exit(code=1)
+            raise Exit(code=1)
     ignore_dirs: list[Path] = [Path(p).resolve() for p in ignore] if ignore is not None else []
-
-    # Prevent later errors by catching this one.
-    if in_place and python_file.suffix != ".py":
-        Colour.error("Error: can only profile '.py' files in-place.")
-        raise Exit(code=1)
 
     profiler = Profiler(
         path=python_file,

@@ -127,11 +127,13 @@ class TestStatisticsManagerAverage:
 
         assert len(avg) > 0
         # With a single run, average should equal the original values
+        measures: list[str] = ["user", "system", "memory"]
         for values in avg.values():
-            assert "user" in values
-            assert "system" in values
-            assert "memory" in values
-            assert all(isinstance(v, float) for v in values.values())
+            assert "count" in values
+            assert isinstance(values["count"], int)
+            for measure in measures:
+                assert measure in values
+                assert isinstance(values[measure], float)
 
     def test_average_multiple_runs(self, profile_summary_obj: ProfileSummary):
         """Test computing average with multiple identical runs."""
