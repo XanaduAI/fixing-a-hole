@@ -15,11 +15,13 @@
 
 import json
 from pathlib import Path
+from typing import Never
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from fixingahole.profiler.profile_summary import ProfileSummary
-from fixingahole.profiler.stats_manager import StatisticsManager
+from fixingahole.profiler.stats_manager import StatisticsManager, _get_dirty_files, _get_used_dirty_files  # noqa: PLC2701
 
 
 @pytest.fixture
@@ -36,6 +38,57 @@ class TestStatisticsManagerInit:
         manager = StatisticsManager()
         assert manager.count == 0
         assert len(manager.function_data) == 0
+
+
+class TestGitDiffHelperFunctions:
+    """Test git diff helper functions."""
+
+    def test_get_dirty_files(self):
+        """Test that git diff can find dirty files."""
+        mock_repo = MagicMock()
+
+        # Mock unstaged changes (diff against working tree)
+        unstaged_change = MagicMock()
+        unstaged_change.a_path = "file1.py"
+
+        # Mock staged changes (diff against HEAD)
+        staged_change = MagicMock()
+        staged_change.a_path = "file2.py"
+
+        # Set up diff method to return appropriate changes
+        mock_repo.index.diff.side_effect: list[list[MagicMock]] = [[unstaged_change], [staged_change]]
+
+        result = _get_dirty_files(mock_repo)
+        assert result == {"file1.py", "file2.py"}
+        assert mock_repo.index.diff.call_count == 2
+
+    def test_get_used_dirty_files(self):
+        """Test that the dirty files from git diff are used by the profiling."""
+        mock_repo = MagicMock()
+        mock_repo.is_dirty.return_value = True
+
+        # Mock dirty files
+        dirty_change = MagicMock()
+        dirty_change.a_path = "fixingahole/profiler/stats_manager.py"
+        mock_repo.index.diff.side_effect: list[list[MagicMock]] = [[dirty_change], []]
+
+        # Mock profiling data with files
+        data: dict[str, dict[str, float]] = {
+            "fixingahole/profiler/stats_manager.py:function1": {"user": 1.0},
+            "fixingahole/cli/main.py:function2": {"user": 2.0},
+        }
+
+        result = _get_used_dirty_files(mock_repo, data)
+        assert result == ["fixingahole/profiler/stats_manager.py"]
+
+    def test_get_used_dirty_files_no_dirty_files(self):
+        """Test that empty list is returned when repo is clean."""
+        mock_repo = MagicMock()
+        mock_repo.is_dirty.return_value = False
+
+        data: dict[str, dict[str, float]] = {"some/file.py:function": {"user": 1.0}}
+        result = _get_used_dirty_files(mock_repo, data)
+        assert result == []
 
 
 class TestStatisticsManagerInsert:
@@ -199,3 +252,37 @@ class TestStatisticsManagerSaveAsJson:
         # Verify data is sorted by user.avg in descending order
         user_avgs = [data["user"]["avg"] for data in saved_data.values()]
         assert user_avgs == sorted(user_avgs, reverse=True)
+
+    def test_save_with_metadata(self, profile_summary_obj: ProfileSummary, tmp_path: Path):
+        """Test saving JSON with along with the git metadata."""
+        manager = StatisticsManager()
+        manager.insert(profile_summary_obj)
+
+        stats = manager.stats()
+        file_path = tmp_path / "test_sorted.json"
+
+        def raise_error() -> Never:
+            msg = "This is an mocked error."
+            raise TypeError(msg)
+
+        mock_repo = MagicMock()
+        mock_repo.active_branch.name = "mocked_branch_name"
+        mock_repo.head.object.hexsha = "mocked_commit_sha_abc123def456"
+        mock_repo.remotes.origin.url = "https://github.com/xanadu/mocked_repo_name.git"
+        mock_repo.is_dirty.side_effect = raise_error
+        with patch("fixingahole.profiler.stats_manager.git.Repo") as mock_git_repo:
+            mock_git_repo.return_value = mock_repo
+            output = StatisticsManager.save_as_json(file_path, stats, sort=False, save_metadata=True)
+
+        assert file_path.exists()
+        saved_data = json.loads(file_path.read_text())
+
+        # Verify metadata was saved
+        assert "metadata" in output
+        assert saved_data == output
+        assert output["metadata"]["repo"] == "mocked_repo_name"
+        assert output["metadata"]["branch"] == "mocked_branch_name"
+        assert output["metadata"]["commit"] == "mocked_commit_sha_abc123def456"
+        assert output["metadata"]["used_dirty_files"] == "Failed to save git used_dirty_files."
+        assert isinstance(output["metadata"]["utc_time"], str)
+        assert len(output["metadata"]["utc_time"]) == 15  # of the form 20251231_123456

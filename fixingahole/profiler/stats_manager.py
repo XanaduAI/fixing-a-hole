@@ -16,6 +16,7 @@
 import json
 import math
 from collections import defaultdict
+from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -119,23 +120,27 @@ class StatisticsManager:
     @staticmethod
     def save_as_json(filename: Path, data: dict[str, Any], *, save_metadata: bool = True, sort: bool = True) -> dict[str, Any]:
         """Location to save the benchmarking statistics."""
-        if sort:
-            data: dict[str, Any] = dict(sorted(data.items(), key=lambda item: item[1]["user"]["avg"], reverse=True))
+        filename = Path(filename) if isinstance(filename, str) else filename
+        save_data: dict[str, Any] = (
+            dict(sorted(data.items(), key=lambda item: item[1].get("user", {}).get("avg", 0), reverse=True)) if sort else {}
+        )
         if save_metadata:
-            data["metadata"]: dict[str, Any] = {}
+            save_data: dict[str, Any] = save_data if sort else deepcopy(data)
+            save_data["metadata"]: dict[str, Any] = {}
             metadata: dict[str, Callable] = {
                 "repo": lambda repo: Path(str(repo.remotes.origin.url)).stem,
                 "branch": lambda repo: repo.active_branch.name,
                 "commit": lambda repo: repo.head.object.hexsha,
-                "used_dirty_files": lambda repo: _get_used_dirty_files(repo, data),
+                "used_dirty_files": lambda repo: _get_used_dirty_files(repo, save_data),
                 "utc_time": lambda _: date(),
             }
             for info, method in metadata.items():
                 try:
                     repo = git.Repo(ROOT_DIR, search_parent_directories=True)
                     if value := method(repo):
-                        data["metadata"][info] = value
+                        save_data["metadata"][info] = value
                 except (TypeError, git.InvalidGitRepositoryError, git.exc.NoSuchPathError):
-                    data["metadata"][info] = f"Failed to save git {info}."
-        filename.write_text(json.dumps(data, indent=1))
-        return data
+                    save_data["metadata"][info] = f"Failed to save git {info}."
+        save_data = data if save_data == {} else save_data
+        filename.write_text(json.dumps(save_data, indent=1))
+        return save_data

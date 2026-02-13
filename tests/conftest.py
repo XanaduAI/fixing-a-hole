@@ -44,6 +44,15 @@ def mock_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def mock_file_with_argparse(tmp_path: Path) -> Path:
+    """Create a basic test file for profiler testing."""
+    basic_script = Path(__file__).parent / "scripts" / "with_argparse.py"
+    test_file = tmp_path / basic_name(".py")
+    test_file.write_text(basic_script.read_text())
+    return test_file
+
+
+@pytest.fixture
 def mock_dir(tmp_path: Path) -> Path:
     """Create a basic test file for profiler testing."""
     test_dir = tmp_path / basic_name()
@@ -69,9 +78,9 @@ def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     package_root = Path(__file__).parents[1] / "fixingahole"
     for path in package_root.rglob("*.py"):
         part = ".".join(path.relative_to(package_root).parts)[:-3]
-        for folder in ["ROOT_DIR", "OUTPUT_DIR"]:
+        for folder, mock_dir in [("ROOT_DIR", mock_root_dir), ("OUTPUT_DIR", mock_output_dir)]:
             with contextlib.suppress(AttributeError):
-                monkeypatch.setattr(f"fixingahole.{part}.{folder}", mock_root_dir)
+                monkeypatch.setattr(f"fixingahole.{part}.{folder}", mock_dir)
     return mock_root_dir
 
 

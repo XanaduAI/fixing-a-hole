@@ -176,9 +176,14 @@ def profile(  # noqa: PLR0913
     else:
         python_file: Path = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS)
         if python_file.is_dir():
-            Colour.error(Colour.ORANGE("Error: cannot profile a directory."))
+            Colour.error("Error: cannot profile a directory.")
             raise typer.Exit(code=1)
     ignore_dirs: list[Path] = [Path(p).resolve() for p in ignore] if ignore is not None else []
+
+    # Prevent later errors by catching this one.
+    if in_place and python_file.suffix != ".py":
+        Colour.error("Error: can only profile '.py' files in-place.")
+        raise Exit(code=1)
 
     profiler = Profiler(
         path=python_file,

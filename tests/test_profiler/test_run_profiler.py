@@ -111,3 +111,27 @@ class TestProfilerRunProfiler:
         final_content = profiler.output_summary.read_text()
         assert "Check logs" in final_content
         assert "(1 warning)" in final_content
+
+    def test_run_profiler_with_script_argparse(self, mock_file_with_argparse: Path, root_dir: Path):
+        """Test profiler run with script arguments."""
+        args = ["--base", "10", "--power", "5"]
+        profiler = Profiler(
+            path=mock_file_with_argparse,
+            python_script_args=args,
+            precision=5,
+            loglevel=LogLevel.INFO,
+            output_dir=root_dir / "performance",
+            in_place=False,
+        )
+        with pytest.raises(Exit) as exc_info:
+            profiler.run_profiler()
+
+        assert exc_info.value.exit_code == 0
+        logs = profiler.log_file.read_text()
+        for arg in args:
+            assert arg in logs
+        assert "This is a warning." in logs
+        # Check that warning count is correctly calculated and included
+        final_content = profiler.output_summary.read_text()
+        assert "Check logs" in final_content
+        assert "(1 warning)" in final_content

@@ -138,36 +138,37 @@ class Profiler:
 
     @property
     def output_file(self) -> Path:
-        """The location of the Scalene output."""
+        """The location of the Scalene output (as a .txt file)."""
         name = f"{self._output_file.name}_{self.run_count}" if self.run_count > 0 else self._output_file.name
         return (self._output_file.parent / name).with_suffix(".txt")
 
     @output_file.setter
     def output_file(self, value: str | Path) -> None:
-        """Location of the Scalene output."""
+        """Location of the Scalene output (as a .txt file)."""
         if isinstance(value, Path):
             self._output_file = value
+            self._output_file.parent.mkdir(parents=True, exist_ok=True)
             self.output_file.touch()
             return
         self._output_name = value
-        self._output_file = self.profile_root / self._output_name
+        self._output_file: Path = self.profile_root / self._output_name
         self.output_file.touch()
 
     @property
     def output_json(self) -> Path:
-        """The location of the Scalene JSON output."""
+        """The location of the Scalene JSON output (as a .json file)."""
         return self.output_file.with_suffix(".json")
 
     @property
     def output_summary(self) -> Path:
-        """The location of the summary file."""
+        """The location of the summary file (as a .txt file)."""
         if "results" in self.output_file.name:
             return self.output_file.parent / self.output_file.name.replace("results", "summary")
         return self.output_file.with_name("profile_summary.txt")
 
     @property
     def path_to_summary(self) -> Path:
-        """A relative path to the summary file."""
+        """A relative path to the summary file (as a .txt file)."""
         with contextlib.suppress(ValueError):
             return self.output_summary.relative_to(ROOT_DIR)
         # output_summary is not in the subpath of ROOT_DIR
@@ -176,7 +177,7 @@ class Profiler:
 
     @property
     def output_path(self) -> Path:
-        """A relative path (from repo root) to the Scalene output."""
+        """A relative path (from repo root) to the Scalene output (as a .txt file)."""
         with contextlib.suppress(ValueError):
             return self.output_file.relative_to(ROOT_DIR)
         # output_file is not in the subpath of ROOT_DIR
@@ -321,7 +322,6 @@ class Profiler:
     def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
         sampling_detail = self.get_memory_precision()
-        ncols = max(160, len(str(self.profile_file)) + 75)
         usr_bin_time = ""
         if Path("/usr/bin/time").exists():
             if self.platform == Platform.MacOS:
@@ -337,7 +337,6 @@ class Profiler:
             self.excluded_folders,
             f"--memory {sampling_detail}" if not self.cpu_only else "--cpu-only",
             f"--program-path {ROOT_DIR}",
-            f"--column-width {ncols}",
             f"--profile-interval {self.live_update}" if 0 < self.live_update < float("inf") else "",
             f"--outfile {self.output_json}",
         ]
