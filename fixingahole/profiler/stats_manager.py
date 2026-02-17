@@ -56,6 +56,27 @@ def _get_used_dirty_files(repo: git.Repo, data: dict) -> list[str]:
     return list(dirty_files.intersection(used_files))
 
 
+def _mean(values: list[float], count: int | None) -> float:
+    """Sample standard deviation given a list of values."""
+    count: int = count if count is not None else len(values)
+    return sum(value for value in values) / count
+
+
+def _std(values: list[float], count: int | None, mean: float | None = None) -> float:
+    """Sample standard deviation given a list of values."""
+    count: int = count if count is not None else len(values)
+    mean: float = mean if mean is not None else _mean(values, count)
+    return math.sqrt(sum(pow(value - mean, 2) for value in values) / (count - 1)) if count > 1 else 0.0
+
+
+def _mean_and_std(values: list[float], count: int | None, mean: float | None = None) -> dict[str, float]:
+    """Sample standard deviation given a list of values."""
+    count: int = count if count is not None else len(values)
+    mean: float = mean if mean is not None else _mean(values, count)
+    std: float = math.sqrt(sum(pow(value - mean, 2) for value in values) / (count - 1)) if count > 1 else 0.0
+    return {"avg": mean, "std": std}
+
+
 class StatisticsManager:
     """Statistics Manager for Profile Results when Benchmarking."""
 
@@ -78,44 +99,33 @@ class StatisticsManager:
         res: dict[str, dict[str, float]] = {}
         for key, funcs in self.function_data.items():
             res[key] = {
-                "user": sum(f.user_time for f in funcs) / self.count,
-                "system": sum(f.system_time for f in funcs) / self.count,
-                "memory": sum(f.peak_memory for f in funcs) / self.count,
+                "user_avg": _mean([f.user_time for f in funcs], self.count),
+                "system_avg": _mean([f.system_time for f in funcs], self.count),
+                "memory_avg": _mean([f.peak_memory for f in funcs], self.count),
                 "count": self.count,
             }
         return res
 
     def std(self) -> dict[str, dict[str, float]]:
         """Compute the standard deviations for each function."""
-        avg = self.average()
         res: dict[str, dict[str, float]] = {}
         for key, funcs in self.function_data.items():
             res[key] = {
-                "user_std": math.sqrt(sum(pow(f.user_time - avg[key]["user"], 2) for f in funcs) / self.count),
-                "system_std": math.sqrt(sum(pow(f.system_time - avg[key]["system"], 2) for f in funcs) / self.count),
-                "memory_std": math.sqrt(sum(pow(f.peak_memory - avg[key]["memory"], 2) for f in funcs) / self.count),
+                "user_std": _std([f.user_time for f in funcs], self.count),
+                "system_std": _std([f.system_time for f in funcs], self.count),
+                "memory_std": _std([f.peak_memory for f in funcs], self.count),
                 "count": self.count,
             }
         return res
 
     def stats(self) -> dict[str, dict[str, Any]]:
         """Compute the standard deviations for each function."""
-        avg = self.average()
         res: dict[str, dict[str, Any]] = {}
         for key, funcs in self.function_data.items():
             res[key] = {
-                "user": {
-                    "avg": avg[key]["user"],
-                    "std": math.sqrt(sum(pow(f.user_time - avg[key]["user"], 2) for f in funcs) / self.count),
-                },
-                "system": {
-                    "avg": avg[key]["system"],
-                    "std": math.sqrt(sum(pow(f.system_time - avg[key]["system"], 2) for f in funcs) / self.count),
-                },
-                "memory": {
-                    "avg": avg[key]["memory"],
-                    "std": math.sqrt(sum(pow(f.peak_memory - avg[key]["memory"], 2) for f in funcs) / self.count),
-                },
+                "user": _mean_and_std([f.user_time for f in funcs], self.count),
+                "system": _mean_and_std([f.system_time for f in funcs], self.count),
+                "memory": _mean_and_std([f.peak_memory for f in funcs], self.count),
                 "count": self.count,
             }
         return res

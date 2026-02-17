@@ -96,6 +96,10 @@ class TestProfileDetails:
         assert profile.system_percentage == 2.0
         assert profile.memory_samples == [(1.0, 2.0), (3.0, 4.0)]
         assert profile.has_memory_info
+        assert profile.user_time == 6.17
+        assert profile.system_time == 0.2468
+        assert profile.total_time == pytest.approx(6.4168)
+        assert profile.walltime == 12.34
 
     def test_function_profile_immutable(self):
         """Test that ProfileDetails is immutable (frozen=True)."""
@@ -130,12 +134,8 @@ class TestParseJson:
         """Test parsing an empty JSON file."""
         json_file = tmp_path / "empty.json"
         json_file.write_text("{}")
-        result = parse_json(json_file)
-        assert result.functions == []
-        assert result.walltime == 0
-        # Memory format may vary based on size, just check it's not None
-        assert result.max_memory is not None
-        assert "0" in result.max_memory
+        with pytest.raises(KeyError, match="elapsed_time_sec"):
+            parse_json(json_file)
 
     def test_parse_json_complete_profile(self, example_json: Path):
         """Test parsing a complete JSON profile."""

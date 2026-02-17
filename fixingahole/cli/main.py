@@ -15,6 +15,7 @@
 
 import json
 import sys
+from contextlib import suppress
 from pathlib import Path
 from typing import Annotated
 
@@ -309,8 +310,9 @@ def stats(
     stats = StatisticsManager()
     directory, files = find_path(folder, in_dir=ROOT_DIR, return_suffix=".json", subfolder_only=True)
     for file in files:
-        summary = ProfileSummary(file)
-        stats.insert(summary)
+        with suppress(KeyError):
+            summary = ProfileSummary(file)
+            stats.insert(summary)
     stats_file = (directory / output_file).with_suffix(".json")
     data = stats.stats()
     data = stats.save_as_json(stats_file, data, save_metadata=metadata, sort=sort)

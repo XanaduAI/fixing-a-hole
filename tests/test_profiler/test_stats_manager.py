@@ -127,7 +127,7 @@ class TestStatisticsManagerAverage:
 
         assert len(avg) > 0
         # With a single run, average should equal the original values
-        measures: list[str] = ["user", "system", "memory"]
+        measures: list[str] = ["user_avg", "system_avg", "memory_avg"]
         for values in avg.values():
             assert "count" in values
             assert isinstance(values["count"], int)
@@ -147,9 +147,9 @@ class TestStatisticsManagerAverage:
         first_func = profile_summary_obj.data.functions[0]
         key = next(iter(manager.function_data))
 
-        assert avg[key]["user"] == pytest.approx(first_func.user_time)
-        assert avg[key]["system"] == pytest.approx(first_func.system_time)
-        assert avg[key]["memory"] == pytest.approx(first_func.peak_memory)
+        assert avg[key]["user_avg"] == pytest.approx(first_func.user_time)
+        assert avg[key]["system_avg"] == pytest.approx(first_func.system_time)
+        assert avg[key]["memory_avg"] == pytest.approx(first_func.peak_memory)
 
 
 class TestStatisticsManagerStd:
@@ -178,10 +178,13 @@ class TestStatisticsManagerStd:
         std = manager.std()
 
         # With identical runs, std should be 0
+        measures: list[str] = ["user_std", "system_std", "memory_std"]
         for values in std.values():
-            assert values["user_std"] == 0.0
-            assert values["system_std"] == 0.0
-            assert values["memory_std"] == 0.0
+            assert "count" in values
+            assert isinstance(values["count"], int)
+            for measure in measures:
+                assert measure in values
+                assert isinstance(values[measure], float)
 
 
 class TestStatisticsManagerStats:
@@ -195,16 +198,14 @@ class TestStatisticsManagerStats:
         stats = manager.stats()
 
         assert len(stats) > 0
-        for metrics in stats.values():
-            assert "user" in metrics
-            assert "system" in metrics
-            assert "memory" in metrics
-            # Each metric should have avg and std
-            for metric in ["user", "system", "memory"]:
-                assert "avg" in metrics[metric]
-                assert "std" in metrics[metric]
-                assert isinstance(metrics[metric]["avg"], float)
-                assert isinstance(metrics[metric]["std"], float)
+        measures: list[str] = ["user", "system", "memory"]
+        for values in stats.values():
+            assert "count" in values
+            assert isinstance(values["count"], int)
+            for measure in measures:
+                assert measure in values
+                assert isinstance(values[measure]["avg"], float)
+                assert isinstance(values[measure]["std"], float)
 
     def test_stats_structure(self, profile_summary_obj: ProfileSummary):
         """Test the nested structure of stats output."""

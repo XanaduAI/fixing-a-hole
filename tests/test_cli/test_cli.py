@@ -74,7 +74,8 @@ class TestStats:
         """Test stats CLI on a valid JSON profile file."""
         tmp_dir = example_json.parent / "tmp"
         tmp_dir.mkdir(parents=True, exist_ok=True)
-        example_json.rename(tmp_dir / example_json.name)
+        example_json = example_json.rename(tmp_dir / example_json.name)
+        (tmp_dir / "dup_data.json").write_bytes(example_json.read_bytes())
         result = runner.invoke(cli.app, ["stats", str(tmp_dir), "--no-metadata"])
         assert result.exit_code == 0, print_error(result)
 

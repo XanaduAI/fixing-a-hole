@@ -128,7 +128,7 @@ class ProfileData:
 
     @cached_property
     def has_memory_info(self) -> bool:
-        """Determine any memory usage data is stored."""
+        """Determine if any memory usage data is stored."""
         return any(fn.has_memory_info for fn in self.functions) or any(
             ln.has_memory_info for lines in self.lines.values() for ln in lines
         )
@@ -154,20 +154,20 @@ def parse_json(filename: str | Path) -> ProfileData:
     line_profs: dict[str, list[ProfileDetails]] = defaultdict(list)
 
     # Extract walltime and max memory
-    walltime = content.get("elapsed_time_sec", 0)
-    max_memory = memory_with_units(content.get("max_footprint_mb", 0), digits=3)
+    walltime: float = content["elapsed_time_sec"]
+    max_memory: str = memory_with_units(content["max_footprint_mb"], digits=3)
 
-    files: dict[str, dict[str, Any]] = content.get("files", {}) if isinstance(content, dict) else {}
+    files: dict[str, dict[str, Any]] = content["files"] if isinstance(content, dict) else {}
     file_percentage: dict[str, float] = {}
     for file_path, info in files.items():
-        file_percentage[file_path] = info.get("percent_cpu_time", 0)
-        lines: list[dict[str, Any]] = info.get("lines", []) if isinstance(info, dict) else []
+        file_percentage[file_path] = info["percent_cpu_time"]
+        lines: list[dict[str, Any]] = info["lines"] if isinstance(info, dict) else []
         for line in lines:
             profile = ProfileDetails.from_scalene_dict(line, file_path)
             if profile.has_data:
                 line_profs[file_path].append(profile)
 
-        funcs: list[dict[str, Any]] = info.get("functions", []) if isinstance(info, dict) else []
+        funcs: list[dict[str, Any]] = info["functions"] if isinstance(info, dict) else []
         function_profs.extend(ProfileDetails.from_scalene_dict(fn | {"walltime": walltime}, file_path) for fn in funcs)
 
     keys: list[str] = ["max_footprint_mb", "growth_rate", "start_time_absolute", "start_time_perf"]
