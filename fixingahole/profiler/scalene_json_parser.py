@@ -180,7 +180,6 @@ class FileDetails:
         )
         object.__setattr__(self, "imports", _freeze(self.imports))
         object.__setattr__(self, "leaks", _freeze(self.leaks))
-        object.__setattr__(self, "lines", _freeze(self.lines))
 
 
 @dataclass(frozen=True)

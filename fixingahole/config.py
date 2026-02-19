@@ -44,7 +44,7 @@ class ConfigValueError(ConfigError):
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers
+#  Internal helpers
 # ---------------------------------------------------------------------------
 
 
@@ -186,7 +186,7 @@ def _env_config_data() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Public Config
+#  Public Config
 # ---------------------------------------------------------------------------
 
 
@@ -197,13 +197,30 @@ class Settings:
     root: Path
     output: Path
     ignore: list[Path]
-    duration: DurationOption
+    duration: DurationOption = DurationOption.relative
 
     def __post_init__(self) -> None:
         """Validate the correct types on creation."""
+        # Normalize root to an absolute path.
         object.__setattr__(self, "root", Path(self.root).resolve())
-        object.__setattr__(self, "output", Path(self.root / self.output).resolve())
-        object.__setattr__(self, "ignore", [(Path.cwd() / path).resolve() for path in self.ignore])
+
+        # Ensure output is resolved correctly whether it was provided as an absolute path or as a path relative to root.
+        object.__setattr__(
+            self,
+            "output",
+            output_path.resolve() if (output_path := Path(self.output)).is_absolute() else (self.root / output_path).resolve(),
+        )
+
+        # Ensure ignore paths are resolved consistently.
+        #  If an ignore path is relative, interpret it relative to the _current_ directory;
+        #  If it is absolute, resolve it as-is.
+        object.__setattr__(
+            self,
+            "ignore",
+            [(Path.cwd() / p).resolve() if not (p := Path(path)).is_absolute() else p.resolve() for path in self.ignore],
+        )
+
+        # Normalize duration to a DurationOption instance.
         object.__setattr__(self, "duration", DurationOption(self.duration))
 
     @classmethod

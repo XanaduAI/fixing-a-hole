@@ -12,7 +12,7 @@ rng = np.random.default_rng()
 logger.setLevel(logging.DEBUG)
 
 
-def main(base: int, exp: int) -> tuple[int,]:
+def main(base: int, exp: int) -> tuple[int, ...]:
     """Test script with command line args."""
     logger.info(" ".join(argv[1:]))
     logger.warning("This is a warning.")
