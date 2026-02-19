@@ -75,7 +75,7 @@ class Profiler:
         self.loglevel: LogLevel = loglevel
         self.noplots: bool = noplots
         self._output_name: str = "profile_results"
-        self._output_file: Path = None
+        self._output_file: Path | None = None
         self._precision_limit: int = 10
         self.trace: bool = trace
         self.live_update: float = live_update
@@ -131,6 +131,8 @@ class Profiler:
     @property
     def output_file(self) -> Path:
         """The location of the Scalene output (as a .txt file)."""
+        if self._output_file is None:
+            return Path.cwd() / "profile_results.txt"
         name = f"{self._output_file.name}_{self.run_count}" if self.run_count > 0 else self._output_file.name
         return (self._output_file.parent / name).with_suffix(".txt")
 

@@ -104,7 +104,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
 
     message.append("\nFunctions by Module:")
     message.append("-" * width)
-    module_tree, depth = build_module_tree(by_file)
+    module_tree, depth = build_module_tree(by_file, threshold=threshold)
     tree_width = max_func_name_length + (depth * 3)
     tree = render_tree(module_tree, profile_data.walltime, max_func_name_length=tree_width, threshold=threshold)
     message.extend(tree)

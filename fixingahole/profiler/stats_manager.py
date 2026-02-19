@@ -154,6 +154,6 @@ class StatisticsManager:
                         save_data["metadata"][info] = value
                 except (TypeError, git.InvalidGitRepositoryError, git.exc.NoSuchPathError):
                     save_data["metadata"][info] = f"Failed to save git {info}."
-        save_data = data if save_data == {} else save_data
+        save_data = save_data or data
         filename.write_text(json.dumps(save_data, indent=1))
         return save_data
