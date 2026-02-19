@@ -11,177 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Profile Results Parser.
+"""Profile Results Summarizer.
 
-This module parses profile results files and extracts function names and runtime percentages from
-the function summary sections at the bottom of each file's profiling table.
+This module extracts function details from the Scalene data
+and presents the data in a tree form for easier interpretation.
 """
 
-import json
 import os
-from collections import defaultdict
-from dataclasses import dataclass
-from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from colours import Colour
-from typer import Exit
-
 from fixingahole import DURATION, ROOT_DIR
-from fixingahole.profiler.utils import format_time, installed_modules, memory_with_units
-
-
-@dataclass(frozen=True)
-class ProfileDetails:
-    """Represents a function's profiling information."""
-
-    name: str
-    file_path: str
-    line_number: int
-    walltime: float
-    memory_python_percentage: float
-    peak_memory: float
-    python_percentage: float
-    native_percentage: float
-    system_percentage: float
-    timeline_percentage: float
-    copy_mb_per_s: float
-    memory_samples: list[tuple[float, float]]
-
-    @classmethod
-    def from_scalene_dict(cls, data: dict[str, Any], file_path: str) -> "ProfileDetails":
-        """Create ProfileDetails from raw scalene JSON data.
-
-        Args:
-            data: Dictionary containing scalene profile data for a line or function
-            file_path: The file path to associate with this profile entry
-
-        Returns:
-            ProfileDetails instance with properly typed and mapped fields.
-
-        """
-        return cls(
-            file_path=file_path,
-            name=data.get("line", ""),
-            line_number=int(data.get("lineno", 0)),
-            walltime=float(data.get("walltime", 0)),
-            python_percentage=float(data.get("n_cpu_percent_python", 0)),
-            native_percentage=float(data.get("n_cpu_percent_c", 0)),
-            system_percentage=float(data.get("n_sys_percent", 0)),
-            peak_memory=float(data.get("n_peak_mb", 0)),
-            copy_mb_per_s=float(data.get("n_copy_mb_s", 0)),
-            memory_samples=list(data.get("memory_samples", [])),
-            memory_python_percentage=float(data.get("n_python_fraction", 0)) * 100,
-            timeline_percentage=float(data.get("n_usage_fraction", 0)) * 100,
-        )
-
-    @cached_property
-    def has_memory_info(self) -> bool:
-        """Determine if a line used significant memory."""
-        return bool(
-            self.peak_memory > 0 or self.memory_python_percentage > 0 or self.timeline_percentage > 0 or self.memory_samples
-        )
-
-    @cached_property
-    def has_data(self) -> bool:
-        """Determine if this profile entry contains any meaningful data."""
-        return bool(self.total_percentage > 0 or self.has_memory_info or self.copy_mb_per_s > 0)
-
-    @cached_property
-    def peak_memory_info(self) -> str:
-        """Convert the used memory into more sensible units."""
-        return memory_with_units(self.peak_memory)
-
-    @cached_property
-    def total_percentage(self) -> float:
-        """Return the total percentage of the runtime."""
-        return self.python_percentage + self.native_percentage + self.system_percentage
-
-    @cached_property
-    def total_time(self) -> float:
-        """Return the absolute value of the amount of runtime this function took (in seconds)."""
-        return self.total_percentage * self.walltime / 100.0
-
-    @cached_property
-    def user_time(self) -> float:
-        """Return the absolute value of the amount of user runtime this function took (in seconds)."""
-        return (self.python_percentage + self.native_percentage) * self.walltime / 100.0
-
-    @cached_property
-    def system_time(self) -> float:
-        """Return the absolute value of the amount of system runtime this function took (in seconds)."""
-        return self.system_percentage * self.walltime / 100.0
-
-
-@dataclass(frozen=True)
-class ProfileData:
-    """Holds the parsed profile data."""
-
-    functions: list[ProfileDetails]
-    lines: dict[str, list[ProfileDetails]]
-    files: dict[str, float]
-    walltime: float
-    max_memory: str
-    samples: list[tuple[float, float]]
-    details: dict[str, float]
-
-    @cached_property
-    def has_memory_info(self) -> bool:
-        """Determine if any memory usage data is stored."""
-        return any(fn.has_memory_info for fn in self.functions) or any(
-            ln.has_memory_info for lines in self.lines.values() for ln in lines
-        )
-
-    @cached_property
-    def functions_by_file(self) -> dict[str, list[ProfileDetails]]:
-        """Group functions by file path."""
-        result = defaultdict(list)
-        for func in self.functions:
-            result[func.file_path].append(func)
-        return result
-
-
-def parse_json(filename: str | Path) -> ProfileData:
-    """Parse profile results provided as a JSON dictionary."""
-    profile_path = Path(filename)
-    if not profile_path.exists():
-        Colour.error(f"Error: profile {Colour.purple(filename)} does not exist.")
-        raise Exit(code=66)  # Cannot open input: A specified file or input cannot be accessed.
-
-    content = json.loads(profile_path.read_text(encoding="utf-8"))
-    function_profs: list[ProfileDetails] = []
-    line_profs: dict[str, list[ProfileDetails]] = defaultdict(list)
-
-    # Extract walltime and max memory
-    walltime: float = content["elapsed_time_sec"]
-    max_memory: str = memory_with_units(content["max_footprint_mb"], digits=3)
-
-    files: dict[str, dict[str, Any]] = content["files"] if isinstance(content, dict) else {}
-    file_percentage: dict[str, float] = {}
-    for file_path, info in files.items():
-        file_percentage[file_path] = info["percent_cpu_time"]
-        lines: list[dict[str, Any]] = info["lines"] if isinstance(info, dict) else []
-        for line in lines:
-            profile = ProfileDetails.from_scalene_dict(line, file_path)
-            if profile.has_data:
-                line_profs[file_path].append(profile)
-
-        funcs: list[dict[str, Any]] = info["functions"] if isinstance(info, dict) else []
-        function_profs.extend(ProfileDetails.from_scalene_dict(fn | {"walltime": walltime}, file_path) for fn in funcs)
-
-    keys: list[str] = ["max_footprint_mb", "growth_rate", "start_time_absolute", "start_time_perf"]
-    details: dict[str, float] = {k: content.get(k, -1) for k in keys}
-
-    return ProfileData(
-        functions=function_profs,
-        lines=line_profs,
-        files=file_percentage,
-        walltime=walltime,
-        max_memory=max_memory,
-        samples=content.get("samples", []),
-        details=details,
-    )
+from fixingahole.profiler.scalene_json_parser import ProfileData, ProfileDetails
+from fixingahole.profiler.utils import format_time, installed_modules
 
 
 def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: float = 0.1) -> str:
@@ -404,8 +246,8 @@ def render_tree(
 class ProfileSummary:
     """Parser for summarizing scalene cli profile results files."""
 
-    def __init__(self, filename: str | Path):
-        self.data = parse_json(filename)
+    def __init__(self, filename: Path):
+        self.data = ProfileData.from_file(filename)
         self.walltime: float = self.data.walltime
         self.max_memory: str = self.data.max_memory
 

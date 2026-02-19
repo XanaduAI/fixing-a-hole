@@ -152,6 +152,27 @@ def profile(  # noqa: PLR0913
             min=1,
         ),
     ] = 1,
+    output_file: Annotated[
+        str,
+        typer.Option(
+            help="Filename to save the statistical results to within the folder.",
+            show_default=True,
+        ),
+    ] = "function_stats.json",
+    metadata: Annotated[
+        bool,
+        typer.Option(
+            help="Save the git repo metadata with the statistics (repo name, branch name, commit hash, UTC date and time).",
+            show_default=True,
+        ),
+    ] = True,
+    sort: Annotated[
+        bool,
+        typer.Option(
+            help="Sort the statistics by average user time, descending.",
+            show_default=True,
+        ),
+    ] = True,
     quiet: Annotated[
         bool,
         typer.Option(
@@ -217,8 +238,8 @@ def profile(  # noqa: PLR0913
         if summary is not None:
             stats.insert(summary)
     if stats.count > 1:
-        stats_file = profiler.output_file.with_name("function_stats.json")
-        stats.save_as_json(stats_file, stats.stats())
+        stats_file = profiler.output_file.with_name(output_file).with_suffix(".json")
+        stats.save_as_json(stats_file, stats.stats(), sort=sort, save_metadata=metadata)
 
 
 # Register the profile function as a command in this CLI
