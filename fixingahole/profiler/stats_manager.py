@@ -57,20 +57,20 @@ def _get_used_dirty_files(repo: git.Repo, data: dict) -> list[str]:
 
 
 def _mean(values: list[float], count: int | None) -> float:
-    """Sample standard deviation given a list of values."""
+    """Compute the mean (average) given a list of values."""
     count: int = count if count is not None else len(values)
     return sum(value for value in values) / count
 
 
 def _std(values: list[float], count: int | None, mean: float | None = None) -> float:
-    """Sample standard deviation given a list of values."""
+    """Compute the sample standard deviation given a list of values."""
     count: int = count if count is not None else len(values)
     mean: float = mean if mean is not None else _mean(values, count)
     return math.sqrt(sum(pow(value - mean, 2) for value in values) / (count - 1)) if count > 1 else 0.0
 
 
 def _mean_and_std(values: list[float], count: int | None, mean: float | None = None) -> dict[str, float]:
-    """Sample standard deviation given a list of values."""
+    """Compute the mean and sample standard deviation given a list of values."""
     count: int = count if count is not None else len(values)
     mean: float = mean if mean is not None else _mean(values, count)
     std: float = math.sqrt(sum(pow(value - mean, 2) for value in values) / (count - 1)) if count > 1 else 0.0
