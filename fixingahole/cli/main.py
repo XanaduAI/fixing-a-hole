@@ -23,7 +23,7 @@ import typer
 from colours import Colour
 from typer import Exit
 
-from fixingahole import DURATION, IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR, LogLevel, Profiler, ProfileSummary, StatisticsManager
+from fixingahole import Config, LogLevel, Profiler, ProfileSummary, StatisticsManager
 from fixingahole.config import DurationOption
 from fixingahole.profiler.utils import find_path
 
@@ -41,18 +41,10 @@ def profile(  # noqa: PLR0913
         typer.Argument(
             help="Name of the script or notebook to profile.",
             show_default=False,
+            rich_help_panel="Profiling",
         ),
     ],
     python_script_args: typer.Context,
-    output_dir: Annotated[
-        Path | None,
-        typer.Option(
-            "--output-directory",
-            "-o",
-            help="Directory to save the results to.",
-            show_default=OUTPUT_DIR,
-        ),
-    ] = None,
     cpu_only: Annotated[
         bool,
         typer.Option(
@@ -60,6 +52,7 @@ def profile(  # noqa: PLR0913
             "-c/-m",
             help="Profile only the CPU runtime or both CPU and memory usage of the script or notebook.",
             show_default=True,
+            rich_help_panel="Profiling",
         ),
     ] = True,
     detailed: Annotated[
@@ -69,6 +62,7 @@ def profile(  # noqa: PLR0913
             "-d",
             help="Also profile how external libraries and modules are used.",
             show_default=True,
+            rich_help_panel="Profiling",
         ),
     ] = False,
     precision: Annotated[
@@ -80,6 +74,7 @@ def profile(  # noqa: PLR0913
             show_default="0",
             min=-10,
             max=10,
+            rich_help_panel="Profiling",
         ),
     ] = None,
     trace: Annotated[
@@ -89,6 +84,7 @@ def profile(  # noqa: PLR0913
             "-t/-nt",
             help="Capture the stack traces for the most expensive function calls.",
             show_default=True,
+            rich_help_panel="Profiling",
         ),
     ] = True,
     loglevel: Annotated[
@@ -99,6 +95,7 @@ def profile(  # noqa: PLR0913
             help="Log level to capture while profiling.",
             case_sensitive=False,
             show_default=True,
+            rich_help_panel="Preprocessing",
         ),
     ] = LogLevel.WARNING,
     noplots: Annotated[
@@ -108,6 +105,7 @@ def profile(  # noqa: PLR0913
             "-np",
             help="Prevent plotting functions from running while profiling a script.",
             show_default=True,
+            rich_help_panel="Preprocessing",
         ),
     ] = False,
     live: Annotated[
@@ -116,6 +114,7 @@ def profile(  # noqa: PLR0913
             help="Update the profile output every so many seconds as the profiling happens.",
             show_default=True,
             min=1,
+            rich_help_panel="Profiling",
         ),
     ] = float("inf"),
     ignore: Annotated[
@@ -125,6 +124,17 @@ def profile(  # noqa: PLR0913
             "-i",
             help="Specific folders to ignore while profiling. Paths are resolved relative to the current directory.",
             show_default=True,
+            rich_help_panel="Profiling",
+        ),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-directory",
+            "-o",
+            help="Directory to save the results to.",
+            show_default=str(Config.output() / "<script name>" / "<time stamp>"),
+            rich_help_panel="Profiling",
         ),
     ] = None,
     duration: Annotated[
@@ -140,6 +150,7 @@ def profile(  # noqa: PLR0913
             "--in-place/--not-in-place",
             help="Profile the script where it is instead from the output directory.",
             show_default=True,
+            rich_help_panel="Preprocessing",
         ),
     ] = False,
     repeat: Annotated[
@@ -150,6 +161,7 @@ def profile(  # noqa: PLR0913
             help="The number of times to profile the script to average the results.",
             show_default=True,
             min=1,
+            rich_help_panel="Benchmarking",
         ),
     ] = 1,
     output_file: Annotated[
@@ -157,6 +169,7 @@ def profile(  # noqa: PLR0913
         typer.Option(
             help="Filename to save the statistical results to within the folder.",
             show_default=True,
+            rich_help_panel="Benchmarking",
         ),
     ] = "function_stats.json",
     metadata: Annotated[
@@ -164,6 +177,7 @@ def profile(  # noqa: PLR0913
         typer.Option(
             help="Save the git repo metadata with the statistics (repo name, branch name, commit hash, UTC date and time).",
             show_default=True,
+            rich_help_panel="Benchmarking",
         ),
     ] = True,
     sort: Annotated[
@@ -171,6 +185,7 @@ def profile(  # noqa: PLR0913
         typer.Option(
             help="Sort the statistics by average user time, descending.",
             show_default=True,
+            rich_help_panel="Benchmarking",
         ),
     ] = True,
     quiet: Annotated[
@@ -179,13 +194,17 @@ def profile(  # noqa: PLR0913
             "--quiet/",
             "-q/",
             help="Prevent any printed statements (summary outputs) while profiling.",
+            rich_help_panel="Preprocessing",
         ),
     ] = False,
 ) -> None:
-    """Profile a python script or Jupyter notebook."""
+    """Profile a Python script or Jupyter notebook.
+
+    Any options or arguments needed by the script can be added after these options.
+    """
     # Set some configuration.
     Colour.set_log_level("error" if quiet else "info")
-    DURATION.update(duration.value)
+    Config.update_duration(duration.value)
     # Prevent later errors by catching these ones.
     if in_place and noplots:
         Colour.error("Error: cannot both profile in-place AND suppress plotting.")
@@ -196,11 +215,11 @@ def profile(  # noqa: PLR0913
 
     # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
-    full_path = (ROOT_DIR / filename).resolve()
+    full_path = (Config.root() / filename).resolve()
     if full_path.exists() and not full_path.is_dir():
         python_file = full_path
     else:
-        python_file: Path = find_path(filename, ROOT_DIR, exclude=IGNORE_DIRS)
+        python_file: Path = find_path(filename, Config.root(), exclude=Config.ignore())
         if python_file.is_dir():
             Colour.error("Error: cannot profile a directory.")
             raise Exit(code=1)
@@ -284,7 +303,7 @@ def summarize(
     ] = 0.1,
 ) -> str:
     """Summarize a Scalene JSON profile."""
-    file = find_path(filename, in_dir=ROOT_DIR)
+    file = find_path(filename, in_dir=Config.root())
     summary = ProfileSummary(file).summary(top_n, threshold)
     Colour.info(summary)
     return summary
@@ -329,7 +348,7 @@ def stats(
 ) -> StatisticsManager:
     """Generate statistics for a group of Scalene JSON profiles."""
     stats = StatisticsManager()
-    directory, files = find_path(folder, in_dir=ROOT_DIR, return_suffix=".json", subfolder_only=True)
+    directory, files = find_path(folder, in_dir=Config.root(), return_suffix=".json", subfolder_only=True)
     for file in files:
         with suppress(KeyError):
             summary = ProfileSummary(file)

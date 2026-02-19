@@ -21,7 +21,7 @@ from unittest.mock import patch
 import pytest
 from typer import Exit
 
-from fixingahole import ROOT_DIR, LogLevel
+from fixingahole import Config, LogLevel
 from fixingahole.profiler import Profiler
 from fixingahole.profiler.utils import find_path
 from tests.conftest import basic_name
@@ -278,7 +278,7 @@ class TestProfilerProperties:
         # Should contain the system python directory exclude flag
         if sys.executable:
             exclude_dir = Path(sys.executable).resolve().parents[1]
-            if not exclude_dir.is_relative_to(ROOT_DIR):
+            if not exclude_dir.is_relative_to(Config.root()):
                 assert "--profile-exclude" in excluded
                 assert str(exclude_dir) in excluded
             else:

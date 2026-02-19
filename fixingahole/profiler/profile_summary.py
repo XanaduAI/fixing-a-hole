@@ -21,7 +21,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fixingahole import DURATION, ROOT_DIR
+from fixingahole import Config
 from fixingahole.profiler.scalene_json_parser import ProfileData, ProfileDetails
 from fixingahole.profiler.utils import format_time, installed_modules
 
@@ -78,7 +78,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
         lineno = func.line_number
         runtime_info = (
             f"{func.total_percentage:>5.2f}%"
-            if DURATION.is_relative()
+            if Config.is_duration_relative()
             else format_time(func.total_percentage * profile_data.walltime / 100, profile_data.walltime)
         )
         message.append(
@@ -119,7 +119,7 @@ def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]], threshold: 
     modules = installed_modules()
     tree: dict[str, Any] = {}
     files: list[str] = [file for file in by_file_dict if file[0] != "<" and file[-1] != ">"]
-    common_root = Path(os.path.commonpath(files if len(files) > 1 else [*files, ROOT_DIR]))
+    common_root = Path(os.path.commonpath(files if len(files) > 1 else [*files, Config.root()]))
     depth = 0
     for file_path in files:
         file_functions = by_file_dict[file_path]
@@ -190,7 +190,7 @@ def render_tree(
             total_runtime = sum(f.total_percentage for f in functions)
             dur = (
                 f"{total_runtime:.2f}% total"
-                if DURATION.is_relative()
+                if Config.is_duration_relative()
                 else format_time(total_runtime * walltime / 100, walltime)
             )
             file_display = f"{name} ({len(functions)} func, {dur})"
@@ -207,7 +207,7 @@ def render_tree(
                 peak_mem = f" ({func.peak_memory_info})" if func.has_memory_info else ""
                 runtime_info = (
                     f"{func.total_percentage:.>5.2f}%"
-                    if DURATION.is_relative()
+                    if Config.is_duration_relative()
                     else format_time(func.total_percentage * walltime / 100, walltime)
                 ) + f"{peak_mem}"
                 lines.append(f"{func_prefix}{func.name:.<{max(max_func_name_length - len(func_prefix), 2)}}{runtime_info}")
@@ -225,7 +225,7 @@ def render_tree(
                 return lines
             dur = (
                 f"{total_runtime:.2f}% total"
-                if DURATION.is_relative()
+                if Config.is_duration_relative()
                 else format_time(total_runtime * walltime / 100, walltime)
             )
             dir_display = f"{name} ({function_count} func, {dur})"

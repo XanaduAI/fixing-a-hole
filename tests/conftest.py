@@ -13,20 +13,32 @@
 # limitations under the License.
 """Helper code for running tests."""
 
-import contextlib
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 from click.testing import Result
 
-from fixingahole.config import Duration
+from fixingahole.config import Config, DurationOption, Settings
 
 
-@pytest.fixture(autouse=True)
-def set_duration() -> None:
-    """Make sure that the Duration singleton is always reset."""
-    Duration("relative")
-    Duration.update("relative")
+@pytest.fixture(name="root_dir", autouse=True)
+def fixture_root_dir(tmp_path: Path) -> Generator[Path, None, None]:
+    """Set up a temporary repo root directory for each test and restore settings afterwards."""
+    mock_root_dir = tmp_path
+    mock_output_dir = mock_root_dir / "performance"
+    mock_output_dir.mkdir(parents=True, exist_ok=True)
+    prev_settings = Config.settings()
+    Config.configure(
+        Settings(
+            root=mock_root_dir,
+            output=mock_output_dir,
+            ignore=[mock_output_dir],
+            duration=DurationOption.relative,
+        )
+    )
+    yield mock_root_dir
+    Config.configure(prev_settings)
 
 
 def basic_name(suffix: str = "") -> str:
@@ -38,23 +50,6 @@ def basic_name(suffix: str = "") -> str:
 def non_local_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Create a temporary directory outside of the repo root_dir for tests."""
     return tmp_path_factory.mktemp("not_within_root_dir")
-
-
-@pytest.fixture(name="root_dir", autouse=True)
-def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Create a temporary repo root directory for tests."""
-    mock_root_dir = tmp_path
-    mock_output_dir = mock_root_dir / "performance"
-    mock_output_dir.mkdir(parents=True, exist_ok=True)
-    package_root = Path(__file__).parents[1] / "fixingahole"
-    for path in package_root.rglob("*.py"):
-        part = ".".join(path.relative_to(package_root).parts)[:-3]
-        for folder, mock_dir in [("ROOT_DIR", mock_root_dir), ("OUTPUT_DIR", mock_output_dir)]:
-            with contextlib.suppress(AttributeError):
-                monkeypatch.setattr(f"fixingahole.{part}.{folder}", mock_dir)
-    monkeypatch.setattr("fixingahole.ROOT_DIR", mock_root_dir)
-    monkeypatch.setattr("fixingahole.OUTPUT_DIR", mock_output_dir)
-    return mock_root_dir
 
 
 @pytest.fixture

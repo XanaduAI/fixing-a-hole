@@ -21,7 +21,6 @@ import pytest
 from colours import Colour
 from typer.testing import CliRunner
 
-from fixingahole import ROOT_DIR
 from fixingahole.cli import main as cli
 from tests.conftest import print_error
 
@@ -134,7 +133,7 @@ class TestProfilerRunProfiler:
 
     def test_version_call(self):
         """Test how the CLI invokes the --version flag."""
-        cmd: list[str] = ["python", str(ROOT_DIR / "fixingahole" / "cli" / "main.py"), "--version"]
+        cmd: list[str] = ["python", str(Path(__file__).parents[2] / "fixingahole" / "cli" / "main.py"), "--version"]
         result = subprocess.run(cmd, check=False, text=True, capture_output=True)
         assert result.returncode == 0, result.stdout
 

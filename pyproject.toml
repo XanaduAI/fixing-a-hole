@@ -115,10 +115,6 @@ mypy-init-return = true
 "tests/test_init/*" = ["SLF001"]
 "tests/**/test_*.py" = ["ANN201", "S101", "PLR6301"]
 
-[tool.fixingahole]
-root = "." # default to root directory as the current working directory
-output = "performance/"
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

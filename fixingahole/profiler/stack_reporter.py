@@ -24,7 +24,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from fixingahole import ROOT_DIR
+from fixingahole import Config
 from fixingahole.profiler.scalene_json_parser import ProfileData
 
 
@@ -115,7 +115,7 @@ class StackReporter:
                 # Rearrange to: 'relative_filepath:line; function'
                 file_path, func_name, line_no = re.split(r"[ :]", frame)
                 try:
-                    rel_path = str(Path(file_path).resolve().relative_to(ROOT_DIR))
+                    rel_path = str(Path(file_path).resolve().relative_to(Config.root()))
                 except ValueError:
                     rel_path = str(Path(file_path).resolve())
                 norm_stack.append(f"{rel_path}:{line_no} {func_name}")

@@ -16,6 +16,7 @@
 import datetime
 import importlib.metadata
 from collections.abc import Callable
+from contextlib import suppress
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
@@ -29,7 +30,7 @@ from typer import Exit
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
-from fixingahole import ROOT_DIR
+from fixingahole import Config
 
 if TYPE_CHECKING:
     from watchdog.observers.api import BaseObserver
@@ -148,7 +149,8 @@ def find_path(
     if (abs_path := Path(pattern)).is_absolute() and abs_path.exists() and not abs_path.is_dir():
         return Path(pattern).absolute()
 
-    in_dir = (ROOT_DIR / in_dir).resolve()
+    if not (in_dir := Path(in_dir)).is_absolute():
+        in_dir = (Config.root() / in_dir).resolve()
     exclude = exclude if exclude is not None else []
 
     # Process exclude patterns
@@ -159,7 +161,7 @@ def find_path(
         else:
             exclude_resolved.append(x)
     exclude_resolved += [".venv", ".git"]
-    exclude_resolved = [(ROOT_DIR / folder).resolve() for folder in exclude_resolved]
+    exclude_resolved = [(Config.root() / folder).resolve() for folder in exclude_resolved]
     options = [
         path
         for path in in_dir.rglob("*")
@@ -198,7 +200,10 @@ def find_path(
                 Colour.purple(in_dir.name),
             )
             for path in options:
-                Colour.error(Colour.purple(path.relative_to(ROOT_DIR)))
+                p = str(path)
+                with suppress(ValueError):
+                    p = str(path.relative_to(Config.root()))
+                Colour.error(Colour.purple(p))
             raise Exit(code=1)
 
 

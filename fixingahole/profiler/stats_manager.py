@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import git
 
-from fixingahole import ROOT_DIR
+from fixingahole import Config
 from fixingahole.profiler.utils import date
 
 if TYPE_CHECKING:
@@ -89,8 +89,8 @@ class StatisticsManager:
         self.count += 1
         for f in summary.data.functions:
             try:
-                key = f"{Path(f.file_path).relative_to(ROOT_DIR)}:{f.name}"
-            except ValueError:  # f.file_path is not in the subpath of ROOT_DIR
+                key = f"{Path(f.file_path).relative_to(Config.root())}:{f.name}"
+            except ValueError:  # f.file_path is not in the subpath of Config.root()
                 key = f"{Path(f.file_path)}:{f.name}"
             self.function_data[key].append(f)
 
@@ -149,7 +149,7 @@ class StatisticsManager:
             }
             for info, method in metadata.items():
                 try:
-                    repo = git.Repo(ROOT_DIR, search_parent_directories=True)
+                    repo = git.Repo(Config.root(), search_parent_directories=True)
                     if value := method(repo):
                         save_data["metadata"][info] = value
                 except (TypeError, git.InvalidGitRepositoryError, git.exc.NoSuchPathError):

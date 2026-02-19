@@ -30,19 +30,64 @@ if you're not using [`uv`](https://docs.astral.sh/uv/).
 
 ### Configuring `fixing-a-hole`
 
-If you're installing `fixing-a-hole` into a repo, you can configure some defaults in your
-`pyproject.toml`. There are four keys: `root`, `output`, `ignore`, and `duration`.
-1. The `root` directory determines how to refer to your codebase and is set as the current working
-directory (meaning wherever `fixingahole profile` is invoked from). Setting this to the root of
-your repo will provide the best results for profiling code within your repo.
-1. The profiling results are saved in the specified `output` directory. The default is set as
-`performance/` relative to the `root` directory.
-1. Additional directories to `ignore` can be also specified. By default, the `.git`, `.venv`, and
-`output` (`performance/`) directories, relative to `root` are not searched when looking for scripts
-to profile and when providing a profiling breakdown and summary (also see the `--ignore` flag to
-temporarily ignore folders relative to the current directory when profiling).
+`fixing-a-hole` works best when configured for profiling a specific code base.
+The main settings are `root`, `output`, `ignore`, and `duration`.
+- `root` works best when configured to be the path to root of your git repo or code base.
+However, there may be circumstances where you want `root` to be your current directory.
+- `output` is always defined _relative_ to `root` and is where the profiling results are stored.
+- `ignore` is a list of folders to ignore when profiling (the `output` is always ignored). Paths
+are resolved relative to the current directory unless they're given as absolute paths. Directories
+are also only ignored if they exist after being resolved. Ignored folders are also not searched
+when looking for scripts to profile.
+- `duration` is _either_ "relative" or "absolute" and changes how the resulting times are displayed
+in summaries. Defaults to "relative".
 
-The following is an example configuration:
+`fixing-a-hole` resolves global settings with **per-key** precedence:
+1. Explicit `Settings` passed to `Config.configure` (overrides everything).
+1. Environment variables with `FIXINGAHOLE_` prefix and upper case keys, i.e. `FIXINGAHOLE_ROOT`, etc.
+1. `[tool.fixingahole]` in `pyproject.toml`.
+1. Built-in defaults.
+
+> [!IMPORTANT]
+> When settings are resolved they **fail loudly**. When any configuration source is present, invalid
+> values raise an error immediately and are **never** silently replaced by defaults. Only when the
+> library finds no configuration at all does it fall back to built-in defaults.
+
+You can pass explicit settings directly from Python. Explicit settings have the highest precedence.
+
+```python
+from pathlib import Path
+from fixingahole.config import Config, DurationOption, Settings
+
+Config.configure(
+    Settings(
+        root=Path("/path/to/repo"),
+        output="performance",
+        ignore=[Path("/path/to/repo/scratch")],
+        duration="absolute",
+    )
+)
+```
+
+`Config.configure()` can also be called without arguments at any point to re-read the current
+environment variables and `pyproject.toml`. This can be useful when configuration changes after
+the initial import.
+
+For environment configuration, `FIXINGAHOLE_IGNORE` accepts a comma-separated list, for example:
+`FIXINGAHOLE_IGNORE="build, tmp, .cache"`.
+You can also reconfigure from environment variables at runtime:
+
+```python
+import os
+from fixingahole.config import Config
+
+os.environ["FIXINGAHOLE_IGNORE"] = "scratch,tmp"
+os.environ["FIXINGAHOLE_DURATION"] = "relative"
+
+Config.configure()
+```
+
+The following is an example configuration for a `pyproject.toml`:
 ```text
 [tool.fixingahole]
 root = "/path/to/my/repo/"
@@ -162,14 +207,16 @@ alongside the profile results and summary. This also allows `fixing-a-hole` to d
 generation without modifying your code. The downside of this is that the profiling results may
 reference the duplicated script as a module separate from your repo. If you do _not_ need to also
 suppress plot generation or adjust the log-level capture, then using the `--in-place` flag will
-provide a more expected and more consistent profiling result.
+provide a more expected and more consistent profiling result. However, `.ipynb` files _**cannot**_
+be profiled "in place".
 
 ```bash
 --repeat
 ```
 If there is a need to benchmark a script by profiling it repeatedly and then compute the average
 and standard deviation of the results, then using the `--repeat` flag will do this for you. See
-also the [benchmarking](#benchmarking) section below.
+also the [benchmarking](#benchmarking) section below. Additional options associated with this flag
+can be seen with either `fixingahole profile --help` or `fixingahole stats --help`.
 
 ## Results
 

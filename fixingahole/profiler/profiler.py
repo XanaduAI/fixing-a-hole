@@ -28,7 +28,7 @@ from colours import Colour
 from sympy import nextprime
 from typer import Exit
 
-from fixingahole import IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR
+from fixingahole import Config
 from fixingahole.profiler.utils import FileWatcher, LogLevel, Spinner, date, memory_with_units
 
 if TYPE_CHECKING:
@@ -87,7 +87,7 @@ class Profiler:
         if path.is_file():
             self.python_file = path
             self.filestem = self.python_file.stem.replace(" ", "_")
-            self.profile_root: Path = OUTPUT_DIR / self.filestem / date() if output_dir is None else output_dir
+            self.profile_root: Path = Config.output() / self.filestem / date() if output_dir is None else output_dir
             self.profile_root.mkdir(parents=True, exist_ok=True)
             self.profile_file: Path = self.python_file if in_place else self.profile_root / f"{self.filestem}.py"
             self.output_file = self._output_name
@@ -124,7 +124,7 @@ class Profiler:
             if platform.system() == "Windows"
             else Path(sys.executable).resolve().parents[1]
         ]
-        exclude_dir.extend([folder for folder in IGNORE_DIRS if folder != OUTPUT_DIR])
+        exclude_dir.extend([folder for folder in Config.ignore() if folder != Config.output()])
         exclude_dir.extend(self.ignored_folders)  # allow users to ignore the OUTPUT_DIR if they want to.
         return f"--profile-exclude {','.join(map(str, exclude_dir))}"
 
@@ -163,8 +163,8 @@ class Profiler:
     def path_to_summary(self) -> Path:
         """A relative path to the summary file (as a .txt file)."""
         with contextlib.suppress(ValueError):
-            return self.output_summary.relative_to(ROOT_DIR)
-        # output_summary is not in the subpath of ROOT_DIR
+            return self.output_summary.relative_to(Config.root())
+        # output_summary is not in the subpath of Config.root()
         #  OR one path is relative and the other is absolute
         return self.output_summary
 
@@ -172,8 +172,8 @@ class Profiler:
     def output_path(self) -> Path:
         """A relative path (from repo root) to the Scalene output (as a .txt file)."""
         with contextlib.suppress(ValueError):
-            return self.output_file.relative_to(ROOT_DIR)
-        # output_file is not in the subpath of ROOT_DIR
+            return self.output_file.relative_to(Config.root())
+        # output_file is not in the subpath of Config.root()
         #  OR one path is relative and the other is absolute
         return self.output_file
 
@@ -181,8 +181,8 @@ class Profiler:
     def profile_path(self) -> Path:
         """A relative path script being profiled."""
         with contextlib.suppress(ValueError):
-            return self.profile_file.relative_to(ROOT_DIR)
-        # profile_file is not in the subpath of ROOT_DIR
+            return self.profile_file.relative_to(Config.root())
+        # profile_file is not in the subpath of Config.root()
         #  OR one path is relative and the other is absolute
         return self.profile_file
 
@@ -195,8 +195,8 @@ class Profiler:
     def log_path(self) -> Path:
         """A relative path (from the repo root) of the logs caught during profiling."""
         with contextlib.suppress(ValueError):
-            return self.log_file.relative_to(ROOT_DIR)
-        # log_file is not in the subpath of ROOT_DIR
+            return self.log_file.relative_to(Config.root())
+        # log_file is not in the subpath of Config.root()
         #  OR one path is relative and the other is absolute
         return self.log_file
 
@@ -329,7 +329,7 @@ class Profiler:
             "--profile-all" if self.detailed else "",
             self.excluded_folders,
             f"--memory {sampling_detail}" if not self.cpu_only else "--cpu-only",
-            f"--program-path {ROOT_DIR}",
+            f"--program-path {Config.root()}",
             f"--profile-interval {self.live_update}" if 0 < self.live_update < float("inf") else "",
             f"--outfile {self.output_json}",
         ]
