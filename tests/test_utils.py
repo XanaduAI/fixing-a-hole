@@ -18,10 +18,10 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-from typer import Exit
 
 from fixingahole.profiler.utils import (
     FileWatcher,
+    FindPathException,
     LogLevel,
     Spinner,
     date,
@@ -113,7 +113,7 @@ class TestFindPath:
         test_dir.mkdir()
         (test_dir / "wrong_file.txt").write_text("content")
 
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(FindPathException) as exc_info:
             find_path("test_folder", in_dir="", return_suffix=".py", subfolder_only=True)
         assert exc_info.value.exit_code == 1
 

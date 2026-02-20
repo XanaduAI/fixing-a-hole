@@ -18,10 +18,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from typer import Exit
 
 from fixingahole import LogLevel
 from fixingahole.profiler import Profiler
+from fixingahole.profiler.profiler import ProfilerException, SuccessfulExit
 
 
 class TestProfilerRunProfiler:
@@ -35,21 +35,21 @@ class TestProfilerRunProfiler:
             loglevel=LogLevel.INFO,
             live_update=1,
         )
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler()
         assert exc_info.value.exit_code == 0
 
     def test_run_profiler_cpu_only(self, mock_file: Path):
         """Test successful profiler run using only CPU."""
         profiler = Profiler(path=mock_file, cpu_only=True)
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler()
         assert exc_info.value.exit_code == 0
 
     def test_run_profiler_detailed_mode(self, mock_file: Path):
         """Test profiler run with detailed profiling enabled."""
         profiler = Profiler(path=mock_file, precision=5, detailed=True)
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler()
 
         assert exc_info.value.exit_code == 0
@@ -66,7 +66,7 @@ class TestProfilerRunProfiler:
 
         profiler = Profiler(path=mock_file, precision=5)
 
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ProfilerException) as exc_info:
             profiler.run_profiler()
 
         assert exc_info.value.exit_code == 1
@@ -80,7 +80,7 @@ class TestProfilerRunProfiler:
 
         profiler = Profiler(path=mock_file, precision=5)
 
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ProfilerException) as exc_info:
             profiler.run_profiler()
 
         assert exc_info.value.exit_code == 1
@@ -97,7 +97,7 @@ class TestProfilerRunProfiler:
             loglevel=LogLevel.INFO,
             in_place=False,
         )
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler()
 
         assert exc_info.value.exit_code == 0
@@ -120,7 +120,7 @@ class TestProfilerRunProfiler:
             loglevel=LogLevel.INFO,
             in_place=False,
         )
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler()
 
         assert exc_info.value.exit_code == 0

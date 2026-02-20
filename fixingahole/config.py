@@ -63,48 +63,56 @@ def _detect_virtualenv() -> str:
     return ""
 
 
-def _find_pyproject() -> Path | None:
-    """Search for ``pyproject.toml`` starting from ``cwd``, walking up the tree.
+def _load_pyproject_config() -> tuple[dict[str, Any], Path]:
+    """Search for ``pyproject.toml`` containing ``[tool.fixingahole]``, walking up from ``cwd``.
 
-    Falls back to the parent directory of the active virtual environment when the
-    normal walk reaches the filesystem root without a match.
+    Each ``pyproject.toml`` encountered is checked for a ``[tool.fixingahole]`` table;
+    files that do not contain it are skipped and the walk continues upward.  After
+    reaching the filesystem root, the parent directory of the active virtual
+    environment is tried as a final fallback.
+
+    Returns an empty config dict and ``cwd`` when no matching ``pyproject.toml`` is
+    found anywhere in the search.
+
+    Raises:
+        ConfigParseError: When a discovered ``pyproject.toml`` cannot be parsed.
+
     """
+
+    def _try_load(path: Path) -> tuple[dict[str, Any], Path] | None:
+        """Return ``(config, base_dir)`` if *path* contains ``[tool.fixingahole]``, else ``None``."""
+        try:
+            with path.open("rb") as f:
+                data = tomllib.load(f)
+        except tomllib.TOMLDecodeError as exc:
+            msg = f"{exc} while reading {path}"
+            raise ConfigParseError(msg) from exc
+        config = data.get("tool", {}).get("fixingahole", {})
+        return (config, path.parent) if config else None
+
+    visited: set[Path] = set()
     current = Path.cwd()
     while True:
         candidate = current / "pyproject.toml"
         if candidate.exists():
-            return candidate
+            visited.add(candidate)
+            if result := _try_load(candidate):
+                return result
+        # Stop at the git root — don't walk above the repository boundary.
+        if (current / ".git").exists():
+            break
         parent = current.parent
         if parent == current:
             break
         current = parent
+
     # Fallback: parent directory of the virtual environment
     if venv_path := _detect_virtualenv():
         candidate = Path(venv_path).parent / "pyproject.toml"
-        if candidate.exists():
-            return candidate
-    return None
+        if candidate.exists() and candidate not in visited and (result := _try_load(candidate)):
+            return result
 
-
-def _load_pyproject_config() -> tuple[dict[str, Any], Path]:
-    """Load ``[tool.fixingahole]`` from ``pyproject.toml`` and return ``(config, base_dir)``.
-
-    Returns an empty config dict and ``cwd`` when no ``pyproject.toml`` is found.
-
-    Raises:
-        ConfigParseError: When the discovered ``pyproject.toml`` cannot be parsed.
-
-    """
-    pyproject_path = _find_pyproject()
-    if pyproject_path is None:
-        return {}, Path.cwd()
-    try:
-        with pyproject_path.open("rb") as f:
-            data = tomllib.load(f)
-    except tomllib.TOMLDecodeError as exc:
-        msg = f"{exc} while reading {pyproject_path}"
-        raise ConfigParseError(msg) from exc
-    return data.get("tool", {}).get("fixingahole", {}), pyproject_path.parent
+    return {}, Path.cwd()
 
 
 def _resolve_root_dir(config: dict[str, Any], base_dir: Path) -> Path:

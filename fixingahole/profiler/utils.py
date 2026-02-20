@@ -103,6 +103,14 @@ def memory_with_units(memory: float, unit: str = "MB", digits: int = 0) -> str:
     return f"{memory_bytes:.{digits}f} bytes"
 
 
+class FindPathException(Exit):
+    """Error to raise if find_path fails."""
+
+    def __init__(self, message: str = "") -> None:
+        self.message = message
+        super().__init__(code=1)
+
+
 @overload
 def find_path(
     pattern: str | Path,
@@ -137,7 +145,7 @@ def find_path(
 
     Args:
         pattern: Name or pattern to search for
-        in_dir: Directory to search within
+        in_dir: Directory to search within, resolve from Config.root() if not absolute.
         exclude: List of patterns to exclude from search
         return_suffix: If the pattern is a directory, returns a tuple of (dir_path, files_in_dir_with_suffix)
         subfolder_only: Searches only the immediate subdirectory for files in combination with `return_suffix`.
@@ -181,7 +189,8 @@ def find_path(
                         Colour.purple(result.name),
                         Colour.purple(return_suffix),
                     )
-                    raise Exit(code=1)
+                    msg = f"No files were found in {result.name} of type {return_suffix}"
+                    raise FindPathException(msg)
                 return result, paths
             return result
         case 0:
@@ -191,7 +200,8 @@ def find_path(
                 Colour.purple(in_dir.name),
                 Colour.green(pattern),
             )
-            raise Exit(code=1)
+            msg = f"No {file_or_folder} in {in_dir.name} with name: {pattern} were found."
+            raise FindPathException(msg)
         case _:
             Colour.error(
                 "Many %s with name: %s were found in %s. Please be more specific.",
@@ -202,9 +212,10 @@ def find_path(
             for path in options:
                 p = str(path)
                 with suppress(ValueError):
-                    p = str(path.relative_to(Config.root()))
-                Colour.error(Colour.purple(p))
-            raise Exit(code=1)
+                    p = str(path.relative_to(in_dir))
+                Colour.error(" %s", Colour.purple(p))
+            msg = f"Many {file_or_folder} with name: {pattern} were found in {in_dir.name}."
+            raise FindPathException(msg)
 
 
 def installed_modules() -> set[str]:

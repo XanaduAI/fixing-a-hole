@@ -31,17 +31,25 @@ class TestConfig:
         """Test detecting the virtual env."""
         assert config._detect_virtualenv()
 
-    def test_find_pyproject(self):
-        """Test finding the pyproject.toml."""
-        pyproject_path = Path(__file__).parents[2] / "pyproject.toml"
-        assert config._find_pyproject() == pyproject_path
+    def test_load_pyproject_config_finds_matching_pyproject(self, tmp_path: Path):
+        """Test _load_pyproject_config returns config when pyproject.toml contains [tool.fixingahole]."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text('[tool.fixingahole]\nroot = "src"\n')
+        with patch("fixingahole.config.Path.cwd", return_value=tmp_path):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {"root": "src"}
+        assert base == tmp_path
 
-    def test_find_pyproject_outside_of_repo(self, tmp_path: Path):
-        """Test finding the pyproject.toml when cwd is outside the repo."""
-        pyproject_path = Path(__file__).parents[2] / "pyproject.toml"
-        with patch("fixingahole.config.Path.cwd") as cwd:
-            cwd.side_effect = [tmp_path]
-            assert config._find_pyproject() == pyproject_path
+    def test_load_pyproject_config_skips_pyproject_without_fixingahole_section(self, tmp_path: Path):
+        """Test that pyproject.toml files lacking [tool.fixingahole] are skipped and the walk continues."""
+        child = tmp_path / "child"
+        child.mkdir()
+        (child / "pyproject.toml").write_text("[tool.other]\nfoo = 1\n")
+        (tmp_path / "pyproject.toml").write_text('[tool.fixingahole]\nroot = "src"\n')
+        with patch("fixingahole.config.Path.cwd", return_value=child):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {"root": "src"}
+        assert base == tmp_path
 
     def test_resolve_root_dir_defaults_to_cwd(self):
         """Test setting the root directory as the current working directory."""
@@ -60,49 +68,71 @@ class TestConfig:
         ):
             assert config._detect_virtualenv() == ""  # noqa: PLC1901
 
-    def test_find_pyproject_at_filesystem_root(self):
-        """Test pyproject lookup when cwd is already the filesystem root."""
+    def test_load_pyproject_config_stops_walk_at_git_root(self, tmp_path: Path):
+        """Test that the walk stops at a .git boundary and does not look further up the tree."""
+        git_root = tmp_path / "repo"
+        git_root.mkdir()
+        (git_root / ".git").mkdir()
+        # Matching pyproject.toml sits *above* the git root — must not be found.
+        (tmp_path / "pyproject.toml").write_text('[tool.fixingahole]\nroot = "src"\n')
         with (
-            patch("fixingahole.config.Path.cwd", return_value=Path("/")),
-            patch("fixingahole.config.Path.exists", return_value=False),
+            patch("fixingahole.config.Path.cwd", return_value=git_root),
             patch("fixingahole.config._detect_virtualenv", return_value=""),
         ):
-            assert config._find_pyproject() is None
-
-    def test_find_pyproject_at_filesystem_root_when_present(self):
-        """Test pyproject lookup returns the root pyproject when present."""
-        with (
-            patch("fixingahole.config.Path.cwd", return_value=Path("/")),
-            patch("fixingahole.config.Path.exists", side_effect=[True]),
-        ):
-            assert config._find_pyproject() == Path("/pyproject.toml")
-
-    def test_find_pyproject_in_virtualenv_parent(self, tmp_path: Path):
-        """Test fallback pyproject lookup in the parent directory of virtualenv."""
-        venv_path = tmp_path / "some_venv"
-        expected = venv_path.parent / "pyproject.toml"
-        with (
-            patch("fixingahole.config.Path.cwd", return_value=Path("/")),
-            patch("fixingahole.config._detect_virtualenv", return_value=str(venv_path)),
-            patch("fixingahole.config.Path.exists", side_effect=[False, True]),
-        ):
-            assert config._find_pyproject() == expected
-
-    def test_load_pyproject_config_returns_empty_when_pyproject_missing(self):
-        """Test config loading returns an empty dict when no pyproject is found."""
-        with patch("fixingahole.config._find_pyproject", return_value=None):
             cfg, base = config._load_pyproject_config()
         assert cfg == {}
-        assert base == Path.cwd()
+        assert base == git_root
+
+    def test_load_pyproject_config_finds_config_at_git_root(self, tmp_path: Path):
+        """Test config is found when pyproject.toml at the git root contains [tool.fixingahole]."""
+        git_root = tmp_path / "repo"
+        git_root.mkdir()
+        (git_root / ".git").mkdir()
+        (git_root / "pyproject.toml").write_text('[tool.fixingahole]\nroot = "src"\n')
+        with patch("fixingahole.config.Path.cwd", return_value=git_root):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {"root": "src"}
+        assert base == git_root
+
+    def test_load_pyproject_config_falls_back_to_venv_parent(self, tmp_path: Path):
+        """Test fallback to venv parent directory when the walk stops at a git root without a match."""
+        git_root = tmp_path / "repo"
+        git_root.mkdir()
+        (git_root / ".git").mkdir()
+        child = git_root / "subdir"
+        child.mkdir()
+        venv_dir = tmp_path / "venv"
+        venv_dir.mkdir()
+        # Matching pyproject.toml lives in the venv's parent directory.
+        (tmp_path / "pyproject.toml").write_text('[tool.fixingahole]\nroot = "src"\n')
+        with (
+            patch("fixingahole.config.Path.cwd", return_value=child),
+            patch("fixingahole.config._detect_virtualenv", return_value=str(venv_dir)),
+        ):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {"root": "src"}
+        assert base == tmp_path
+
+    def test_load_pyproject_config_returns_empty_when_no_matching_pyproject(self, tmp_path: Path):
+        """Test config loading returns an empty dict when no pyproject with [tool.fixingahole] is found."""
+        git_root = tmp_path / "repo"
+        git_root.mkdir()
+        (git_root / ".git").mkdir()
+        with (
+            patch("fixingahole.config.Path.cwd", return_value=git_root),
+            patch("fixingahole.config._detect_virtualenv", return_value=""),
+        ):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {}
+        assert base == git_root
 
     def test_load_pyproject_config_raises_on_toml_decode_error(self, tmp_path: Path):
         """Test config loading raises a parse error when TOML parsing fails."""
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text("[tool.fixingahole]\n")
+        pyproject.write_text("[tool.fixingahole]\nroot = 1\n")
         decode_error = tomllib.TOMLDecodeError("bad toml", "", 0)
-
         with (
-            patch("fixingahole.config._find_pyproject", return_value=pyproject),
+            patch("fixingahole.config.Path.cwd", return_value=tmp_path),
             patch("fixingahole.config.tomllib.load", side_effect=decode_error),
             pytest.raises(ConfigParseError),
         ):

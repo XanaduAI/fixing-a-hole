@@ -43,6 +43,22 @@ class Platform(Enum):
     Windows = "windows"
 
 
+class ProfilerException(Exit):
+    """Error to raise if the Profiler fails."""
+
+    def __init__(self, message: str = "", *, code: int = 1) -> None:
+        self.message = message
+        super().__init__(code=code)
+
+
+class SuccessfulExit(Exit):
+    """Exit when the Profiler succeeds."""
+
+    def __init__(self, message: str = "Profiling successful.", *, code: int = 0) -> None:
+        self.message = message
+        super().__init__(code=code)
+
+
 class Profiler:
     """Class for managing profiling."""
 
@@ -51,16 +67,16 @@ class Profiler:
         *,
         path: Path,
         python_script_args: list[str] | None = None,
-        cpu_only: bool = False,
+        cpu_only: bool = True,
         precision: int | str | None = None,
         detailed: bool = False,
         loglevel: LogLevel = LogLevel.CRITICAL,
-        noplots: bool = False,
+        no_plots: bool = False,
         trace: bool = True,
         live_update: float = float("inf"),
         ignore_dirs: list[Path] | None = None,
         output_dir: Path | None = None,
-        in_place: bool = True,
+        in_place: bool = False,
         **_: dict,
     ) -> None:
         self.cpu_only = cpu_only
@@ -73,7 +89,7 @@ class Profiler:
         self.script_args: list[str] = python_script_args if python_script_args is not None else []
         self.detailed: bool = detailed
         self.loglevel: LogLevel = loglevel
-        self.noplots: bool = noplots
+        self.no_plots: bool = no_plots
         self._output_name: str = "profile_results"
         self._output_file: Path | None = None
         self._precision_limit: int = 10
@@ -94,11 +110,13 @@ class Profiler:
             if not in_place:
                 self.prepare_code_for_profiling()
         elif path.is_dir():
-            Colour.error("Error: cannot profile a directory.")
-            raise Exit(code=1)
+            msg = "Error: cannot profile a directory."
+            Colour.error(msg)
+            raise ProfilerException(msg)
         elif not path.exists():
-            Colour.error(f"Error: {Colour.purple(path)} does not exist.")
-            raise Exit(code=127)
+            Colour.error("Error: %s does not exist.", Colour.purple(path))
+            msg = f"Error: {path} does not exist."
+            raise ProfilerException(msg, code=127)
 
     def assert_platform_os(self) -> None:
         """Explain that memory profiling is not available on Windows."""
@@ -165,8 +183,8 @@ class Profiler:
     def path_to_summary(self) -> Path:
         """A relative path to the summary file (as a .txt file)."""
         with contextlib.suppress(ValueError):
-            return self.output_summary.relative_to(Config.root())
-        # output_summary is not in the subpath of Config.root()
+            return self.output_summary.relative_to(Path.cwd())
+        # output_summary is not in the subpath of the current directory
         #  OR one path is relative and the other is absolute
         return self.output_summary
 
@@ -174,8 +192,8 @@ class Profiler:
     def output_path(self) -> Path:
         """A relative path (from repo root) to the Scalene output (as a .txt file)."""
         with contextlib.suppress(ValueError):
-            return self.output_file.relative_to(Config.root())
-        # output_file is not in the subpath of Config.root()
+            return self.output_file.relative_to(Path.cwd())
+        # output_file is not in the subpath of the current directory
         #  OR one path is relative and the other is absolute
         return self.output_file
 
@@ -183,8 +201,8 @@ class Profiler:
     def profile_path(self) -> Path:
         """A relative path script being profiled."""
         with contextlib.suppress(ValueError):
-            return self.profile_file.relative_to(Config.root())
-        # profile_file is not in the subpath of Config.root()
+            return self.profile_file.relative_to(Path.cwd())
+        # profile_file is not in the subpath of the current directory
         #  OR one path is relative and the other is absolute
         return self.profile_file
 
@@ -197,8 +215,8 @@ class Profiler:
     def log_path(self) -> Path:
         """A relative path (from the repo root) of the logs caught during profiling."""
         with contextlib.suppress(ValueError):
-            return self.log_file.relative_to(Config.root())
-        # log_file is not in the subpath of Config.root()
+            return self.log_file.relative_to(Path.cwd())
+        # log_file is not in the subpath of the current directory
         #  OR one path is relative and the other is absolute
         return self.log_file
 
@@ -222,8 +240,9 @@ class Profiler:
                 executable.extend(cell["source"] + ["\n"])
         executable = "".join(executable)
         if not executable:
-            Colour.error("Error: notebook does not contain any executable code.")
-            raise Exit(code=1)
+            msg = "Error: notebook does not contain any executable code."
+            Colour.error(msg)
+            raise ProfilerException(msg)
         return executable
 
     def get_memory_precision(self) -> str:
@@ -258,7 +277,7 @@ class Profiler:
             "sys.stdout = log_file.open(mode='a')",
         ]
         profile_prefix += logger
-        if self.noplots:
+        if self.no_plots:
             profile_prefix += [
                 "from unittest.mock import patch, MagicMock",
                 "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())",
@@ -425,25 +444,27 @@ class Profiler:
         except subprocess.CalledProcessError as exc:
             # Catch any shell errors and display them.
             # This includes any fatal errors in Python during execution.
+            msg = "\nExecution Error:\n "
             for exc_output in [exc.stdout, exc.stderr]:
-                if exc_output is None:
+                if not exc_output:
                     continue
                 output = exc_output.decode() if isinstance(exc_output, bytes) else exc_output
-                if output.strip():
-                    Colour.error("\nExecution Error:\n %s", output.strip())
-            raise Exit(code=1) from exc
+                if err := output.strip():
+                    msg += err + "\n"
+            Colour.error(msg)
+            raise ProfilerException(msg) from exc
         except KeyboardInterrupt as ki:
             # Make sure to indicate in the profile_results.txt of the interruption.
-            message = "\n Profiling interrupted by user. \n"
+            msg = "\n Profiling interrupted by user. \n"
             with contextlib.suppress(KeyboardInterrupt):
                 self.json_to_tables(ncols)
-            self.output_file.write_text(message + self.output_file.read_text(), encoding="utf-8")
-            Colour.error(message)
-            raise Exit(code=1) from ki
+            self.output_file.write_text(msg + self.output_file.read_text(), encoding="utf-8")
+            Colour.error(msg)
+            raise ProfilerException(msg) from ki
         else:
             text, summary = self.summarize(preamble, capture, ncols)
             Colour.info(text)
             if raise_exit:
-                raise Exit(code=0)
+                raise SuccessfulExit
             self.run_count += 1
             return summary

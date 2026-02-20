@@ -16,11 +16,13 @@
 import json
 import math
 from collections import defaultdict
+from contextlib import suppress
 from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import git
+from colours import Colour
 
 from fixingahole import Config
 from fixingahole.profiler.utils import date
@@ -133,10 +135,21 @@ class StatisticsManager:
     @staticmethod
     def save_as_json(filename: Path, data: dict[str, Any], *, save_metadata: bool = True, sort: bool = True) -> dict[str, Any]:
         """Location to save the benchmarking statistics."""
-        filename = Path(filename) if isinstance(filename, str) else filename
+        if not data:
+            Colour.warning("Warning: data is empty. Nothing to save.")
+            return data
+
+        filename = (Path(filename) if isinstance(filename, str) else filename).resolve()
+        if filename.exists():
+            file = filename
+            with suppress(ValueError):
+                file = filename.relative_to(Path.cwd())
+            Colour.warning("Warning: %s already exists. Overwriting file.", Colour.purple(file))
+
         save_data: dict[str, Any] = (
             dict(sorted(data.items(), key=lambda item: item[1].get("user", {}).get("avg", 0), reverse=True)) if sort else {}
         )
+
         if save_metadata:
             save_data: dict[str, Any] = save_data if sort else deepcopy(data)
             save_data["metadata"]: dict[str, Any] = {}
@@ -154,6 +167,7 @@ class StatisticsManager:
                         save_data["metadata"][info] = value
                 except (TypeError, git.InvalidGitRepositoryError, git.exc.NoSuchPathError):
                     save_data["metadata"][info] = f"Failed to save git {info}."
+
         save_data = save_data or data
         filename.write_text(json.dumps(save_data, indent=1))
         return save_data

@@ -19,11 +19,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from typer import Exit
 
 from fixingahole import Config, LogLevel
 from fixingahole.profiler import Profiler
-from fixingahole.profiler.utils import find_path
+from fixingahole.profiler.profiler import ProfilerException
+from fixingahole.profiler.utils import FindPathException, find_path
 from tests.conftest import basic_name
 
 
@@ -45,14 +45,14 @@ class TestFindPath:
         path.mkdir(parents=True, exist_ok=True)
         for p in path.parents[:3]:
             (p / filename).touch()
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(FindPathException) as exc_info:
             find_path(filename)
         assert exc_info.value.exit_code == 1
 
     def test_no_files(self):
         """Test that no files are found and return with an error."""
         filename = "find_me.py"
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(FindPathException) as exc_info:
             find_path(filename)
         assert exc_info.value.exit_code == 1
 
@@ -71,14 +71,14 @@ class TestFindPath:
         path.mkdir(parents=True, exist_ok=True)
         for p in path.parents[:3]:
             (p / dirname).touch()
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(FindPathException) as exc_info:
             find_path(dirname)
         assert exc_info.value.exit_code == 1
 
     def test_no_dirs(self):
         """Test that no dirs are found and return with an error."""
         dirname = "find_me"
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(FindPathException) as exc_info:
             find_path(dirname)
         assert exc_info.value.exit_code == 1
 
@@ -126,27 +126,27 @@ class TestProfilerInit:
         precision_limit = 10
         profiler = Profiler(path=mock_file)
 
-        assert profiler.cpu_only is False
+        assert profiler.cpu_only is True
         assert profiler.script_args == []
         assert profiler.precision == 0
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is False
         assert profiler.loglevel == LogLevel.CRITICAL
-        assert profiler.noplots is False
+        assert profiler.no_plots is False
         assert profiler.filestem == basic_name()
         assert profiler.python_file == mock_file
 
     def test_init_with_bad_path(self, tmp_path: Path):
         """Test profiler initialization with path that doesn't exist."""
         for stem in ["file_does_not_exist.py", "dir_does_not_exist"]:
-            with pytest.raises(Exit) as exc_info:
+            with pytest.raises(ProfilerException) as exc_info:
                 Profiler(path=tmp_path / stem)
             err_code = 127
             assert exc_info.value.exit_code == err_code
 
     def test_init_with_dir(self, mock_dir: Path):
         """Test profiler initialization with path that is a directory."""
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ProfilerException) as exc_info:
             Profiler(path=mock_dir)
         err_code = 1
         assert exc_info.value.exit_code == err_code
@@ -162,7 +162,7 @@ class TestProfilerInit:
             precision=precision_value,
             detailed=True,
             loglevel=LogLevel.DEBUG,
-            noplots=True,
+            no_plots=True,
             trace=False,
             output_dir=root_dir / "performance",
         )
@@ -173,7 +173,7 @@ class TestProfilerInit:
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is True
         assert profiler.loglevel == LogLevel.DEBUG
-        assert profiler.noplots is True
+        assert profiler.no_plots is True
         assert profiler.trace is False
 
     def test_init_handles_path_with_spaces(self, tmp_path: Path):
@@ -311,22 +311,23 @@ class TestProfilerProperties:
         # Should be created by touch()
         assert Path(new_output_str).exists()
 
-    def test_output_path_property_within_root(self, mock_file: Path):
-        """Test output_path property when output_file is within ROOT_DIR."""
+    def test_output_path_property_within_root(self, mock_file: Path, root_dir: Path):
+        """Test output_path property when output_file is within the current directory."""
         profiler = Profiler(path=mock_file)
-        # output_path should be relative to ROOT_DIR
-        output_path = profiler.output_path
-        assert not output_path.is_absolute()
+        # output_path should be relative to the current directory (root)
+        with patch("pathlib.Path.cwd", return_value=root_dir):
+            output_path = profiler.output_path
+            assert not output_path.is_absolute()
 
     def test_properties_outside_root(self, mock_file: Path, root_dir: Path, non_local_dir: Path):
-        """Test profile properties when output_file is outside ROOT_DIR."""
+        """Test profile properties when output_file is outside the current directory."""
         external_dir = non_local_dir / "external"
         external_dir.mkdir(exist_ok=True, parents=True)
 
         profiler = Profiler(path=mock_file)
         profiler.output_file = external_dir / "output.txt"
 
-        # output_path should return absolute path when outside ROOT_DIR
+        # output_path should return absolute path when outside the current directory (root)
         output_path = profiler.output_path
         assert output_path == profiler.output_file
         assert not profiler.path_to_summary.is_relative_to(root_dir)
@@ -384,7 +385,7 @@ class TestProfilerIPythonNotebookConversion:
     def test_convert_ipynb_to_py_empty_notebook(self):
         """Test conversion of empty notebook and return with an error."""
         notebook_content = {"cells": []}
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ProfilerException) as exc_info:
             Profiler.convert_ipynb_to_py(json.dumps(notebook_content))
         assert exc_info.value.exit_code == 1
 
@@ -396,7 +397,7 @@ class TestProfilerIPythonNotebookConversion:
                 {"cell_type": "markdown", "source": ["Some text"]},
             ]
         }
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ProfilerException) as exc_info:
             Profiler.convert_ipynb_to_py(json.dumps(notebook_content))
         assert exc_info.value.exit_code == 1
 
@@ -492,13 +493,13 @@ class TestProfilerCodePreparation:
         assert "x = 1" in profile_content
         assert "y = 2" in profile_content
 
-    def test_prepare_code_for_profiling_with_noplots(self, tmp_path: Path):
-        """Test code preparation with noplots option enabled."""
+    def test_prepare_code_for_profiling_with_no_plots(self, tmp_path: Path):
+        """Test code preparation with no_plots option enabled."""
         test_file = tmp_path / "test_script.py"
         test_code = "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3])\nplt.show()"
         test_file.write_text(test_code)
 
-        profiler = Profiler(path=test_file, noplots=True)
+        profiler = Profiler(path=test_file, no_plots=True)
         profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 

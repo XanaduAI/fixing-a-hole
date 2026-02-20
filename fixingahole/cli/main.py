@@ -15,6 +15,7 @@
 
 import json
 import sys
+from contextlib import suppress
 from pathlib import Path
 from typing import Annotated
 
@@ -97,7 +98,7 @@ def profile(  # noqa: PLR0913
             rich_help_panel="Preprocessing",
         ),
     ] = LogLevel.WARNING,
-    noplots: Annotated[
+    no_plots: Annotated[
         bool,
         typer.Option(
             "--no-plots",
@@ -205,7 +206,7 @@ def profile(  # noqa: PLR0913
     Colour.set_log_level("error" if quiet else "info")
     Config.update_duration(duration.value)
     # Prevent later errors by catching these ones.
-    if in_place and noplots:
+    if in_place and no_plots:
         Colour.error("Error: cannot both profile in-place AND suppress plotting.")
         raise Exit(code=1)
     if in_place and Path(filename).suffix != ".py":
@@ -231,7 +232,7 @@ def profile(  # noqa: PLR0913
         precision=precision,
         detailed=detailed,
         loglevel=loglevel,
-        noplots=noplots,
+        no_plots=no_plots,
         trace=trace,
         live_update=live,
         ignore_dirs=ignore_dirs,
@@ -344,20 +345,38 @@ def stats(
             show_default=True,
         ),
     ] = True,
+    # This option is hidden. It is useful to use if profiling is done in parallel and the results are in different subfolders.
+    subfolder_only: Annotated[
+        bool,
+        typer.Option(
+            "--subfolder-only/--all-subfolders",
+            help="Only search the immediate subfolder of `folder` rather than recursively searching all subfolders.",
+            show_default=True,
+            hidden=True,
+        ),
+    ] = True,
 ) -> StatisticsManager:
     """Generate statistics for a group of Scalene JSON profiles."""
     stats = StatisticsManager()
-    directory, files = find_path(folder, in_dir=Config.root(), return_suffix=".json", subfolder_only=True)
+    directory, files = find_path(
+        folder,
+        in_dir=Config.root(),
+        return_suffix=".json",
+        subfolder_only=subfolder_only,
+    )
     for file in files:
         try:
             summary = ProfileSummary(file)
             stats.insert(summary)
-        except KeyError:
-            Colour.warning("Failed to create a summary from %s. Probably not a Scalene JSON file.", Colour.purple(file))
+        except (KeyError, TypeError):
+            bad_file = file
+            with suppress(ValueError):
+                bad_file = file.relative_to(Path.cwd())
+            Colour.warning("Failed to summarize %s. Probably not a Scalene JSON file.", Colour.purple(bad_file))
+
     stats_file = (directory / output_file).with_suffix(".json")
-    data = stats.stats()
-    data = stats.save_as_json(stats_file, data, save_metadata=metadata, sort=sort)
-    Colour.info(json.dumps(data, indent=2))
+    saved_data = stats.save_as_json(stats_file, stats.stats(), save_metadata=metadata, sort=sort)
+    Colour.info(json.dumps(saved_data, indent=2))
     return stats
 
 
