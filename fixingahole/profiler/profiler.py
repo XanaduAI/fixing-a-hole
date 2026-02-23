@@ -88,7 +88,7 @@ class Profiler:
         self.script_args: list[str] = python_script_args if python_script_args is not None else []
         self.detailed: bool = detailed
         self.log_level: LogLevel = log_level
-        self.no_plots: list[str] = no_plots if no_plots is not None else []
+        self.no_plots: list[str] = [no_plots] if isinstance(no_plots, str) else (no_plots if no_plots is not None else [])
         self._output_name: str = "profile_results"
         self._output_file: Path | None = None
         self._precision_limit: int = 10

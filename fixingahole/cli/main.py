@@ -99,7 +99,7 @@ def profile(  # noqa: PLR0913
         ),
     ] = LogLevel.WARNING,
     no_plots: Annotated[
-        list[str] | str,
+        list[str] | None,
         typer.Option(
             "--no-plots",
             "-np",
@@ -107,7 +107,7 @@ def profile(  # noqa: PLR0913
             show_default=True,
             rich_help_panel="Preprocessing",
         ),
-    ] = "",
+    ] = None,
     live: Annotated[
         float,
         typer.Option(
@@ -186,7 +186,10 @@ def profile(  # noqa: PLR0913
     """
     # Set some configuration.
     if repeat > 1:
-        Colour.info("Suppressing info logs when repeat > 1. Instead, see summaries and results in output folder.")
+        Colour.info(
+            "Suppressing info logs when repeat > 1. Instead, see summaries in the output folder %s",
+            output_dir if output_dir is not None else Config.output(),
+        )
         Colour.set_log_level("warning")
     Config.update_duration(duration.value)
 
@@ -209,6 +212,7 @@ def profile(  # noqa: PLR0913
                 ignore_dirs.append(find_path(p, in_dir=Config.root()))
         Colour.info("Ignoring: %s", [str(p) for p in ignore_dirs])
 
+    no_plots: list[str] = [lib.strip() for item in no_plots for lib in item.split(",")] if no_plots is not None else []
     profiler = Profiler(
         path=python_file,
         python_script_args=python_script_args.args,
@@ -216,7 +220,7 @@ def profile(  # noqa: PLR0913
         precision=precision,
         detailed=detailed,
         log_level=log_level,
-        no_plots=[lib.strip() for item in no_plots for lib in item.split(",")],
+        no_plots=no_plots,
         trace=trace,
         live_update=live,
         ignore_dirs=ignore_dirs,

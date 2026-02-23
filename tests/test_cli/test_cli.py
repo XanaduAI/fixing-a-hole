@@ -105,13 +105,13 @@ class TestProfilerRunProfiler:
     @pytest.mark.parametrize("n_runs", [2, 3])
     def test_profiler_repeat(self, n_runs: int, mock_file: Path, root_dir: Path):
         """Test how the profiler handles repeated profilings."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file), "--repeat", str(n_runs), "--no-metadata"])
+        result = runner.invoke(cli.app, ["profile", str(mock_file), "--repeat", str(n_runs), "-l", "info"])
         assert result.exit_code == 0, print_error(result)
         output_files: list[Path] = sorted(file for file in (root_dir / "performance").rglob("*") if file.is_file())
         assert len(output_files) == (3 + 3 * n_runs)
         assert len([f for f in output_files if f.suffix == ".py"]) == 1
         assert len(logfile := [f for f in output_files if f.suffix == ".log"]) == 1  # one shared log file.
-        assert len(logfile.pop().read_text().splitlines()) == n_runs  # one warning log per run.
+        assert len(logfile.pop().read_text().splitlines()) == n_runs * 2  # one warning log and one info log per run.
         assert len([f for f in output_files if f.suffix == ".json"]) == n_runs + 1  # one JSON per run, and one stats file.
         assert len([f for f in output_files if f.suffix == ".txt"]) == n_runs * 2  # one results and one summary per run.
 
@@ -139,7 +139,7 @@ class TestProfilerRunProfiler:
 
     def test_profiler_cli_call_bad_flags_no_plots_inplace(self, mock_file: Path):
         """Test that the CLI invocation fails with bad flag combinations."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file), "--in-place", "--no-plots"])
+        result = runner.invoke(cli.app, ["profile", str(mock_file), "--no-plots", "matplotlib"])
         assert result.exit_code == 1, print_error(result)
 
     def test_profiler_cli_call_bad_flags_filename_inplace(self, mock_file: Path):

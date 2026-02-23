@@ -131,8 +131,8 @@ class TestProfilerInit:
         assert profiler.precision == 0
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is False
-        assert profiler.log_level == LogLevel.CRITICAL
-        assert profiler.no_plots is False
+        assert profiler.log_level == LogLevel.WARNING
+        assert profiler.no_plots == []
         assert profiler.filestem == basic_name()
         assert profiler.python_file == mock_file
 
@@ -196,43 +196,7 @@ class TestProfilerInit:
         profiler = Profiler(path=mock_file, precision=None)
         assert profiler.precision == 0
 
-    def test_init_in_place_true(self, mock_file: Path):
-        """Test profiler initialization with in_place=True."""
-        with patch("fixingahole.profiler.profiler.Profiler.prepare_code_for_profiling") as prep_code:
-            profiler = Profiler(path=mock_file)
-            prep_code.assert_not_called()
-
-        # Key behavior: profile_file is the same as python_file (not copied)
-        assert profiler.profile_file is profiler.python_file
-        assert profiler.profile_file == mock_file
-
-        # Key behavior: output_file was set via string assignment
-        # This triggers the string path in the property setter
-        assert profiler._output_name == "profile_results"  # noqa: SLF001
-        assert profiler.output_file.name == "profile_results.txt"
-        assert profiler.output_file.parent == profiler.profile_root
-
-        # Verify the output file was created through the setter
-        assert profiler.output_file.exists()
-
-    def test_init_in_place_false(self, mock_file: Path):
-        """Test profiler initialization with in_place=False."""
-        profiler = Profiler(path=mock_file, log_level=LogLevel.INFO)
-
-        # Key behavior: profile_file is different from python_file (code copied)
-        assert profiler.profile_file != profiler.python_file
-        assert profiler.profile_file.name == f"{profiler.filestem}.py"
-        assert profiler.profile_file.parent == profiler.profile_root
-
-        # Key behavior: prepare_code_for_profiling was called
-        assert profiler.profile_file.exists()
-
-        # Verify logging setup was added by prepare_code_for_profiling
-        profile_content: str = profiler.profile_file.read_text()
-        assert "import logging" in profile_content
-        assert f"log_file = Path(r'{profiler.log_file}')" in profile_content
-
-    def test_init_in_place_custom_output_dir(self, mock_file: Path, root_dir: Path, non_local_dir: Path):
+    def test_init_custom_output_dir(self, mock_file: Path, root_dir: Path, non_local_dir: Path):
         """Test profiler initialization with in_place=True and custom output_dir."""
         custom_output = non_local_dir / "custom_output"
         custom_output.mkdir(parents=True, exist_ok=False)
@@ -324,15 +288,16 @@ class TestProfilerProperties:
         external_dir = non_local_dir / "external"
         external_dir.mkdir(exist_ok=True, parents=True)
 
-        profiler = Profiler(path=mock_file)
+        profiler = Profiler(path=mock_file, log_level=LogLevel.INFO)
         profiler.output_file = external_dir / "output.txt"
 
         # output_path should return absolute path when outside the current directory (root)
-        output_path = profiler.output_path
-        assert output_path == profiler.output_file
-        assert not profiler.path_to_summary.is_relative_to(root_dir)
-        assert not profiler.profile_path.is_relative_to(root_dir)
-        assert not profiler.log_path.is_relative_to(root_dir)
+        with patch("pathlib.Path.cwd", return_value=root_dir):
+            output_path = profiler.output_path
+            assert output_path == profiler.output_file
+            assert not profiler.path_to_summary.is_relative_to(root_dir)
+            assert not profiler.profile_path.is_relative_to(root_dir)
+            assert not profiler.log_path.is_relative_to(root_dir)
 
     def test_output_summary_names(self, mock_file: Path):
         """Test the output_summary names."""
@@ -351,13 +316,14 @@ class TestProfilerProperties:
         assert log_file.name == "profile_logs.log"
         assert profiler.profile_root in log_file.parents
 
-    def test_log_path_property(self, mock_file: Path):
+    def test_log_path_property(self, mock_file: Path, root_dir: Path):
         """Test the log_path property."""
         profiler = Profiler(path=mock_file)
 
-        log_path = profiler.log_path
         # Should be relative to ROOT_DIR
-        assert not log_path.is_absolute()
+        with patch("pathlib.Path.cwd", return_value=root_dir):
+            log_path = profiler.log_path
+            assert not log_path.is_absolute()
 
 
 class TestProfilerIPythonNotebookConversion:
@@ -499,18 +465,15 @@ class TestProfilerCodePreparation:
         test_code = "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3])\nplt.show()"
         test_file.write_text(test_code)
 
-        profiler = Profiler(path=test_file, no_plots=["matplotlib", "pyplot"])
+        profiler = Profiler(path=test_file, no_plots=["matplotlib"])
         profiler.prepare_code_for_profiling(in_place=False)
         profile_content = profiler.profile_file.read_text()
 
-        # Should contain plot mocking
+        # Should contain plot mocking for `matplotlib`
         assert "from unittest.mock import patch, MagicMock" in profile_content
         assert "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())" in profile_content
-        assert "patch_plotly = patch('plotly.graph_objects.Figure.show', new=MagicMock())" in profile_content
         assert "patch_plt.start()" in profile_content
-        assert "patch_plotly.start()" in profile_content
         assert "patch_plt.stop()" in profile_content
-        assert "patch_plotly.stop()" in profile_content
 
     def test_prepare_code_for_profiling_with_jupyter_notebook(self, tmp_path: Path):
         """Test code preparation with Jupyter notebook file."""
