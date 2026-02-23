@@ -15,7 +15,10 @@ def main() -> None:
     logger.info(" ".join(argv[1:]))
     logger.warning("This is a warning.")
     sleep(0.5)
-    _ = rng.uniform(size=10**5)
+    for i in range(7):
+        for _ in range(25):
+            a: np.ndarray = rng.uniform(size=(10, 10**i))
+            del a
 
 
 if __name__ == "__main__":

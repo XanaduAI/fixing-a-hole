@@ -20,6 +20,7 @@ from contextlib import suppress
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
+from types import TracebackType
 from typing import TYPE_CHECKING, overload
 
 from colours import Colour
@@ -277,3 +278,17 @@ class FileWatcher:
         if self.observer:
             self.observer.stop()
             self.observer.join(timeout=1.0)
+
+    def __enter__(self) -> "FileWatcher":
+        """Start the file watcher context."""
+        self.start()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Stop the file watcher context."""
+        self.stop()

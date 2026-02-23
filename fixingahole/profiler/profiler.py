@@ -436,23 +436,20 @@ class Profiler:
         ncols = max(160, len(str(self.profile_file)) + 75)
         try:
             # Profile the code.
-            with Spinner():
-                watcher = None
-                if 0 < self.live_update < float("inf"):
-                    watcher = FileWatcher(file_path=self.output_json, on_change_callback=lambda: self.json_to_tables(ncols))
-                    watcher.start()
-                try:
-                    # Run the profiling command
-                    capture = subprocess.run(
-                        self._scalene_run_cmd,
-                        check=True,
-                        text=True,
-                        capture_output=self.log_level.should_catch_warnings(),
-                        env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
-                    )
-                finally:
-                    if watcher:
-                        watcher.stop()
+            watcher = (
+                FileWatcher(file_path=self.output_json, on_change_callback=lambda: self.json_to_tables(ncols))
+                if 0 < self.live_update < float("inf")
+                else contextlib.nullcontext()
+            )
+            with Spinner(), watcher:
+                # Run the profiling command
+                capture = subprocess.run(
+                    self._scalene_run_cmd,
+                    check=True,
+                    text=True,
+                    capture_output=self.log_level.should_catch_warnings(),
+                    env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXINGAHOLE_PROFILE": "1"},
+                )
 
         except subprocess.CalledProcessError as exc:
             # Catch any shell errors and display them.
