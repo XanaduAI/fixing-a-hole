@@ -123,7 +123,7 @@ def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]], threshold: 
     depth = 0
     for file_path in files:
         file_functions = by_file_dict[file_path]
-        if not any(True for f in file_functions if f.total_percentage >= threshold or f.has_memory_info):
+        if not any(f.total_percentage >= threshold or f.has_memory_info for f in file_functions):
             continue
         d = 1
         parts = Path(file_path).relative_to(common_root).parts

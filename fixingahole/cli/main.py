@@ -25,7 +25,7 @@ from typer import Exit
 
 from fixingahole import Config, LogLevel, Profiler, ProfileSummary, StatisticsManager
 from fixingahole.config import DurationOption
-from fixingahole.profiler.utils import find_path
+from fixingahole.profiler.utils import FindPathException, find_path
 
 app = typer.Typer(
     rich_markup_mode="markdown",
@@ -87,7 +87,7 @@ def profile(  # noqa: PLR0913
             rich_help_panel="Profiling",
         ),
     ] = True,
-    loglevel: Annotated[
+    log_level: Annotated[
         LogLevel,
         typer.Option(
             "--log-level",
@@ -99,15 +99,15 @@ def profile(  # noqa: PLR0913
         ),
     ] = LogLevel.WARNING,
     no_plots: Annotated[
-        bool,
+        list[str] | str,
         typer.Option(
             "--no-plots",
             "-np",
-            help="Prevent plotting functions from running while profiling a script.",
+            help="Comma-separated list of plotting libraries to suppress during profiling, i.e. `matplotlib`, `plotly`",
             show_default=True,
             rich_help_panel="Preprocessing",
         ),
-    ] = False,
+    ] = "",
     live: Annotated[
         float,
         typer.Option(
@@ -144,15 +144,6 @@ def profile(  # noqa: PLR0913
             hidden=True,
         ),
     ] = DurationOption.relative,
-    in_place: Annotated[
-        bool,
-        typer.Option(
-            "--in-place/--not-in-place",
-            help="Profile the script where it is instead from the output directory.",
-            show_default=True,
-            rich_help_panel="Preprocessing",
-        ),
-    ] = False,
     repeat: Annotated[
         int,
         typer.Option(
@@ -188,30 +179,16 @@ def profile(  # noqa: PLR0913
             rich_help_panel="Benchmarking",
         ),
     ] = True,
-    quiet: Annotated[
-        bool,
-        typer.Option(
-            "--quiet/",
-            "-q/",
-            help="Prevent any printed statements (summary outputs) while profiling.",
-            rich_help_panel="Preprocessing",
-        ),
-    ] = False,
 ) -> None:
     """Profile a Python script or Jupyter notebook.
 
     Any options or arguments needed by the script can be added after these options.
     """
     # Set some configuration.
-    Colour.set_log_level("error" if quiet else "info")
+    if repeat > 1:
+        Colour.info("Suppressing info logs when repeat > 1. Instead, see summaries and results in output folder.")
+        Colour.set_log_level("warning")
     Config.update_duration(duration.value)
-    # Prevent later errors by catching these ones.
-    if in_place and no_plots:
-        Colour.error("Error: cannot both profile in-place AND suppress plotting.")
-        raise Exit(code=1)
-    if in_place and Path(filename).suffix != ".py":
-        Colour.error("Error: can only profile '.py' files in-place.")
-        raise Exit(code=1)
 
     # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
@@ -223,7 +200,14 @@ def profile(  # noqa: PLR0913
         if python_file.is_dir():
             Colour.error("Error: cannot profile a directory.")
             raise Exit(code=1)
-    ignore_dirs: list[Path] = [Path(p).resolve() for p in ignore] if ignore is not None else []
+
+    ignore_dirs: list = []
+    if ignore is not None:
+        Colour.info("Searching for the following folders to ignore: %s", [str(p) for p in ignore])
+        for p in ignore:
+            with suppress(FindPathException):
+                ignore_dirs.append(find_path(p, in_dir=Config.root()))
+        Colour.info("Ignoring: %s", [str(p) for p in ignore_dirs])
 
     profiler = Profiler(
         path=python_file,
@@ -231,12 +215,11 @@ def profile(  # noqa: PLR0913
         cpu_only=cpu_only,
         precision=precision,
         detailed=detailed,
-        loglevel=loglevel,
-        no_plots=no_plots,
+        log_level=log_level,
+        no_plots=[lib.strip() for item in no_plots for lib in item.split(",")],
         trace=trace,
         live_update=live,
         ignore_dirs=ignore_dirs,
-        in_place=in_place,
         output_dir=output_dir,
     )
 
@@ -254,8 +237,8 @@ def profile(  # noqa: PLR0913
     stats = StatisticsManager()
     for _ in range(repeat):
         summary = profiler.run_profiler(preamble=preamble, raise_exit=(repeat == 1))
-        if summary is not None:
-            stats.insert(summary)
+        # When repeat is 1 (the default), the profiler exits immediately after successfully finishing so the program stops here.
+        stats.insert(summary)
     if stats.count > 1:
         stats_file = profiler.output_file.with_name(output_file).with_suffix(".json")
         stats.save_as_json(stats_file, stats.stats(), sort=sort, save_metadata=metadata)

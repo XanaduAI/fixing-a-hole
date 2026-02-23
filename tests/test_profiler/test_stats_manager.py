@@ -15,7 +15,6 @@
 
 import json
 from pathlib import Path
-from typing import Never
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -264,15 +263,11 @@ class TestStatisticsManagerSaveAsJson:
         stats = manager.stats()
         file_path = tmp_path / "test_sorted.json"
 
-        def raise_error() -> Never:
-            msg = "This is an mocked error."
-            raise TypeError(msg)
-
         mock_repo = MagicMock()
         mock_repo.active_branch.name = "mocked_branch_name"
         mock_repo.head.object.hexsha = "mocked_commit_sha_abc123def456"
         mock_repo.remotes.origin.url = "https://github.com/xanadu/mocked_repo_name.git"
-        mock_repo.is_dirty.side_effect = raise_error
+        mock_repo.is_dirty.side_effect = TypeError("This is an mocked error.")
         with patch("fixingahole.profiler.stats_manager.git.Repo") as mock_git_repo:
             mock_git_repo.return_value = mock_repo
             output = StatisticsManager.save_as_json(file_path, stats, sort=False, save_metadata=True)

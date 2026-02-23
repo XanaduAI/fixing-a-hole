@@ -105,7 +105,7 @@ class TestProfilerRunProfiler:
     @pytest.mark.parametrize("n_runs", [2, 3])
     def test_profiler_repeat(self, n_runs: int, mock_file: Path, root_dir: Path):
         """Test how the profiler handles repeated profilings."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file), "--repeat", str(n_runs)])
+        result = runner.invoke(cli.app, ["profile", str(mock_file), "--repeat", str(n_runs), "--no-metadata"])
         assert result.exit_code == 0, print_error(result)
         output_files: list[Path] = sorted(file for file in (root_dir / "performance").rglob("*") if file.is_file())
         assert len(output_files) == (3 + 3 * n_runs)

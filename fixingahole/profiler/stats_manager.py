@@ -98,39 +98,39 @@ class StatisticsManager:
 
     def average(self) -> dict[str, dict[str, float]]:
         """Compute the averages for each function."""
-        res: dict[str, dict[str, float]] = {}
-        for key, funcs in self.function_data.items():
-            res[key] = {
+        return {
+            key: {
                 "user_avg": _mean([f.user_time for f in funcs], self.count),
                 "system_avg": _mean([f.system_time for f in funcs], self.count),
                 "memory_avg": _mean([f.peak_memory for f in funcs], self.count),
                 "count": self.count,
             }
-        return res
+            for key, funcs in self.function_data.items()
+        }
 
     def std(self) -> dict[str, dict[str, float]]:
         """Compute the standard deviations for each function."""
-        res: dict[str, dict[str, float]] = {}
-        for key, funcs in self.function_data.items():
-            res[key] = {
+        return {
+            key: {
                 "user_std": _std([f.user_time for f in funcs], self.count),
                 "system_std": _std([f.system_time for f in funcs], self.count),
                 "memory_std": _std([f.peak_memory for f in funcs], self.count),
                 "count": self.count,
             }
-        return res
+            for key, funcs in self.function_data.items()
+        }
 
     def stats(self) -> dict[str, dict[str, Any]]:
         """Compute the standard deviations for each function."""
-        res: dict[str, dict[str, Any]] = {}
-        for key, funcs in self.function_data.items():
-            res[key] = {
+        return {
+            key: {
                 "user": _mean_and_std([f.user_time for f in funcs], self.count),
                 "system": _mean_and_std([f.system_time for f in funcs], self.count),
                 "memory": _mean_and_std([f.peak_memory for f in funcs], self.count),
                 "count": self.count,
             }
-        return res
+            for key, funcs in self.function_data.items()
+        }
 
     @staticmethod
     def save_as_json(filename: Path, data: dict[str, Any], *, save_metadata: bool = True, sort: bool = True) -> dict[str, Any]:
@@ -166,6 +166,7 @@ class StatisticsManager:
                     if value := method(repo):
                         save_data["metadata"][info] = value
                 except (TypeError, git.InvalidGitRepositoryError, git.exc.NoSuchPathError):
+                    Colour.error("Error: Failed to save git %s", info)
                     save_data["metadata"][info] = f"Failed to save git {info}."
 
         save_data = save_data or data

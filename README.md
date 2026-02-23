@@ -36,11 +36,11 @@ The main settings are `root`, `output`, `ignore`, and `duration`.
 However, there may be circumstances where you want `root` to be your current directory.
 - `output` is always defined _relative_ to `root` and is where the profiling results are stored.
 - `ignore` is a list of folders to ignore when profiling (the `output` is always ignored). Paths
-are resolved relative to the current directory unless they're given as absolute paths. Directories
+are resolved relative to the `root` directory unless they're given as absolute paths. Directories
 are also only ignored if they exist after being resolved. Ignored folders are also not searched
 when looking for scripts to profile.
-- `duration` is _either_ "relative" or "absolute" and changes how the resulting times are displayed
-in summaries. Defaults to "relative".
+- `duration` is _either_ "relative" (as a percent of total runtime) or "absolute" and changes how
+the resulting times are displayed in summaries. Defaults to "relative".
 
 `fixing-a-hole` resolves global settings with **per-key** precedence:
 1. Explicit `Settings` passed to `Config.configure` (overrides everything).
@@ -121,7 +121,7 @@ fixingahole profile --help
 Additional information for each option can also be found below.
 
 ```bash
---cpu/--memory
+--cpu/--memory (-c/-m)
 ```
 The main options are `--cpu` vs `--memory`. By default, `fixing-a-hole` will try to profile the
 RSS memory usage of the script/experiment. _However_, additional CPU overhead is required in order
@@ -137,7 +137,7 @@ memory usage.
 > establish an expectation on how long you may need to wait when using `--memory`.
 
 ```bash
---precision=<n>
+--precision (-p)
 ```
 It is possible to alter the memory sampling overhead using the `--precision` flag. By default,
 [scalene](https://github.com/plasma-umass/scalene) will highlight lines of code that allocate more
@@ -149,7 +149,7 @@ need to find the right balance for the level of profiling that you are doing. Ag
 depends on the script itself.
 
 ```bash
---detailed
+--detailed (-d)
 ```
 By default, `fixing-a-hole` will only report CPU and memory usage within the `root` directory
 (see how to configure `fixing-a-hole` above). However, if you would also like a report on the
@@ -157,7 +157,7 @@ usage by imported modules, such as `scipy`, `numpy`, etc., then use the `--detai
 This can be used along with `--ignore` to build a report with only the relevant modules.
 
 ```bash
---trace
+--trace (-t)
 ```
 By default, `fixing-a-hole` will build the stack traces for the most expensive function calls.
 This helps determine where the most expensive function calls are originating from and helps
@@ -165,23 +165,26 @@ distinguish the difference between functions that are expensive to call even onc
 that are called repeatedly.
 
 ```bash
---log-level
+--log-level (-l)
 ```
 By default, `fixing-a-hole` will capture warnings while profiling scripts and save them to a log
 file. More or less detailed capture can be specified using the `--log-level` flag. The options
 are: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Each level will capture that level of
 severity _and higher_. So the default capturing `WARNING` will also capture `ERROR` and
 `CRITICAL`. However, if you have a syntax error or something, your code will still crash, not run,
-and throw errors in the terminal.
+and throw errors during profiling.
 
 ```bash
---no-plots
+--no-plots (-np)
 ```
 By default, if your script or notebook generates plots, then `fixing-a-hole` will profile that
 too. The downside of this is that if a plot is opened and you take 5 seconds to close it, those 5
 seconds will count towards how long it took your code to run. If you would like to temporarily
-disable generating plots, you can profile your code with the `--no-plots` flag. This will
-temporarily prevent your code from generating plots without modifying your code.
+disable generating plots, you can specify which plotting libraries to suppress with the
+`--no-plots` flag. This will temporarily prevent your code from generating plots without modifying
+your code. Simply provide a comma separated list of plotting libraries to ignore or a separate
+library for each `--no-plots` flag, i.e. `-np "matplotlib, plotly"` or `-np matplotlib -np plotly`.
+The currently supported libraries are `matplotlib` and `plotly`.
 
 ```bash
 --live
@@ -191,27 +194,16 @@ can set the `--live` flag to a value (in seconds). However, this may cause addit
 unintentional side effects.
 
 ```bash
---ignore
+--ignore (-i)
 ```
-If there are specific folders within your repo that you would like to ignore while profiling, you
-can either configure them globally in your `pyproject.toml` or you can specify each directory
-individually when invoking the profiler, i.e. `--ignore foo --ignore /home/bar/baz`. These are
-resolved relative to the directory you invoked the profiler from. But you can also set absolute
-paths.
+If there are specific folders that you would like to ignore while profiling, you can either
+configure them globally (see [configuration](#configuring-fixing-a-hole) above) or you can
+specify each directory individually when invoking the profiler,
+i.e. `--ignore foo --ignore /home/bar/baz`. These are resolved relative
+to the `root` directory you configure, but you can also set absolute paths.
 
 ```bash
---in-place
-```
-By default, a timestamped copy of the script you profile will be saved in the `output` directory
-alongside the profile results and summary. This also allows `fixing-a-hole` to disable plot
-generation without modifying your code. The downside of this is that the profiling results may
-reference the duplicated script as a module separate from your repo. If you do _not_ need to also
-suppress plot generation or adjust the log-level capture, then using the `--in-place` flag will
-provide a more expected and more consistent profiling result. However, `.ipynb` files _**cannot**_
-be profiled "in place".
-
-```bash
---repeat
+--repeat (-r)
 ```
 If there is a need to benchmark a script by profiling it repeatedly and then compute the average
 and standard deviation of the results, then using the `--repeat` flag will do this for you. See

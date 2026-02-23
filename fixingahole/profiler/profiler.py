@@ -70,13 +70,12 @@ class Profiler:
         cpu_only: bool = True,
         precision: int | str | None = None,
         detailed: bool = False,
-        loglevel: LogLevel = LogLevel.CRITICAL,
-        no_plots: bool = False,
+        log_level: LogLevel = LogLevel.WARNING,
+        no_plots: list[str] | None = None,
         trace: bool = True,
         live_update: float = float("inf"),
         ignore_dirs: list[Path] | None = None,
         output_dir: Path | None = None,
-        in_place: bool = False,
         **_: dict,
     ) -> None:
         self.cpu_only = cpu_only
@@ -88,8 +87,8 @@ class Profiler:
 
         self.script_args: list[str] = python_script_args if python_script_args is not None else []
         self.detailed: bool = detailed
-        self.loglevel: LogLevel = loglevel
-        self.no_plots: bool = no_plots
+        self.log_level: LogLevel = log_level
+        self.no_plots: list[str] = no_plots if no_plots is not None else []
         self._output_name: str = "profile_results"
         self._output_file: Path | None = None
         self._precision_limit: int = 10
@@ -99,16 +98,18 @@ class Profiler:
         self.run_count: int = 0
 
         # Prepare the results folder.
+        # Default to profiling "in place", but use a modified copy if needed. A modified copy is needed
+        #   when suppressing plotting, if the file is a Jupyter notebook, or if the log level changes.
         path = Path(path)
+        in_place: bool = not (no_plots or path.suffix != ".py" or self.log_level != LogLevel.WARNING)
         if path.is_file():
-            self.python_file = path
-            self.filestem = self.python_file.stem.replace(" ", "_")
+            self.python_file: Path = path
+            self.filestem: str = self.python_file.stem.replace(" ", "_")
             self.profile_root: Path = Config.output() / self.filestem / date() if output_dir is None else output_dir
             self.profile_root.mkdir(parents=True, exist_ok=True)
             self.profile_file: Path = self.python_file if in_place else self.profile_root / f"{self.filestem}.py"
             self.output_file = self._output_name
-            if not in_place:
-                self.prepare_code_for_profiling()
+            self.prepare_code_for_profiling(in_place)
         elif path.is_dir():
             msg = "Error: cannot profile a directory."
             Colour.error(msg)
@@ -258,9 +259,12 @@ class Profiler:
         memory_threshold = nextprime(int(memory_threshold / 2**verbosity))
         return f"--allocation-sampling-window={memory_threshold}"
 
-    def prepare_code_for_profiling(self) -> tuple[Path, Path]:
-        """Add prefix and suffix lines to the code that will be profiled."""
-        code_to_profile = self.python_file.read_text()
+    def prepare_code_for_profiling(self, in_place: bool) -> tuple[Path, Path]:
+        """Make a copy of the code being profiled.
+
+        Add modifiers if needed by adding prefix and suffix lines to the code.
+        """
+        code_to_profile: str = self.python_file.read_text()
         if self.python_file.suffix == ".ipynb":
             code_to_profile = Profiler.convert_ipynb_to_py(code_to_profile)
 
@@ -271,28 +275,32 @@ class Profiler:
             "import sys",
             "import logging",
             "from pathlib import Path",
-            f"log_file = Path(r'{self.log_file}')",
-            f"logging.basicConfig(filename=log_file, level=logging.{self.loglevel.name})",
-            "logging.captureWarnings(True)" if self.loglevel.should_catch_warnings() else "",
+            f"log_file = Path(r'{self.log_path}')",
+            f"logging.basicConfig(filename=log_file, level=logging.{self.log_level.name})",
+            "logging.captureWarnings(True)" if self.log_level.should_catch_warnings() else "",
             "sys.stdout = log_file.open(mode='a')",
         ]
         profile_prefix += logger
         if self.no_plots:
-            profile_prefix += [
-                "from unittest.mock import patch, MagicMock",
-                "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())",
-                "patch_plotly = patch('plotly.graph_objects.Figure.show', new=MagicMock())",
-                "patch_plt.start()",
-                "patch_plotly.start()",
-            ]
-            profile_suffix += [
-                "patch_plt.stop()",
-                "patch_plotly.stop()",
-            ]
+            profile_prefix.append("from unittest.mock import patch, MagicMock")
+        for lib in self.no_plots:
+            if lib == "matplotlib":
+                profile_prefix += [
+                    "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())",
+                    "patch_plt.start()",
+                ]
+                profile_suffix.append("patch_plt.stop()")
+            elif lib == "plotly":
+                profile_prefix += [
+                    "patch_plotly = patch('plotly.graph_objects.Figure.show', new=MagicMock())",
+                    "patch_plotly.start()",
+                ]
+                profile_suffix.append("patch_plotly.stop()")
 
-        code_to_profile = "\n".join(
-            ["; ".join([ln for ln in profile_prefix if ln]), *code_lines, "; ".join([ln for ln in profile_suffix if ln])],
-        )
+        if not in_place:
+            code_to_profile = "\n".join(
+                ["; ".join([ln for ln in profile_prefix if ln]), *code_lines, "; ".join([ln for ln in profile_suffix if ln])],
+            )
         self.profile_file.write_text(code_to_profile, encoding="utf-8")
 
         return self.profile_file, self.output_file
@@ -363,7 +371,7 @@ class Profiler:
 
     def json_to_tables(self, ncols: int) -> None:
         """Run the scalene view command to format the output."""
-        if not self.output_json.exists():
+        if not self.output_json.exists() or not json.loads(self.output_json.read_text(encoding="utf-8")):
             return
 
         result = subprocess.run(
@@ -376,14 +384,19 @@ class Profiler:
         if result.returncode == 0 and result.stdout:
             self.output_file.write_text(Colour.remove_ansi(result.stdout))
 
-    def summarize(
-        self, preamble: str, capture: CompletedProcess, ncols: int = 128
-    ) -> tuple[str, None] | tuple[str, "ProfileSummary"]:
+    def summarize(self, preamble: str, capture: CompletedProcess, ncols: int = 128) -> tuple[str, "ProfileSummary"]:
         """Gather all the details and logs and consicely present them to the user."""
         from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
-        if not self.output_json.exists():
-            return "No summary available", None
+        if not self.output_json.exists() or not json.loads(self.output_json.read_text(encoding="utf-8")):
+            note: str = (
+                " Did you ignore the script's parent?"
+                if any(self.python_file.is_relative_to(d) for d in self.ignored_folders)
+                else ""
+            )
+            msg = "Scalene JSON file unavailable."
+            Colour.error("Error: %s%s", msg, note)
+            raise ProfilerException(msg)
 
         profile_data = ProfileSummary(self.output_json)
         self.json_to_tables(ncols)
@@ -417,7 +430,7 @@ class Profiler:
         summary += f"\nSee {Colour.purple(self.path_to_summary)} for {desc}\n"
         return summary, profile_data
 
-    def run_profiler(self, preamble: str = "\n", raise_exit: bool = True) -> "ProfileSummary | None":
+    def run_profiler(self, preamble: str = "\n", raise_exit: bool = False) -> "ProfileSummary":
         """Profile the python script using Scalene."""
         Colour.info(f"See {Colour.purple(self.output_path)} for details.")
         ncols = max(160, len(str(self.profile_file)) + 75)
@@ -434,7 +447,7 @@ class Profiler:
                         self._scalene_run_cmd,
                         check=True,
                         text=True,
-                        capture_output=self.loglevel.should_catch_warnings(),
+                        capture_output=self.log_level.should_catch_warnings(),
                         env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXING_A_HOLE_PROFILE": "1"},
                     )
                 finally:

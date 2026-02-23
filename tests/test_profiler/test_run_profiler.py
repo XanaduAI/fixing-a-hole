@@ -32,25 +32,25 @@ class TestProfilerRunProfiler:
         profiler = Profiler(
             path=mock_file,
             precision=5,
-            loglevel=LogLevel.INFO,
+            log_level=LogLevel.INFO,
             live_update=1,
         )
         with pytest.raises(SuccessfulExit) as exc_info:
-            profiler.run_profiler()
+            profiler.run_profiler(raise_exit=True)
         assert exc_info.value.exit_code == 0
 
     def test_run_profiler_cpu_only(self, mock_file: Path):
         """Test successful profiler run using only CPU."""
         profiler = Profiler(path=mock_file, cpu_only=True)
         with pytest.raises(SuccessfulExit) as exc_info:
-            profiler.run_profiler()
+            profiler.run_profiler(raise_exit=True)
         assert exc_info.value.exit_code == 0
 
     def test_run_profiler_detailed_mode(self, mock_file: Path):
         """Test profiler run with detailed profiling enabled."""
         profiler = Profiler(path=mock_file, precision=5, detailed=True)
         with pytest.raises(SuccessfulExit) as exc_info:
-            profiler.run_profiler()
+            profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 0
         assert "numpy" in profiler.profile_file.read_text()
@@ -67,7 +67,7 @@ class TestProfilerRunProfiler:
         profiler = Profiler(path=mock_file, precision=5)
 
         with pytest.raises(ProfilerException) as exc_info:
-            profiler.run_profiler()
+            profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 1
         mock_run.assert_called_once()
@@ -81,7 +81,7 @@ class TestProfilerRunProfiler:
         profiler = Profiler(path=mock_file, precision=5)
 
         with pytest.raises(ProfilerException) as exc_info:
-            profiler.run_profiler()
+            profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 1
         mock_run.assert_called()
@@ -94,11 +94,10 @@ class TestProfilerRunProfiler:
             path=mock_file,
             python_script_args=args,
             precision=5,
-            loglevel=LogLevel.INFO,
-            in_place=False,
+            log_level=LogLevel.INFO,
         )
         with pytest.raises(SuccessfulExit) as exc_info:
-            profiler.run_profiler()
+            profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 0
         logs = profiler.log_file.read_text()
@@ -117,11 +116,10 @@ class TestProfilerRunProfiler:
             path=mock_file_with_argparse,
             python_script_args=args,
             precision=5,
-            loglevel=LogLevel.INFO,
-            in_place=False,
+            log_level=LogLevel.INFO,
         )
         with pytest.raises(SuccessfulExit) as exc_info:
-            profiler.run_profiler()
+            profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 0
         logs = profiler.log_file.read_text()

@@ -131,7 +131,7 @@ class TestProfilerInit:
         assert profiler.precision == 0
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is False
-        assert profiler.loglevel == LogLevel.CRITICAL
+        assert profiler.log_level == LogLevel.CRITICAL
         assert profiler.no_plots is False
         assert profiler.filestem == basic_name()
         assert profiler.python_file == mock_file
@@ -161,8 +161,8 @@ class TestProfilerInit:
             cpu_only=True,
             precision=precision_value,
             detailed=True,
-            loglevel=LogLevel.DEBUG,
-            no_plots=True,
+            log_level=LogLevel.DEBUG,
+            no_plots=["matplotlib", "pyplot"],
             trace=False,
             output_dir=root_dir / "performance",
         )
@@ -172,8 +172,8 @@ class TestProfilerInit:
         assert profiler.precision == precision_value
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is True
-        assert profiler.loglevel == LogLevel.DEBUG
-        assert profiler.no_plots is True
+        assert profiler.log_level == LogLevel.DEBUG
+        assert profiler.no_plots == ["matplotlib", "pyplot"]
         assert profiler.trace is False
 
     def test_init_handles_path_with_spaces(self, tmp_path: Path):
@@ -199,7 +199,7 @@ class TestProfilerInit:
     def test_init_in_place_true(self, mock_file: Path):
         """Test profiler initialization with in_place=True."""
         with patch("fixingahole.profiler.profiler.Profiler.prepare_code_for_profiling") as prep_code:
-            profiler = Profiler(path=mock_file, in_place=True)
+            profiler = Profiler(path=mock_file)
             prep_code.assert_not_called()
 
         # Key behavior: profile_file is the same as python_file (not copied)
@@ -217,7 +217,7 @@ class TestProfilerInit:
 
     def test_init_in_place_false(self, mock_file: Path):
         """Test profiler initialization with in_place=False."""
-        profiler = Profiler(path=mock_file, in_place=False)
+        profiler = Profiler(path=mock_file, log_level=LogLevel.INFO)
 
         # Key behavior: profile_file is different from python_file (code copied)
         assert profiler.profile_file != profiler.python_file
@@ -236,7 +236,7 @@ class TestProfilerInit:
         """Test profiler initialization with in_place=True and custom output_dir."""
         custom_output = non_local_dir / "custom_output"
         custom_output.mkdir(parents=True, exist_ok=False)
-        profiler = Profiler(path=mock_file, in_place=True, output_dir=custom_output)
+        profiler = Profiler(path=mock_file, output_dir=custom_output)
 
         # Verify profile_file is the same as python_file and within root_dir and not within non_local_dir.
         assert profiler.profile_file == profiler.python_file
@@ -478,7 +478,7 @@ class TestProfilerCodePreparation:
         test_file.write_text(test_code)
 
         profiler = Profiler(path=test_file)
-        profiler.prepare_code_for_profiling()
+        profiler.prepare_code_for_profiling(in_place=False)
 
         # Check that the profile file was created and contains expected content
         profile_content = profiler.profile_file.read_text()
@@ -486,7 +486,7 @@ class TestProfilerCodePreparation:
         # Should contain logging setup
         assert "import logging" in profile_content
         assert f"log_file = Path(r'{profiler.log_file}')" in profile_content
-        assert f"logging.basicConfig(filename=log_file, level=logging.{profiler.loglevel.name})" in profile_content
+        assert f"logging.basicConfig(filename=log_file, level=logging.{profiler.log_level.name})" in profile_content
 
         # Should contain original code
         assert "print('hello world')" in profile_content
@@ -499,8 +499,8 @@ class TestProfilerCodePreparation:
         test_code = "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3])\nplt.show()"
         test_file.write_text(test_code)
 
-        profiler = Profiler(path=test_file, no_plots=True)
-        profiler.prepare_code_for_profiling()
+        profiler = Profiler(path=test_file, no_plots=["matplotlib", "pyplot"])
+        profiler.prepare_code_for_profiling(in_place=False)
         profile_content = profiler.profile_file.read_text()
 
         # Should contain plot mocking
@@ -526,7 +526,7 @@ class TestProfilerCodePreparation:
         test_file.write_text(json.dumps(notebook_content))
 
         profiler = Profiler(path=test_file)
-        profiler.prepare_code_for_profiling()
+        profiler.prepare_code_for_profiling(in_place=False)
         profile_content = profiler.profile_file.read_text()
 
         # Should contain converted notebook content
@@ -535,9 +535,9 @@ class TestProfilerCodePreparation:
 
     def test_prepare_code_for_profiling_with_warning_loglevel(self, mock_file: Path):
         """Test code preparation with warning log level."""
-        profiler = Profiler(path=mock_file, loglevel=LogLevel.WARNING)
+        profiler = Profiler(path=mock_file, log_level=LogLevel.WARNING)
 
-        profiler.prepare_code_for_profiling()
+        profiler.prepare_code_for_profiling(in_place=False)
         profile_content = profiler.profile_file.read_text()
 
         # Should contain warning capture
@@ -548,8 +548,8 @@ class TestProfilerCodePreparation:
         test_file = tmp_path / "test_script.py"
         test_file.write_text("print('hello world')")
 
-        profiler = Profiler(path=test_file, loglevel=LogLevel.ERROR)
-        profiler.prepare_code_for_profiling()
+        profiler = Profiler(path=test_file, log_level=LogLevel.ERROR)
+        profiler.prepare_code_for_profiling(in_place=False)
         profile_content = profiler.profile_file.read_text()
 
         # Should NOT contain warning capture
