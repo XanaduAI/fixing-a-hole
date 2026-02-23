@@ -16,7 +16,6 @@
 import json
 import math
 from collections import defaultdict
-from contextlib import suppress
 from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -91,7 +90,7 @@ class StatisticsManager:
         self.count += 1
         for f in summary.data.functions:
             try:
-                key = f"{Path(f.file_path).relative_to(Config.root())}:{f.name}"
+                key = f"{Config.relative_to_root(f.file_path)}:{f.name}"
             except ValueError:  # f.file_path is not in the subpath of Config.root()
                 key = f"{Path(f.file_path)}:{f.name}"
             self.function_data[key].append(f)
@@ -141,10 +140,7 @@ class StatisticsManager:
 
         filename = (Path(filename) if isinstance(filename, str) else filename).resolve()
         if filename.exists():
-            file = filename
-            with suppress(ValueError):
-                file = filename.relative_to(Path.cwd())
-            Colour.warning("Warning: %s already exists. Overwriting file.", Colour.purple(file))
+            Colour.warning("Warning: %s already exists. Overwriting file.", Colour.purple(Config.relative_to_cwd(filename)))
 
         save_data: dict[str, Any] = (
             dict(sorted(data.items(), key=lambda item: item[1].get("user", {}).get("avg", 0), reverse=True)) if sort else {}

@@ -114,11 +114,7 @@ class StackReporter:
                 # Assume frame format: 'filename function:line;'
                 # Rearrange to: 'relative_filepath:line; function'
                 file_path, func_name, line_no = re.split(r"[ :]", frame)
-                try:
-                    rel_path = str(Path(file_path).resolve().relative_to(Config.root()))
-                except ValueError:
-                    rel_path = str(Path(file_path).resolve())
-                norm_stack.append(f"{rel_path}:{line_no} {func_name}")
+                norm_stack.append(f"{Config.relative_to_root(file_path)}:{line_no} {func_name}")
             current = tree
             path = []
             for frame in norm_stack:

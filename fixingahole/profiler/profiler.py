@@ -183,29 +183,17 @@ class Profiler:
     @property
     def path_to_summary(self) -> Path:
         """A relative path to the summary file (as a .txt file)."""
-        with contextlib.suppress(ValueError):
-            return self.output_summary.relative_to(Path.cwd())
-        # output_summary is not in the subpath of the current directory
-        #  OR one path is relative and the other is absolute
-        return self.output_summary
+        return Config.relative_to_cwd(self.output_summary)
 
     @property
     def output_path(self) -> Path:
         """A relative path (from repo root) to the Scalene output (as a .txt file)."""
-        with contextlib.suppress(ValueError):
-            return self.output_file.relative_to(Path.cwd())
-        # output_file is not in the subpath of the current directory
-        #  OR one path is relative and the other is absolute
-        return self.output_file
+        return Config.relative_to_cwd(self.output_file)
 
     @property
     def profile_path(self) -> Path:
         """A relative path script being profiled."""
-        with contextlib.suppress(ValueError):
-            return self.profile_file.relative_to(Path.cwd())
-        # profile_file is not in the subpath of the current directory
-        #  OR one path is relative and the other is absolute
-        return self.profile_file
+        return Config.relative_to_cwd(self.profile_file)
 
     @property
     def log_file(self) -> Path:
@@ -215,11 +203,7 @@ class Profiler:
     @property
     def log_path(self) -> Path:
         """A relative path (from the repo root) of the logs caught during profiling."""
-        with contextlib.suppress(ValueError):
-            return self.log_file.relative_to(Path.cwd())
-        # log_file is not in the subpath of the current directory
-        #  OR one path is relative and the other is absolute
-        return self.log_file
+        return Config.relative_to_cwd(self.log_file)
 
     @property
     def precision_limit(self) -> int:

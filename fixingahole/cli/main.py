@@ -356,10 +356,9 @@ def stats(
             summary = ProfileSummary(file)
             stats.insert(summary)
         except (KeyError, TypeError):
-            bad_file = file
-            with suppress(ValueError):
-                bad_file = file.relative_to(Path.cwd())
-            Colour.warning("Failed to summarize %s. Probably not a Scalene JSON file.", Colour.purple(bad_file))
+            Colour.warning(
+                "Failed to summarize %s. Probably not a Scalene JSON file.", Colour.purple(Config.relative_to_cwd(file))
+            )
 
     stats_file = (directory / output_file).with_suffix(".json")
     saved_data = stats.save_as_json(stats_file, stats.stats(), save_metadata=metadata, sort=sort)

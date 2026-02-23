@@ -16,7 +16,6 @@
 import datetime
 import importlib.metadata
 from collections.abc import Callable
-from contextlib import suppress
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
@@ -171,7 +170,7 @@ def find_path(
             exclude_resolved.append(x)
     exclude_resolved += [".venv", ".git"]
     exclude_resolved = [(Config.root() / folder).resolve() for folder in exclude_resolved]
-    options = [
+    options: list[Path] = [
         path
         for path in in_dir.rglob("*")
         if (not any(path.is_relative_to(folder) for folder in exclude_resolved) and PurePath(path).match(str(pattern)))
@@ -211,10 +210,7 @@ def find_path(
                 Colour.purple(in_dir.name),
             )
             for path in options:
-                p = str(path)
-                with suppress(ValueError):
-                    p = str(path.relative_to(in_dir))
-                Colour.error(" %s", Colour.purple(p))
+                Colour.error(" %s", Colour.purple(path.relative_to(in_dir)))
             msg = f"Many {file_or_folder} with name: {pattern} were found in {in_dir.name}."
             raise FindPathException(msg)
 

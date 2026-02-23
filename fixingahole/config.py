@@ -16,6 +16,7 @@
 import os
 import sys
 import tomllib
+from contextlib import suppress
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
@@ -278,6 +279,26 @@ class Config:
     def ignore(cls) -> list[Path]:
         """Return the configured ignore directories."""
         return cls._settings.ignore
+
+    @classmethod
+    def relative_to_root(cls, path: Path | str) -> Path:
+        """Return the path relative to the root directory.
+
+        If the path is not relative to root, then return the path.
+        """
+        with suppress(ValueError):
+            return Path(path).resolve().relative_to(cls._settings.root)
+        return path
+
+    @classmethod
+    def relative_to_cwd(cls, path: Path | str) -> Path:
+        """Return the path relative to the current directory.
+
+        If the path is not relative to current directory, then return the path.
+        """
+        with suppress(ValueError):
+            return Path(path).resolve().relative_to(Path.cwd())
+        return path
 
     @classmethod
     def is_duration_relative(cls) -> bool:
