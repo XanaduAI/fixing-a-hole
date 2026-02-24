@@ -178,7 +178,6 @@ def _env_config_data() -> dict[str, Any]:
     cwd = Path.cwd()
 
     if (val := os.getenv("FIXINGAHOLE_ROOT")) is not None:
-        p = Path(val)
         data["root"] = str((p if (p := Path(val)).is_absolute() else (cwd / p)).resolve())
     if (val := os.getenv("FIXINGAHOLE_OUTPUT")) is not None:
         data["output"] = val  # relative to root_dir; handled by _resolve_output_dir

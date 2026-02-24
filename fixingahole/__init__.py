@@ -44,6 +44,7 @@ def about() -> None:
         _Colour.blue("\nSettings:"),
         f"\n root: {Config.root()}",
         f"\n output: {Config.output()}",
+        f"\n duration: {Config._settings.duration.value}",  # noqa: SLF001
         f"\n ignore: [{ignored_dirs}\n]",
     )
 
