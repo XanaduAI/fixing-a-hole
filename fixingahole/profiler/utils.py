@@ -55,6 +55,13 @@ SPINNERS["xanaduai"] = {
 }
 
 
+class PlottingLibrary(Enum):
+    """Valid plotting libraries to suppress."""
+
+    matplotlib = "matplotlib"
+    plotly = "plotly"
+
+
 class LogLevel(Enum):
     """Valid Log Levels to profile."""
 
@@ -116,7 +123,7 @@ def find_path(
     pattern: str | Path,
     in_dir: str | Path = "",
     *,
-    exclude: list[str] | list[Path] | None = None,
+    exclude: list[str | Path] | None = None,
     return_suffix: None = None,
     subfolder_only: None = None,
 ) -> Path: ...
@@ -127,7 +134,7 @@ def find_path(
     pattern: str | Path,
     in_dir: str | Path = "",
     *,
-    exclude: list[str] | list[Path] | None = None,
+    exclude: list[str | Path] | None = None,
     return_suffix: str,
     subfolder_only: bool = False,
 ) -> tuple[Path, list[Path]]: ...
@@ -154,22 +161,28 @@ def find_path(
         Path object for the found item, or tuple of (Path, list[Path]) if return_contents=True
 
     """
+    # Resolve `./` if given.
+    pattern = str(Path(pattern).resolve()) if isinstance(pattern, str) and pattern[:2] == "./" else str(pattern)
+
+    # Return the path if the pattern is a path that already exists and is already an absolute path.
     if (abs_path := Path(pattern)).is_absolute() and abs_path.exists() and not abs_path.is_dir():
         return Path(pattern).absolute()
 
+    # If the search directory is not absolute, then resolve it relative to the configured root.
     if not (in_dir := Path(in_dir)).is_absolute():
         in_dir = (Config.root() / in_dir).resolve()
-    exclude = exclude if exclude is not None else []
 
     # Process exclude patterns
     exclude_resolved = []
+    exclude = exclude if exclude is not None else []
     for x in exclude:
         if "*" in str(x):
             exclude_resolved.extend([folder for folder in in_dir.glob(str(x)) if folder.is_dir()])
         else:
             exclude_resolved.append(x)
-    exclude_resolved += [".venv", ".git"]
-    exclude_resolved = [(Config.root() / folder).resolve() for folder in exclude_resolved]
+    exclude_resolved = [(in_dir / folder).resolve() for folder in exclude_resolved]
+
+    # Search for all of the available options given the pattern.
     options: list[Path] = [
         path
         for path in in_dir.rglob("*")

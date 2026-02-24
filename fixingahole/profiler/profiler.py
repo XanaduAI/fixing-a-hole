@@ -29,7 +29,7 @@ from sympy import nextprime
 from typer import Exit
 
 from fixingahole import Config
-from fixingahole.profiler.utils import FileWatcher, LogLevel, Spinner, date, memory_with_units
+from fixingahole.profiler.utils import FileWatcher, LogLevel, PlottingLibrary, Spinner, date, memory_with_units
 
 if TYPE_CHECKING:
     from fixingahole import ProfileSummary
@@ -71,7 +71,7 @@ class Profiler:
         precision: int | str | None = None,
         detailed: bool = False,
         log_level: LogLevel = LogLevel.WARNING,
-        no_plots: list[str] | None = None,
+        no_plots: list[PlottingLibrary] | None = None,
         trace: bool = True,
         live_update: float = float("inf"),
         ignore_dirs: list[Path] | None = None,
@@ -88,7 +88,9 @@ class Profiler:
         self.script_args: list[str] = python_script_args if python_script_args is not None else []
         self.detailed: bool = detailed
         self.log_level: LogLevel = log_level
-        self.no_plots: list[str] = [no_plots] if isinstance(no_plots, str) else (no_plots if no_plots is not None else [])
+        self.no_plots: list[PlottingLibrary] = (
+            [PlottingLibrary(no_plots)] if isinstance(no_plots, str) else (no_plots if no_plots is not None else [])
+        )
         self._output_name: str = "profile_results"
         self._output_file: Path | None = None
         self._precision_limit: int = 10
@@ -268,13 +270,13 @@ class Profiler:
         if self.no_plots:
             profile_prefix.append("from unittest.mock import patch, MagicMock")
         for lib in self.no_plots:
-            if lib == "matplotlib":
+            if lib == PlottingLibrary.matplotlib:
                 profile_prefix += [
                     "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())",
                     "patch_plt.start()",
                 ]
                 profile_suffix.append("patch_plt.stop()")
-            elif lib == "plotly":
+            elif lib == PlottingLibrary.plotly:
                 profile_prefix += [
                     "patch_plotly = patch('plotly.graph_objects.Figure.show', new=MagicMock())",
                     "patch_plotly.start()",

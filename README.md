@@ -182,8 +182,8 @@ too. The downside of this is that if a plot is opened and you take 5 seconds to 
 seconds will count towards how long it took your code to run. If you would like to temporarily
 disable generating plots, you can specify which plotting libraries to suppress with the
 `--no-plots` flag. This will temporarily prevent your code from generating plots without modifying
-your code. Simply provide a comma separated list of plotting libraries to ignore or a separate
-library for each `--no-plots` flag, i.e. `-np "matplotlib, plotly"` or `-np matplotlib -np plotly`.
+your code. Simply provide a separate library for each `--no-plots` flag,
+i.e. `-np matplotlib -np plotly`.
 The currently supported libraries are `matplotlib` and `plotly`.
 
 ```bash

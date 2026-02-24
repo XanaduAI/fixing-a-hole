@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 import pytest
 
-from fixingahole import Config, LogLevel
+from fixingahole import Config, LogLevel, PlottingLibrary
 from fixingahole.profiler import Profiler
 from fixingahole.profiler.profiler import ProfilerException
 from fixingahole.profiler.utils import FindPathException, find_path
@@ -162,7 +162,7 @@ class TestProfilerInit:
             precision=precision_value,
             detailed=True,
             log_level=LogLevel.DEBUG,
-            no_plots=["matplotlib", "pyplot"],
+            no_plots=[PlottingLibrary.matplotlib, PlottingLibrary.plotly],
             trace=False,
             output_dir=root_dir / "performance",
         )
@@ -173,7 +173,7 @@ class TestProfilerInit:
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is True
         assert profiler.log_level == LogLevel.DEBUG
-        assert profiler.no_plots == ["matplotlib", "pyplot"]
+        assert profiler.no_plots == [PlottingLibrary.matplotlib, PlottingLibrary.plotly]
         assert profiler.trace is False
 
     def test_init_handles_path_with_spaces(self, tmp_path: Path):
@@ -465,7 +465,8 @@ class TestProfilerCodePreparation:
         test_code = "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3])\nplt.show()"
         test_file.write_text(test_code)
 
-        profiler = Profiler(path=test_file, no_plots=["matplotlib"])
+        # Passing a string is technically allowed, even if the type checker doesn't like it.
+        profiler = Profiler(path=test_file, no_plots="matplotlib")  # ty:ignore[invalid-argument-type]
         profiler.prepare_code_for_profiling(in_place=False)
         profile_content = profiler.profile_file.read_text()
 

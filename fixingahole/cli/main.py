@@ -15,7 +15,6 @@
 
 import json
 import sys
-from contextlib import suppress
 from pathlib import Path
 from typing import Annotated
 
@@ -23,7 +22,7 @@ import typer
 from colours import Colour
 from typer import Exit
 
-from fixingahole import Config, LogLevel, Profiler, ProfileSummary, StatisticsManager
+from fixingahole import Config, LogLevel, PlottingLibrary, Profiler, ProfileSummary, StatisticsManager
 from fixingahole.config import DurationOption
 from fixingahole.profiler.utils import FindPathException, find_path
 
@@ -99,11 +98,12 @@ def profile(  # noqa: PLR0913
         ),
     ] = LogLevel.WARNING,
     no_plots: Annotated[
-        list[str] | None,
+        list[PlottingLibrary] | None,
         typer.Option(
             "--no-plots",
             "-np",
-            help="Comma-separated list of plotting libraries to suppress during profiling, i.e. `matplotlib`, `plotly`",
+            help="Separate entries for each plotting library to suppress during profiling, i.e. `-np matplotlib -np plotly`",
+            case_sensitive=False,
             show_default=True,
             rich_help_panel="Preprocessing",
         ),
@@ -118,7 +118,7 @@ def profile(  # noqa: PLR0913
         ),
     ] = float("inf"),
     ignore: Annotated[
-        list[Path] | None,
+        list[str] | None,
         typer.Option(
             "--ignore",
             "-i",
@@ -199,7 +199,7 @@ def profile(  # noqa: PLR0913
     if full_path.exists() and not full_path.is_dir():
         python_file = full_path
     else:
-        python_file: Path = find_path(filename, Config.root(), exclude=Config.ignore())
+        python_file: Path = find_path(filename, Config.root(), exclude=[*Config.ignore(), ".venv", ".git"])
         if python_file.is_dir():
             Colour.error("Error: cannot profile a directory.")
             raise Exit(code=1)
@@ -207,12 +207,17 @@ def profile(  # noqa: PLR0913
     ignore_dirs: list = []
     if ignore is not None:
         Colour.info("Searching for the following folders to ignore: %s", [str(p) for p in ignore])
+        any_exceptions = False
         for p in ignore:
-            with suppress(FindPathException):
+            try:
                 ignore_dirs.append(find_path(p, in_dir=Config.root()))
+            except FindPathException:
+                any_exceptions = True
+        if any_exceptions:
+            Colour.error("Error: failed to find unique patterns to ignore. Please be more specific.")
+            raise Exit(code=1)
         Colour.info("Ignoring: %s", [str(p) for p in ignore_dirs])
 
-    no_plots: list[str] = [lib.strip() for item in no_plots for lib in item.split(",")] if no_plots is not None else []
     profiler = Profiler(
         path=python_file,
         python_script_args=python_script_args.args,
@@ -290,7 +295,7 @@ def summarize(
     ] = 0.1,
 ) -> str:
     """Summarize a Scalene JSON profile."""
-    file = find_path(filename, in_dir=Config.root())
+    file = find_path(filename, in_dir=Config.root(), exclude=[*Config.ignore(), ".venv", ".git"])
     summary = ProfileSummary(file).summary(top_n, threshold)
     Colour.info(summary)
     return summary
@@ -348,6 +353,7 @@ def stats(
     directory, files = find_path(
         folder,
         in_dir=Config.root(),
+        exclude=[*Config.ignore(), ".venv", ".git"],
         return_suffix=".json",
         subfolder_only=subfolder_only,
     )
