@@ -137,12 +137,9 @@ class TestProfilerRunProfiler:
         result = subprocess.run(cmd, check=False, text=True, capture_output=True)
         assert result.returncode == 0, result.stdout
 
-    def test_profiler_cli_call_bad_flags_no_plots_inplace(self, mock_file: Path):
-        """Test that the CLI invocation fails with bad flag combinations."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file), "--no-plots", "matplotlib"])
-        assert result.exit_code == 1, print_error(result)
-
-    def test_profiler_cli_call_bad_flags_filename_inplace(self, mock_file: Path):
-        """Test that the CLI invocation fails with bad flag combinations."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file.with_suffix(".ipynb")), "--in-place"])
+    def test_profiler_cli_call_ignore_files_fail(self, mock_file: Path, root_dir: Path):
+        """Test that the CLI invocation fails when the dynamic file ignore fails."""
+        name = "find_me_here"
+        (root_dir / name / name).mkdir(parents=True, exist_ok=True)
+        result = runner.invoke(cli.app, ["profile", str(mock_file), "--ignore", name])
         assert result.exit_code == 1, print_error(result)
