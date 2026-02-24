@@ -24,7 +24,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from fixingahole import ROOT_DIR
+from fixingahole import Config
+from fixingahole.profiler.scalene_json_parser import ProfileData
 
 
 class StackReporter:
@@ -34,7 +35,7 @@ class StackReporter:
         """Report stack traces for expensive function calls."""
         try:
             self.profile_json_path = Path(profile_json_path).resolve()
-            self.data = self.load_profile_results(self.profile_json_path)
+            self.data = ProfileData.from_file(self.profile_json_path)
         except (FileNotFoundError, json.JSONDecodeError, PermissionError) as e:
             err_msg = f"Failed to initialize StackReporter: {e}"
             raise StackReporterError(err_msg) from e
@@ -47,16 +48,14 @@ class StackReporter:
 
     def get_top_functions(self, n: int = 5) -> list[dict[str, Any]]:
         """Return the top n functions by total CPU percentage."""
-        funcs = []
-        for file, data in self.data.get("files", {}).items():
-            for func in data["functions"]:
-                total_percent = func["n_cpu_percent_c"] + func["n_cpu_percent_python"]
-                funcs.append({"file": file, "name": func["line"], "total_percent": total_percent})
+        funcs: list[dict[str, Any]] = [
+            {"file": func.file_path, "name": func.line, "total_percent": func.total_percentage} for func in self.data.functions
+        ]
         # Sort by total_percent descending
         return sorted(funcs, key=operator.itemgetter("total_percent"), reverse=True)[:n]
 
     @staticmethod
-    def find_stack_traces(stacks: dict, func_name: str) -> list[dict]:
+    def find_stack_traces(stacks: list[tuple[list[str], dict[str, float]]], func_name: str) -> list[dict]:
         """Find all stack traces where the function name appears."""
         return [{"stack": stack[0], **stack[1]} for stack in stacks if func_name in stack[0][-1]]
 
@@ -80,7 +79,7 @@ class StackReporter:
         report: list[str] = []
         for func in top_funcs:
             report.append(f"\n{func['name']}, ({func['total_percent']:.2f}%)")
-            traces = StackReporter.find_stack_traces(self.data["stacks"], func["name"])
+            traces = StackReporter.find_stack_traces(self.data.stacks, func["name"])
             if not traces:
                 report.append("  No stack traces found.\n")
                 continue
@@ -115,11 +114,7 @@ class StackReporter:
                 # Assume frame format: 'filename function:line;'
                 # Rearrange to: 'relative_filepath:line; function'
                 file_path, func_name, line_no = re.split(r"[ :]", frame)
-                try:
-                    rel_path = str(Path(file_path).resolve().relative_to(ROOT_DIR))
-                except ValueError:
-                    rel_path = str(Path(file_path).resolve())
-                norm_stack.append(f"{rel_path}:{line_no} {func_name}")
+                norm_stack.append(f"{Config.relative_to_root(file_path)}:{line_no} {func_name}")
             current = tree
             path = []
             for frame in norm_stack:

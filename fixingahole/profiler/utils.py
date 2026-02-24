@@ -19,6 +19,7 @@ from collections.abc import Callable
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
+from types import TracebackType
 from typing import TYPE_CHECKING, overload
 
 from colours import Colour
@@ -29,10 +30,36 @@ from typer import Exit
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
-from fixingahole import ROOT_DIR
+from fixingahole import Config
 
 if TYPE_CHECKING:
     from watchdog.observers.api import BaseObserver
+
+# Remove the difficult to see "toggle" spinners from the available options.
+for name in set(SPINNERS):
+    if "toggle" in name:
+        SPINNERS.pop(name, None)
+# Add a custom XanaduAI spinner.
+SPINNERS["xanaduai"] = {
+    "interval": 120,
+    "frames": [
+        "|XanaduAI    |",
+        "| XanaduAI   |",
+        "|  XanaduAI  |",
+        "|   XanaduAI |",
+        "|    XanaduAI|",
+        "|   XanaduAI |",
+        "|  XanaduAI  |",
+        "| XanaduAI   |",
+    ],
+}
+
+
+class PlottingLibrary(Enum):
+    """Valid plotting libraries to suppress."""
+
+    matplotlib = "matplotlib"
+    plotly = "plotly"
 
 
 class LogLevel(Enum):
@@ -83,13 +110,22 @@ def memory_with_units(memory: float, unit: str = "MB", digits: int = 0) -> str:
     return f"{memory_bytes:.{digits}f} bytes"
 
 
+class FindPathException(Exit):
+    """Error to raise if find_path fails."""
+
+    def __init__(self, message: str = "") -> None:
+        self.message = message
+        super().__init__(code=1)
+
+
 @overload
 def find_path(
     pattern: str | Path,
     in_dir: str | Path = "",
     *,
-    exclude: list[str] | list[Path] | None = None,
+    exclude: list[str | Path] | None = None,
     return_suffix: None = None,
+    subfolder_only: None = None,
 ) -> Path: ...
 
 
@@ -98,8 +134,9 @@ def find_path(
     pattern: str | Path,
     in_dir: str | Path = "",
     *,
-    exclude: list[str] | list[Path] | None = None,
+    exclude: list[str | Path] | None = None,
     return_suffix: str,
+    subfolder_only: bool = False,
 ) -> tuple[Path, list[Path]]: ...
 
 
@@ -109,35 +146,44 @@ def find_path(
     *,
     exclude: list[str | Path] | None = None,
     return_suffix: str | None = None,
+    subfolder_only: bool | None = None,
 ) -> Path | tuple[Path, list[Path]]:
     """Find files or directories in the repository.
 
     Args:
         pattern: Name or pattern to search for
-        in_dir: Directory to search within
+        in_dir: Directory to search within, resolve from Config.root() if not absolute.
         exclude: List of patterns to exclude from search
         return_suffix: If the pattern is a directory, returns a tuple of (dir_path, files_in_dir_with_suffix)
+        subfolder_only: Searches only the immediate subdirectory for files in combination with `return_suffix`.
 
     Returns:
         Path object for the found item, or tuple of (Path, list[Path]) if return_contents=True
 
     """
-    if Path(pattern).is_absolute() and Path(pattern).exists():
+    # Resolve `./` if given.
+    pattern = str(Path(pattern).resolve()) if isinstance(pattern, str) and pattern[:2] == "./" else str(pattern)
+
+    # Return the path if the pattern is a path that already exists and is already an absolute path.
+    if (abs_path := Path(pattern)).is_absolute() and abs_path.exists() and not abs_path.is_dir():
         return Path(pattern).absolute()
 
-    in_dir = (ROOT_DIR / in_dir).resolve()
-    exclude = exclude if exclude is not None else []
+    # If the search directory is not absolute, then resolve it relative to the configured root.
+    if not (in_dir := Path(in_dir)).is_absolute():
+        in_dir = (Config.root() / in_dir).resolve()
 
     # Process exclude patterns
     exclude_resolved = []
+    exclude = exclude if exclude is not None else []
     for x in exclude:
         if "*" in str(x):
             exclude_resolved.extend([folder for folder in in_dir.glob(str(x)) if folder.is_dir()])
         else:
             exclude_resolved.append(x)
-    exclude_resolved += [".venv", ".git"]
-    exclude_resolved = [(ROOT_DIR / folder).resolve() for folder in exclude_resolved]
-    options = [
+    exclude_resolved = [(in_dir / folder).resolve() for folder in exclude_resolved]
+
+    # Search for all of the available options given the pattern.
+    options: list[Path] = [
         path
         for path in in_dir.rglob("*")
         if (not any(path.is_relative_to(folder) for folder in exclude_resolved) and PurePath(path).match(str(pattern)))
@@ -148,25 +194,38 @@ def find_path(
         case 1:
             result: Path = options.pop()
             if return_suffix is not None:
-                return result, [path for path in result.rglob(f"*{return_suffix}") if "__pycache__" not in str(path)]
+                glob = result.glob(f"*{return_suffix}") if subfolder_only else result.rglob(f"*{return_suffix}")
+                paths = [path for path in glob if "__pycache__" not in str(path)]
+                if len(paths) == 0 and subfolder_only:
+                    Colour.error(
+                        "No files were found in %s of type %s",
+                        Colour.purple(result.name),
+                        Colour.purple(return_suffix),
+                    )
+                    msg = f"No files were found in {result.name} of type {return_suffix}"
+                    raise FindPathException(msg)
+                return result, paths
             return result
         case 0:
-            Colour.print(
-                Colour.red(f"No {file_or_folder} in"),
-                f"{Colour.purple(in_dir.name)} with name:",
-                f"{Colour.green(pattern)} were found.",
+            Colour.error(
+                "No %s in %s with name: %s were found.",
+                file_or_folder,
+                Colour.purple(in_dir.name),
+                Colour.green(pattern),
             )
-            raise Exit(code=1)
+            msg = f"No {file_or_folder} in {in_dir.name} with name: {pattern} were found."
+            raise FindPathException(msg)
         case _:
-            Colour.print(
-                Colour.red(f"Many {file_or_folder} with name:"),
-                f"{Colour.green(pattern)} were found in",
-                f"{Colour.purple(in_dir.name)}.",
-                "Please be more specific.",
+            Colour.error(
+                "Many %s with name: %s were found in %s. Please be more specific.",
+                file_or_folder,
+                Colour.green(pattern),
+                Colour.purple(in_dir.name),
             )
             for path in options:
-                Colour.purple.print(path.relative_to(ROOT_DIR))
-            raise Exit(code=1)
+                Colour.error(" %s", Colour.purple(path.relative_to(in_dir)))
+            msg = f"Many {file_or_folder} with name: {pattern} were found in {in_dir.name}."
+            raise FindPathException(msg)
 
 
 def installed_modules() -> set[str]:
@@ -176,7 +235,7 @@ def installed_modules() -> set[str]:
         if "Name" in dist.metadata:
             modules.add(str(dist.metadata["Name"]).lower())
         elif not any("egg-info" in str(file) for file in getattr(dist, "files", [])):
-            Colour.print(Colour.ORANGE("\nWarning:"), "module missing 'Name' metadata.")
+            Colour.warning("\nWarning: module missing 'Name' metadata.")
     return modules
 
 
@@ -228,3 +287,17 @@ class FileWatcher:
         if self.observer:
             self.observer.stop()
             self.observer.join(timeout=1.0)
+
+    def __enter__(self) -> "FileWatcher":
+        """Start the file watcher context."""
+        self.start()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Stop the file watcher context."""
+        self.stop()

@@ -13,20 +13,32 @@
 # limitations under the License.
 """Helper code for running tests."""
 
-import contextlib
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 from click.testing import Result
 
-from fixingahole.config import Duration
+from fixingahole.config import Config, DurationOption, Settings
 
 
-@pytest.fixture(autouse=True)
-def set_duration() -> None:
-    """Make sure that the Duration singleton is always reset."""
-    Duration("relative")
-    Duration.update("relative")
+@pytest.fixture(name="root_dir", autouse=True)
+def fixture_root_dir(tmp_path: Path) -> Generator[Path, None, None]:
+    """Set up a temporary repo root directory for each test and restore settings afterwards."""
+    mock_root_dir = tmp_path
+    mock_output_dir = mock_root_dir / "performance"
+    mock_output_dir.mkdir(parents=True, exist_ok=True)
+    prev_settings = Config.settings()
+    Config.configure(
+        Settings(
+            root=mock_root_dir,
+            output=mock_output_dir,
+            ignore=[mock_output_dir],
+            duration=DurationOption.relative,
+        )
+    )
+    yield mock_root_dir
+    Config.configure(prev_settings)
 
 
 def basic_name(suffix: str = "") -> str:
@@ -35,44 +47,44 @@ def basic_name(suffix: str = "") -> str:
 
 
 @pytest.fixture
-def mock_file(tmp_path: Path) -> Path:
+def non_local_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Create a temporary directory outside of the repo root_dir for tests."""
+    return tmp_path_factory.mktemp("not_within_root_dir")
+
+
+@pytest.fixture
+def mock_file(root_dir: Path) -> Path:
     """Create a basic test file for profiler testing."""
     basic_script = Path(__file__).parent / "scripts" / "basic.py"
-    test_file = tmp_path / basic_name(".py")
+    test_file = root_dir / basic_name(".py")
     test_file.write_text(basic_script.read_text())
     return test_file
 
 
 @pytest.fixture
-def mock_dir(tmp_path: Path) -> Path:
+def mock_file_with_argparse(root_dir: Path) -> Path:
     """Create a basic test file for profiler testing."""
-    test_dir = tmp_path / basic_name()
+    basic_script = Path(__file__).parent / "scripts" / "with_argparse.py"
+    test_file = root_dir / basic_name(".py")
+    test_file.write_text(basic_script.read_text())
+    return test_file
+
+
+@pytest.fixture
+def mock_dir(root_dir: Path) -> Path:
+    """Create a basic test file for profiler testing."""
+    test_dir = root_dir / basic_name()
     test_dir.mkdir(parents=True, exist_ok=True)
     return test_dir
 
 
 @pytest.fixture
-def example_json(tmp_path: Path) -> Path:
+def example_json(root_dir: Path) -> Path:
     """Return path to the advanced profile results JSON file."""
     example_json_file: Path = Path(__file__).parent / "scripts" / "data" / "advanced_profile_results.json"
-    file_path: Path = tmp_path / "example.json"
+    file_path: Path = root_dir / "example.json"
     file_path.write_bytes(example_json_file.read_bytes())
     return file_path
-
-
-@pytest.fixture(name="root_dir", autouse=True)
-def fixture_root_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Create a temporary repo root directory for tests."""
-    mock_root_dir = tmp_path
-    mock_output_dir = mock_root_dir / "performance"
-    mock_output_dir.mkdir(parents=True, exist_ok=True)
-    package_root = Path(__file__).parents[1] / "fixingahole"
-    for path in package_root.rglob("*.py"):
-        part = ".".join(path.relative_to(package_root).parts)[:-3]
-        for folder in ["ROOT_DIR", "OUTPUT_DIR"]:
-            with contextlib.suppress(AttributeError):
-                monkeypatch.setattr(f"fixingahole.{part}.{folder}", mock_root_dir)
-    return mock_root_dir
 
 
 def print_error(res: Result) -> None:

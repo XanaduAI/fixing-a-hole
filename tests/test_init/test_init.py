@@ -13,13 +13,15 @@
 # limitations under the License.
 """Tests for the Fixing-A-Hole config and init."""
 
+import tomllib
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from fixingahole import config
-from fixingahole.config import Duration, DurationOption
+from fixingahole.config import Config, ConfigParseError, ConfigValueError, DurationOption, Settings
 
 
 class TestConfig:
@@ -29,21 +31,326 @@ class TestConfig:
         """Test detecting the virtual env."""
         assert config._detect_virtualenv()
 
-    def test_find_pyproject(self):
-        """Test finding the pyproject.toml."""
-        pyproject_path = Path(__file__).parents[2] / "pyproject.toml"
-        assert config._find_pyproject() == pyproject_path
+    def test_load_pyproject_config_finds_matching_pyproject(self, tmp_path: Path):
+        """Test _load_pyproject_config returns config when pyproject.toml contains [tool.fixingahole]."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text('[tool.fixingahole]\nroot = "src"\n')
+        with patch("fixingahole.config.Path.cwd", return_value=tmp_path):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {"root": "src"}
+        assert base == tmp_path
 
-    def test_find_pyproject_outside_of_repo(self, tmp_path: Path):
-        """Test finding the pyproject.toml."""
-        pyproject_path = Path(__file__).parents[2] / "pyproject.toml"
-        with patch("fixingahole.config.Path.cwd") as cwd:
-            cwd.side_effect = [tmp_path]
-            assert config._find_pyproject() == pyproject_path
+    def test_load_pyproject_config_skips_pyproject_without_fixingahole_section(self, tmp_path: Path):
+        """Test that pyproject.toml files lacking [tool.fixingahole] are skipped and the walk continues."""
+        child = tmp_path / "child"
+        child.mkdir()
+        (child / "pyproject.toml").write_text("[tool.other]\nfoo = 1\n")
+        (tmp_path / "pyproject.toml").write_text('[tool.fixingahole]\nroot = "src"\n')
+        with patch("fixingahole.config.Path.cwd", return_value=child):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {"root": "src"}
+        assert base == tmp_path
 
-    def test_get_root_dir(self):
+    def test_resolve_root_dir_defaults_to_cwd(self):
         """Test setting the root directory as the current working directory."""
-        assert config._get_root_dir(config={}) == Path.cwd()
+        assert config._resolve_root_dir(config={}, base_dir=Path.cwd()) == Path.cwd()
+
+    def test_detect_virtualenv_returns_sys_prefix_when_marker_exists(self):
+        """Test virtualenv detection via pyvenv.cfg when env var is unset."""
+        with patch("fixingahole.config.os.getenv", return_value=""), patch("fixingahole.config.Path.exists", return_value=True):
+            assert config._detect_virtualenv() == config.sys.prefix
+
+    def test_detect_virtualenv_returns_empty_when_not_in_venv(self):
+        """Test virtualenv detection when no env var and no pyvenv marker are found."""
+        with (
+            patch("fixingahole.config.os.getenv", return_value=""),
+            patch("fixingahole.config.Path.exists", return_value=False),
+        ):
+            assert config._detect_virtualenv() == ""  # noqa: PLC1901
+
+    def test_load_pyproject_config_stops_walk_at_git_root(self, tmp_path: Path):
+        """Test that the walk stops at a .git boundary and does not look further up the tree."""
+        git_root = tmp_path / "repo"
+        git_root.mkdir()
+        (git_root / ".git").mkdir()
+        # Matching pyproject.toml sits *above* the git root — must not be found.
+        (tmp_path / "pyproject.toml").write_text('[tool.fixingahole]\nroot = "src"\n')
+        with (
+            patch("fixingahole.config.Path.cwd", return_value=git_root),
+            patch("fixingahole.config._detect_virtualenv", return_value=""),
+        ):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {}
+        assert base == git_root
+
+    def test_load_pyproject_config_finds_config_at_git_root(self, tmp_path: Path):
+        """Test config is found when pyproject.toml at the git root contains [tool.fixingahole]."""
+        git_root = tmp_path / "repo"
+        git_root.mkdir()
+        (git_root / ".git").mkdir()
+        (git_root / "pyproject.toml").write_text('[tool.fixingahole]\nroot = "src"\n')
+        with patch("fixingahole.config.Path.cwd", return_value=git_root):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {"root": "src"}
+        assert base == git_root
+
+    def test_load_pyproject_config_falls_back_to_venv_parent(self, tmp_path: Path):
+        """Test fallback to venv parent directory when the walk stops at a git root without a match."""
+        git_root = tmp_path / "repo"
+        git_root.mkdir()
+        (git_root / ".git").mkdir()
+        child = git_root / "subdir"
+        child.mkdir()
+        venv_dir = tmp_path / "venv"
+        venv_dir.mkdir()
+        # Matching pyproject.toml lives in the venv's parent directory.
+        (tmp_path / "pyproject.toml").write_text('[tool.fixingahole]\nroot = "src"\n')
+        with (
+            patch("fixingahole.config.Path.cwd", return_value=child),
+            patch("fixingahole.config._detect_virtualenv", return_value=str(venv_dir)),
+        ):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {"root": "src"}
+        assert base == tmp_path
+
+    def test_load_pyproject_config_returns_empty_when_no_matching_pyproject(self, tmp_path: Path):
+        """Test config loading returns an empty dict when no pyproject with [tool.fixingahole] is found."""
+        git_root = tmp_path / "repo"
+        git_root.mkdir()
+        (git_root / ".git").mkdir()
+        with (
+            patch("fixingahole.config.Path.cwd", return_value=git_root),
+            patch("fixingahole.config._detect_virtualenv", return_value=""),
+        ):
+            cfg, base = config._load_pyproject_config()
+        assert cfg == {}
+        assert base == git_root
+
+    def test_load_pyproject_config_raises_on_toml_decode_error(self, tmp_path: Path):
+        """Test config loading raises a parse error when TOML parsing fails."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text("[tool.fixingahole]\nroot = 1\n")
+        decode_error = tomllib.TOMLDecodeError("bad toml", "", 0)
+        with (
+            patch("fixingahole.config.Path.cwd", return_value=tmp_path),
+            patch("fixingahole.config.tomllib.load", side_effect=decode_error),
+            pytest.raises(ConfigParseError),
+        ):
+            config._load_pyproject_config()
+
+    def test_resolve_output_dir_uses_absolute_path_unchanged(self, tmp_path: Path):
+        """Test absolute output path is returned directly."""
+        absolute_output = tmp_path / "performance"
+        assert config._resolve_output_dir({"output": str(absolute_output)}, root_dir=tmp_path) == absolute_output
+
+    def test_resolve_root_dir_uses_base_dir_for_relative_root(self, tmp_path: Path):
+        """Test relative root resolves against provided base directory."""
+        base_dir = tmp_path / "project"
+        expected = (base_dir / "src").resolve()
+        assert config._resolve_root_dir({"root": "src"}, base_dir=base_dir) == expected
+
+    def test_resolve_ignore_dirs_non_string_non_list_defaults_to_output(self, tmp_path: Path):
+        """Test invalid ignore config type falls back to output directory only."""
+        output_path = tmp_path / "performance"
+        assert config._resolve_ignore_dirs({"ignore": 123}, output_path, base_dir=tmp_path) == [output_path]
+
+    def test_resolve_ignore_dirs_accepts_string_path(self, tmp_path: Path):
+        """Test string ignore directory input is normalised and preserved."""
+        ignore_path = tmp_path / "ignore_me"
+        output_path = tmp_path / "performance"
+        ignore_path.mkdir()
+        output_path.mkdir(exist_ok=True)
+
+        result = config._resolve_ignore_dirs({"ignore": str(ignore_path)}, output_path, base_dir=tmp_path)
+        assert ignore_path.resolve() in result
+        assert output_path in result
+
+    def test_resolve_ignore_dirs_appends_output_when_missing(self, tmp_path: Path):
+        """Test output path is appended when not present in ignore directories."""
+        ignore_path = tmp_path / "ignore_me"
+        output_path = tmp_path / "performance"
+        ignore_path.mkdir()
+        output_path.mkdir(exist_ok=True)
+
+        result = config._resolve_ignore_dirs({"ignore": [str(ignore_path)]}, output_path, base_dir=tmp_path)
+        assert ignore_path.resolve() in result
+        assert output_path in result
+
+    def test_resolve_ignore_dirs_resolves_relative_to_base_dir(self, tmp_path: Path):
+        """Test relative ignore paths are resolved from config base directory."""
+        base_dir = tmp_path / "project"
+        ignore_path = base_dir / "ignore_me"
+        output_path = base_dir / "performance"
+        ignore_path.mkdir(parents=True)
+        output_path.mkdir(exist_ok=True)
+
+        result = config._resolve_ignore_dirs({"ignore": ["ignore_me"]}, output_path, base_dir=base_dir)
+        assert ignore_path.resolve() in result
+
+    def test_configure_updates_globals(self, tmp_path: Path):
+        """Test configure() applies resolved settings to the module-level globals."""
+        root = tmp_path / "project"
+        output = root / "custom_output"
+        ignore = root / "ignored"
+        ignore.mkdir(parents=True)
+
+        with patch(
+            "fixingahole.config._load_pyproject_config",
+            return_value=(
+                {
+                    "root": str(root),
+                    "output": "custom_output",
+                    "ignore": [str(ignore)],
+                    "duration": "absolute",
+                },
+                tmp_path,
+            ),
+        ):
+            settings = Config.configure()
+
+        assert settings.root == root.resolve()
+        assert settings.output == output.resolve()
+        assert ignore.resolve() in settings.ignore
+        assert settings.root == Config.root()
+        assert settings.output == Config.output()
+        assert settings.ignore == Config.ignore()
+        assert Config.is_duration_absolute()
+
+    def test_configure_applies_explicit_settings(self, tmp_path: Path):
+        """configure(explicit=...) applies the given settings directly to globals."""
+        explicit = Settings(
+            root=tmp_path,
+            output=tmp_path / "out",
+            ignore=[tmp_path / "out"],
+            duration=DurationOption.absolute,
+        )
+        settings = Config.configure(explicit=explicit)
+        assert settings == explicit
+        assert explicit.root == Config.root()
+        assert explicit.output == Config.output()
+        assert explicit.ignore == Config.ignore()
+        assert Config.is_duration_absolute()
+
+
+class TestConfigure:
+    """Tests for configure() settings precedence and per-key merge."""
+
+    def test_explicit_bypasses_all_other_sources(self, tmp_path: Path):
+        """Explicit settings bypass env vars and pyproject entirely."""
+        explicit = Settings(
+            root=tmp_path,
+            output=tmp_path / "out",
+            ignore=[tmp_path / "out"],
+            duration=DurationOption.absolute,
+        )
+        with patch.dict("fixingahole.config.os.environ", {"FIXINGAHOLE_DURATION": "relative"}, clear=False):
+            result = Config.configure(explicit=explicit)
+        assert result == explicit
+
+    def test_env_key_overrides_matching_pyproject_key(self, tmp_path: Path):
+        """A single env var overrides only that key; all other keys come from pyproject."""
+        root = tmp_path / "myrepo"
+        output = root / "results"
+        ignore = tmp_path / "scratch"
+        ignore.mkdir(parents=True)
+
+        pyproject_config = {
+            "root": str(root),
+            "output": "results",
+            "ignore": [str(ignore)],
+            "duration": "relative",
+        }
+
+        with (
+            patch("fixingahole.config._load_pyproject_config", return_value=(pyproject_config, tmp_path)),
+            patch("fixingahole.config.os.getenv", side_effect=lambda k, *_: {"FIXINGAHOLE_DURATION": "absolute"}.get(k)),
+        ):
+            settings = Config.configure()
+
+        assert settings.root == root.resolve()
+        assert settings.output == output.resolve()
+        assert ignore.resolve() in settings.ignore
+        assert settings.duration == DurationOption.absolute  # from env
+
+    def test_all_env_keys_used_when_no_pyproject(self, tmp_path: Path):
+        """All settings resolved from env vars when no pyproject is found."""
+        root = tmp_path / "repo"
+        output = root / "perf"
+        ignore = tmp_path / "scratch"
+        ignore.mkdir()
+
+        env = {
+            "FIXINGAHOLE_ROOT": str(root),
+            "FIXINGAHOLE_OUTPUT": "perf",
+            "FIXINGAHOLE_IGNORE": str(ignore),
+            "FIXINGAHOLE_DURATION": "absolute",
+        }
+
+        with (
+            patch("fixingahole.config._load_pyproject_config", return_value=({}, tmp_path)),
+            patch("fixingahole.config.os.getenv", side_effect=lambda k, *_: env.get(k)),
+        ):
+            settings = Config.configure()
+
+        assert settings.root == root.resolve()
+        assert settings.output == output.resolve()
+        assert ignore.resolve() in settings.ignore
+        assert settings.duration == DurationOption.absolute
+
+    def test_pyproject_used_when_no_env(self, tmp_path: Path):
+        """All settings come from pyproject when no env vars are set."""
+        root = tmp_path / "myrepo"
+        output = root / "results"
+        ignore = tmp_path / "scratch"
+        ignore.mkdir()
+
+        pyproject_config = {
+            "root": str(root),
+            "output": "results",
+            "ignore": [str(ignore)],
+            "duration": "absolute",
+        }
+
+        with (
+            patch("fixingahole.config._load_pyproject_config", return_value=(pyproject_config, tmp_path)),
+            patch("fixingahole.config.os.getenv", return_value=None),
+        ):
+            settings = Config.configure()
+
+        assert settings.root == root.resolve()
+        assert settings.output == output.resolve()
+        assert ignore.resolve() in settings.ignore
+        assert settings.duration == DurationOption.absolute
+
+    def test_defaults_used_silently_when_no_config_source(self):
+        """Defaults are applied silently when no pyproject and no env vars are set."""
+        with (
+            patch("fixingahole.config._load_pyproject_config", return_value=({}, Path.cwd())),
+            patch("fixingahole.config.os.getenv", return_value=None),
+        ):
+            settings = Config.configure()
+
+        assert settings == Settings.defaults()
+
+    def test_env_ignore_csv_resolved_against_cwd(self, tmp_path: Path):
+        """FIXINGAHOLE_IGNORE entries are split by comma and resolved against cwd."""
+        cwd = tmp_path / "project"
+        ignore_one = cwd / "ignore_one"
+        ignore_two = cwd / "ignore_two"
+        ignore_one.mkdir(parents=True)
+        ignore_two.mkdir()
+
+        env = {"FIXINGAHOLE_IGNORE": "ignore_one, ignore_two"}
+
+        with (
+            patch("fixingahole.config._load_pyproject_config", return_value=({}, cwd)),
+            patch("fixingahole.config.os.getenv", side_effect=lambda k, *_: env.get(k)),
+            patch("fixingahole.config.Path.cwd", return_value=cwd),
+        ):
+            settings = Config.configure()
+
+        assert ignore_one.resolve() in settings.ignore
+        assert ignore_two.resolve() in settings.ignore
 
 
 class TestDurationOption:
@@ -58,64 +365,60 @@ class TestDurationOption:
             DurationOption(bad_value)
 
 
-class TestDuration:
-    """Tests for the Duration singleton class.
+class TestConfigDuration:
+    """Tests for Config duration management.
 
-    ****These tests need to run in this order or they will break subsequent tests.****
+    Each test resets the duration via :meth:`Config.update_duration` via the
+    autouse fixture so tests remain independent.
     """
 
-    def test_invalid_value_exits(self):
-        """Test that the program halts when the Duration is not a DurationOption."""
-        config.Duration._instance = None
-        with pytest.raises(SystemExit):
-            Duration("invalid")
+    @pytest.fixture(autouse=True)
+    def reset_mode(self) -> Generator[None, None, None]:
+        """Reset duration to relative before and after each test."""
+        Config.update_duration("relative")
+        yield
+        Config.update_duration("relative")
 
-    def test_singleton_absolute(self):
-        """Test that the Duration object is a singleton, when absolute."""
-        # Reset singleton for test isolation
-        config.Duration._instance = None
-        d1 = Duration("absolute")
-        d2 = Duration("absolute")
-        assert d1 is d2
-        assert Duration.is_absolute(), Duration.is_absolute()
-        assert not Duration.is_relative(), Duration.is_relative()
+    def test_default_mode_is_relative(self):
+        """Config defaults to relative duration mode."""
+        assert Config.is_duration_relative()
+        assert not Config.is_duration_absolute()
 
-    def test_singleton_relative(self):
-        """Test that the Duration object is a singleton, when relative."""
-        # Reset singleton for test isolation
-        config.Duration._instance = None
-        d1 = Duration("relative")
-        d2 = Duration("relative")
-        assert d1 is d2
-        assert Duration.is_relative()
-        assert not Duration.is_absolute()
+    def test_update_to_absolute(self):
+        """Calling update_duration('absolute') switches the mode to absolute."""
+        Config.update_duration("absolute")
+        assert Config.is_duration_absolute()
+        assert not Config.is_duration_relative()
 
-    def test_singleton_relative_then_absolute(self):
-        """Test that the Duration object is a singleton.
+    def test_update_to_relative(self):
+        """Calling update_duration('relative') keeps (or restores) relative mode."""
+        Config.update_duration("absolute")
+        Config.update_duration("relative")
+        assert Config.is_duration_relative()
+        assert not Config.is_duration_absolute()
 
-        Show that instatiating another instance does not update it.
-        """
-        # Reset singleton for test isolation
-        config.Duration._instance = None
-        d1 = Duration("relative")
-        d2 = Duration("absolute")
-        assert d1 is d2
-        assert Duration.is_relative()
-        assert not Duration.is_absolute()
+    def test_update_invalid_value_raises(self):
+        """update_duration() raises ConfigValueError for unrecognised mode strings."""
+        with pytest.raises(ConfigValueError):
+            Config.update_duration("invalid")
 
-    def test_singleton_relative_then_update_to_absolute(self):
-        """Test test the Duration object is a singleton, but that it can be updated."""
-        # Reset singleton for test isolation
-        config.Duration._instance = None
-        d1 = Duration("relative")
-        d1.update("absolute")
-        assert Duration.is_absolute()
-        assert not Duration.is_relative()
+    def test_mode_unchanged_after_invalid_update(self):
+        """Duration mode is not mutated when update_duration() raises."""
+        Config.update_duration("absolute")
+        with pytest.raises(ConfigValueError):
+            Config.update_duration("bad")
+        assert Config.is_duration_absolute()
 
-    def test_singleton_update_before_instantiation(self):
-        """Test test the Duration object cannot be updated before instatiation."""
-        # Reset singleton for test isolation
-        config.Duration._instance = None
-        with pytest.raises(SystemExit) as exc:
-            Duration.update("relative")
-        assert exc.value.code == 1
+    def test_config_settings_is_settings_instance(self):
+        """Config.settings() always returns a Settings instance."""
+        assert isinstance(Config.settings(), Settings)
+
+    def test_config_cannot_be_instantiated(self):
+        """Config raises TypeError when instantiation is attempted."""
+        with pytest.raises(TypeError, match="Config cannot be instantiated"):
+            Config()
+
+    def test_update_duration_reflected_in_settings(self):
+        """update_duration() changes the duration reported by Config."""
+        Config.update_duration("absolute")
+        assert Config.is_duration_absolute()

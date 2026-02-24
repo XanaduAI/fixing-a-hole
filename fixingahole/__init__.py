@@ -17,10 +17,11 @@ from importlib.metadata import PackageNotFoundError, version
 
 from colours import Colour as _Colour
 
-from fixingahole.config import DURATION, IGNORE_DIRS, OUTPUT_DIR, ROOT_DIR
+from fixingahole.config import Config
 from fixingahole.profiler.profile_summary import ProfileSummary
 from fixingahole.profiler.profiler import Profiler
-from fixingahole.profiler.utils import LogLevel
+from fixingahole.profiler.stats_manager import StatisticsManager
+from fixingahole.profiler.utils import LogLevel, PlottingLibrary
 
 try:
     __version__ = version("fixingahole")
@@ -35,24 +36,24 @@ def about() -> None:
     except PackageNotFoundError:
         scalene_version = "unknown"
 
-    ignored_dirs = "".join(["\n   " + str(path) for path in IGNORE_DIRS])
+    ignored_dirs = "".join(["\n   " + str(path) for path in Config.ignore()])
     _Colour.print(
         _Colour.blue("Fixing-A-Hole: an integrated Scalene profiler and parser."),
         f"\n Version: {__version__}",
         f"\n Scalene Version: {scalene_version}",
         _Colour.blue("\nSettings:"),
-        f"\n root: {ROOT_DIR}",
-        f"\n output: {OUTPUT_DIR}",
+        f"\n root: {Config.root()}",
+        f"\n output: {Config.output()}",
+        f"\n duration: {Config._settings.duration.value}",  # noqa: SLF001
         f"\n ignore: [{ignored_dirs}\n]",
     )
 
 
 __all__ = [
-    "DURATION",
-    "IGNORE_DIRS",
-    "OUTPUT_DIR",
-    "ROOT_DIR",
+    "Config",
     "LogLevel",
+    "PlottingLibrary",
     "ProfileSummary",
     "Profiler",
+    "StatisticsManager",
 ]

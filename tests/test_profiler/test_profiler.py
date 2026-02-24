@@ -19,11 +19,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from typer import Exit
 
-from fixingahole import ROOT_DIR, LogLevel
+from fixingahole import Config, LogLevel, PlottingLibrary
 from fixingahole.profiler import Profiler
-from fixingahole.profiler.utils import find_path
+from fixingahole.profiler.profiler import ProfilerException
+from fixingahole.profiler.utils import FindPathException, find_path
 from tests.conftest import basic_name
 
 
@@ -45,14 +45,14 @@ class TestFindPath:
         path.mkdir(parents=True, exist_ok=True)
         for p in path.parents[:3]:
             (p / filename).touch()
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(FindPathException) as exc_info:
             find_path(filename)
         assert exc_info.value.exit_code == 1
 
     def test_no_files(self):
         """Test that no files are found and return with an error."""
         filename = "find_me.py"
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(FindPathException) as exc_info:
             find_path(filename)
         assert exc_info.value.exit_code == 1
 
@@ -71,14 +71,14 @@ class TestFindPath:
         path.mkdir(parents=True, exist_ok=True)
         for p in path.parents[:3]:
             (p / dirname).touch()
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(FindPathException) as exc_info:
             find_path(dirname)
         assert exc_info.value.exit_code == 1
 
     def test_no_dirs(self):
         """Test that no dirs are found and return with an error."""
         dirname = "find_me"
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(FindPathException) as exc_info:
             find_path(dirname)
         assert exc_info.value.exit_code == 1
 
@@ -126,46 +126,54 @@ class TestProfilerInit:
         precision_limit = 10
         profiler = Profiler(path=mock_file)
 
-        assert profiler.cpu_only is False
+        assert profiler.cpu_only is True
         assert profiler.script_args == []
         assert profiler.precision == 0
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is False
-        assert profiler.loglevel == LogLevel.CRITICAL
-        assert profiler.noplots is False
+        assert profiler.log_level == LogLevel.WARNING
+        assert profiler.no_plots == []
         assert profiler.filestem == basic_name()
         assert profiler.python_file == mock_file
 
     def test_init_with_bad_path(self, tmp_path: Path):
         """Test profiler initialization with path that doesn't exist."""
         for stem in ["file_does_not_exist.py", "dir_does_not_exist"]:
-            with pytest.raises(Exit) as exc_info:
+            with pytest.raises(ProfilerException) as exc_info:
                 Profiler(path=tmp_path / stem)
             err_code = 127
             assert exc_info.value.exit_code == err_code
 
-    def test_init_with_all_options(self, mock_file: Path):
+    def test_init_with_dir(self, mock_dir: Path):
+        """Test profiler initialization with path that is a directory."""
+        with pytest.raises(ProfilerException) as exc_info:
+            Profiler(path=mock_dir)
+        err_code = 1
+        assert exc_info.value.exit_code == err_code
+
+    def test_init_with_all_options(self, mock_file: Path, root_dir: Path):
         """Test profiler initialization with all options set."""
-        precition_value = 3
+        precision_value = 3
         precision_limit = 10
         profiler = Profiler(
             path=mock_file,
             python_script_args=["arg1", "arg2"],
             cpu_only=True,
-            precision=precition_value,
+            precision=precision_value,
             detailed=True,
-            loglevel=LogLevel.DEBUG,
-            noplots=True,
+            log_level=LogLevel.DEBUG,
+            no_plots=[PlottingLibrary.matplotlib, PlottingLibrary.plotly],
             trace=False,
+            output_dir=root_dir / "performance",
         )
 
         assert profiler.cpu_only is True
         assert profiler.script_args == ["arg1", "arg2"]
-        assert profiler.precision == precition_value
+        assert profiler.precision == precision_value
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is True
-        assert profiler.loglevel == LogLevel.DEBUG
-        assert profiler.noplots is True
+        assert profiler.log_level == LogLevel.DEBUG
+        assert profiler.no_plots == [PlottingLibrary.matplotlib, PlottingLibrary.plotly]
         assert profiler.trace is False
 
     def test_init_handles_path_with_spaces(self, tmp_path: Path):
@@ -188,6 +196,41 @@ class TestProfilerInit:
         profiler = Profiler(path=mock_file, precision=None)
         assert profiler.precision == 0
 
+    def test_init_custom_output_dir(self, mock_file: Path, root_dir: Path, non_local_dir: Path):
+        """Test profiler initialization with in_place=True and custom output_dir."""
+        custom_output = non_local_dir / "custom_output"
+        custom_output.mkdir(parents=True, exist_ok=False)
+        profiler = Profiler(path=mock_file, output_dir=custom_output)
+
+        # Verify profile_file is the same as python_file and within root_dir and not within non_local_dir.
+        assert profiler.profile_file == profiler.python_file
+        assert profiler.profile_file.is_relative_to(root_dir)
+        assert not profiler.profile_file.is_relative_to(non_local_dir)
+
+        # Verify output_file is in the custom directory and not within root_dir
+        assert profiler.output_file == custom_output / "profile_results.txt"
+        assert profiler.output_file.exists()
+        assert not profiler.output_file.is_relative_to(root_dir)
+
+        # Verify profile_root is the custom directory and not within root_dir
+        assert profiler.profile_root == custom_output
+        assert not profiler.profile_root.is_relative_to(root_dir)
+
+    def test_output_file_string_setter_behavior(self, mock_file: Path):
+        """Test that string assignment to output_file triggers setter correctly."""
+        profiler = Profiler(path=mock_file)
+
+        # This is a Path assignment, so _output_file will have .txt extension
+        assert isinstance(profiler._output_file, Path)  # noqa: SLF001
+        assert profiler.output_file.exists()
+
+        # Test changing output_file via string assignment
+        profiler.output_file = "new_results"
+        assert profiler._output_name == "new_results"  # noqa: SLF001
+        assert profiler.output_file.name == "new_results.txt"
+        assert profiler.output_file.parent == profiler.profile_root
+        assert profiler.output_file.exists()
+
 
 class TestProfilerProperties:
     """Test the Profiler properties."""
@@ -199,7 +242,7 @@ class TestProfilerProperties:
         # Should contain the system python directory exclude flag
         if sys.executable:
             exclude_dir = Path(sys.executable).resolve().parents[1]
-            if not exclude_dir.is_relative_to(ROOT_DIR):
+            if not exclude_dir.is_relative_to(Config.root()):
                 assert "--profile-exclude" in excluded
                 assert str(exclude_dir) in excluded
             else:
@@ -232,40 +275,55 @@ class TestProfilerProperties:
         # Should be created by touch()
         assert Path(new_output_str).exists()
 
-    def test_output_path_property_within_root(self, mock_file: Path):
-        """Test output_path property when output_file is within ROOT_DIR."""
+    def test_output_path_property_within_root(self, mock_file: Path, root_dir: Path):
+        """Test output_path property when output_file is within the current directory."""
         profiler = Profiler(path=mock_file)
-        # output_path should be relative to ROOT_DIR
-        output_path = profiler.output_path
-        assert not output_path.is_absolute()
+        # output_path should be relative to the current directory (root)
+        with patch("pathlib.Path.cwd", return_value=root_dir):
+            output_path = profiler.output_path
+            assert not output_path.is_absolute()
 
-    def test_output_path_property_outside_root(self, mock_file: Path, root_dir: Path):
-        """Test output_path property when output_file is outside ROOT_DIR."""
-        external_dir = Path(root_dir).parent / "external"
+    def test_properties_outside_root(self, mock_file: Path, root_dir: Path, non_local_dir: Path):
+        """Test profile properties when output_file is outside the current directory."""
+        external_dir = non_local_dir / "external"
         external_dir.mkdir(exist_ok=True, parents=True)
 
-        profiler = Profiler(path=mock_file)
+        profiler = Profiler(path=mock_file, log_level=LogLevel.INFO)
         profiler.output_file = external_dir / "output.txt"
 
-        # output_path should return absolute path when outside ROOT_DIR
-        output_path = profiler.output_path
-        assert output_path == profiler.output_file
+        # output_path should return absolute path when outside the current directory (root)
+        with patch("pathlib.Path.cwd", return_value=root_dir):
+            output_path = profiler.output_path
+            assert output_path == profiler.output_file
+            assert not profiler.path_to_summary.is_relative_to(root_dir)
+            assert not profiler.profile_path.is_relative_to(root_dir)
+            assert not profiler.log_path.is_relative_to(root_dir)
+
+    def test_output_summary_names(self, mock_file: Path):
+        """Test the output_summary names."""
+        profiler = Profiler(path=mock_file)
+
+        new_output = mock_file.parent / "new_output.txt"
+        assert profiler.output_summary.name == profiler.output_file.name.replace("results", "summary")
+        profiler.output_file = new_output
+        assert profiler.output_summary.name == "profile_summary.txt"
 
     def test_log_file_property(self, mock_file: Path):
         """Test the log_file property."""
         profiler = Profiler(path=mock_file)
 
         log_file = profiler.log_file
-        assert log_file.name == "logs.log"
+        assert log_file.name == "profile_logs.log"
         assert profiler.profile_root in log_file.parents
 
-    def test_log_path_property(self, mock_file: Path):
+    def test_log_path_property(self, mock_file: Path, root_dir: Path):
         """Test the log_path property."""
         profiler = Profiler(path=mock_file)
 
-        log_path = profiler.log_path
         # Should be relative to ROOT_DIR
-        assert not log_path.is_absolute()
+        with patch("pathlib.Path.cwd", return_value=root_dir):
+            log_path = profiler.log_path
+            assert not log_path.is_absolute()
 
 
 class TestProfilerIPythonNotebookConversion:
@@ -293,7 +351,7 @@ class TestProfilerIPythonNotebookConversion:
     def test_convert_ipynb_to_py_empty_notebook(self):
         """Test conversion of empty notebook and return with an error."""
         notebook_content = {"cells": []}
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ProfilerException) as exc_info:
             Profiler.convert_ipynb_to_py(json.dumps(notebook_content))
         assert exc_info.value.exit_code == 1
 
@@ -305,7 +363,7 @@ class TestProfilerIPythonNotebookConversion:
                 {"cell_type": "markdown", "source": ["Some text"]},
             ]
         }
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ProfilerException) as exc_info:
             Profiler.convert_ipynb_to_py(json.dumps(notebook_content))
         assert exc_info.value.exit_code == 1
 
@@ -349,14 +407,14 @@ class TestProfilerMemoryPrecision:
 
     def test_get_memory_precision_clamp_values(self, mock_file: Path):
         """Test that precision values are clamped to a range."""
-        with patch("fixingahole.profiler.utils.Colour.print") as mock_color_print:
+        with patch("fixingahole.profiler.utils.Colour.warning") as mock_color_warning:
             for test_val in [-25, 25]:
-                mock_color_print.reset_mock()
+                mock_color_warning.reset_mock()
                 profiler = Profiler(path=mock_file, precision=test_val)
                 profiler.get_memory_precision()
                 limit = profiler.precision_limit
                 warning = f"Warning: -{limit} <= precision <= {limit}"
-                mock_color_print.assert_called_with(warning)
+                mock_color_warning.assert_called_with(warning)
 
     def test_adjusted_memory_precision_clamp_values(self, mock_file: Path):
         """Test that precision values are clamped to a range."""
@@ -370,10 +428,10 @@ class TestProfilerMemoryPrecision:
 
     def test_get_memory_precision_valid_range_no_warning(self, mock_file: Path):
         """Test that valid precision values don't trigger warnings."""
-        with patch("fixingahole.profiler.utils.Colour.print") as mock_color_print:
+        with patch("fixingahole.profiler.utils.Colour.info") as mock_color_log:
             profiler = Profiler(path=mock_file, precision=3)
             profiler.get_memory_precision()
-            mock_color_print.assert_not_called()
+            mock_color_log.assert_not_called()
 
 
 class TestProfilerCodePreparation:
@@ -386,7 +444,7 @@ class TestProfilerCodePreparation:
         test_file.write_text(test_code)
 
         profiler = Profiler(path=test_file)
-        profiler.prepare_code_for_profiling()
+        profiler.prepare_code_for_profiling(in_place=False)
 
         # Check that the profile file was created and contains expected content
         profile_content = profiler.profile_file.read_text()
@@ -394,31 +452,29 @@ class TestProfilerCodePreparation:
         # Should contain logging setup
         assert "import logging" in profile_content
         assert f"log_file = Path(r'{profiler.log_file}')" in profile_content
-        assert f"logging.basicConfig(filename=log_file, level=logging.{profiler.loglevel.name})" in profile_content
+        assert f"logging.basicConfig(filename=log_file, level=logging.{profiler.log_level.name})" in profile_content
 
         # Should contain original code
         assert "print('hello world')" in profile_content
         assert "x = 1" in profile_content
         assert "y = 2" in profile_content
 
-    def test_prepare_code_for_profiling_with_noplots(self, tmp_path: Path):
-        """Test code preparation with noplots option enabled."""
+    def test_prepare_code_for_profiling_with_no_plots(self, tmp_path: Path):
+        """Test code preparation with no_plots option enabled."""
         test_file = tmp_path / "test_script.py"
         test_code = "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3])\nplt.show()"
         test_file.write_text(test_code)
 
-        profiler = Profiler(path=test_file, noplots=True)
-        profiler.prepare_code_for_profiling()
+        # Passing a string is technically allowed, even if the type checker doesn't like it.
+        profiler = Profiler(path=test_file, no_plots="matplotlib")  # ty:ignore[invalid-argument-type]
+        profiler.prepare_code_for_profiling(in_place=False)
         profile_content = profiler.profile_file.read_text()
 
-        # Should contain plot mocking
+        # Should contain plot mocking for `matplotlib`
         assert "from unittest.mock import patch, MagicMock" in profile_content
         assert "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())" in profile_content
-        assert "patch_plotly = patch('plotly.graph_objects.Figure.show', new=MagicMock())" in profile_content
         assert "patch_plt.start()" in profile_content
-        assert "patch_plotly.start()" in profile_content
         assert "patch_plt.stop()" in profile_content
-        assert "patch_plotly.stop()" in profile_content
 
     def test_prepare_code_for_profiling_with_jupyter_notebook(self, tmp_path: Path):
         """Test code preparation with Jupyter notebook file."""
@@ -434,7 +490,7 @@ class TestProfilerCodePreparation:
         test_file.write_text(json.dumps(notebook_content))
 
         profiler = Profiler(path=test_file)
-        profiler.prepare_code_for_profiling()
+        profiler.prepare_code_for_profiling(in_place=False)
         profile_content = profiler.profile_file.read_text()
 
         # Should contain converted notebook content
@@ -443,9 +499,9 @@ class TestProfilerCodePreparation:
 
     def test_prepare_code_for_profiling_with_warning_loglevel(self, mock_file: Path):
         """Test code preparation with warning log level."""
-        profiler = Profiler(path=mock_file, loglevel=LogLevel.WARNING)
+        profiler = Profiler(path=mock_file, log_level=LogLevel.WARNING)
 
-        profiler.prepare_code_for_profiling()
+        profiler.prepare_code_for_profiling(in_place=False)
         profile_content = profiler.profile_file.read_text()
 
         # Should contain warning capture
@@ -456,8 +512,8 @@ class TestProfilerCodePreparation:
         test_file = tmp_path / "test_script.py"
         test_file.write_text("print('hello world')")
 
-        profiler = Profiler(path=test_file, loglevel=LogLevel.ERROR)
-        profiler.prepare_code_for_profiling()
+        profiler = Profiler(path=test_file, log_level=LogLevel.ERROR)
+        profiler.prepare_code_for_profiling(in_place=False)
         profile_content = profiler.profile_file.read_text()
 
         # Should NOT contain warning capture

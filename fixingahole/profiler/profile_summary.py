@@ -11,160 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Profile Results Parser.
+"""Profile Results Summarizer.
 
-This module parses profile results files and extracts function names and runtime percentages from
-the function summary sections at the bottom of each file's profiling table.
+This module extracts function details from the Scalene data
+and presents the data in a tree form for easier interpretation.
 """
 
-import json
 import os
-from collections import defaultdict
-from dataclasses import dataclass
-from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from colours import Colour
-from typer import Exit
-
-from fixingahole import DURATION, ROOT_DIR
-from fixingahole.profiler.utils import format_time, installed_modules, memory_with_units
-
-
-@dataclass(frozen=True)
-class ProfileDetails:
-    """Represents a function's profiling information."""
-
-    name: str
-    file_path: str
-    line_number: int
-    memory_python_percentage: float
-    peak_memory: float
-    python_percentage: float
-    native_percentage: float
-    system_percentage: float
-    timeline_percentage: float
-    copy_mb_per_s: float
-    memory_samples: list[tuple[float, float]]
-
-    @classmethod
-    def from_scalene_dict(cls, data: dict[str, Any], file_path: str) -> "ProfileDetails":
-        """Create ProfileDetails from raw scalene JSON data.
-
-        Args:
-            data: Dictionary containing scalene profile data for a line or function
-            file_path: The file path to associate with this profile entry
-
-        Returns:
-            ProfileDetails instance with properly typed and mapped fields.
-
-        """
-        return cls(
-            file_path=file_path,
-            name=data.get("line", ""),
-            line_number=int(data.get("lineno", 0)),
-            python_percentage=float(data.get("n_cpu_percent_python", 0)),
-            native_percentage=float(data.get("n_cpu_percent_c", 0)),
-            system_percentage=float(data.get("n_sys_percent", 0)),
-            peak_memory=float(data.get("n_peak_mb", 0)),
-            copy_mb_per_s=float(data.get("n_copy_mb_s", 0)),
-            memory_samples=list(data.get("memory_samples", [])),
-            memory_python_percentage=float(data.get("n_python_fraction", 0)) * 100,
-            timeline_percentage=float(data.get("n_usage_fraction", 0)) * 100,
-        )
-
-    @cached_property
-    def has_memory_info(self) -> bool:
-        """Determine if a line used significant memory."""
-        return bool(
-            self.peak_memory > 0 or self.memory_python_percentage > 0 or self.timeline_percentage > 0 or self.memory_samples
-        )
-
-    @cached_property
-    def has_data(self) -> bool:
-        """Determine if this profile entry contains any meaningful data."""
-        return bool(self.total_percentage > 0 or self.has_memory_info or self.copy_mb_per_s > 0)
-
-    @cached_property
-    def peak_memory_info(self) -> str:
-        """Convert the used memory into more sensible units."""
-        return memory_with_units(self.peak_memory)
-
-    @cached_property
-    def total_percentage(self) -> float:
-        """Return the total percentage of the runtime."""
-        return self.python_percentage + self.native_percentage + self.system_percentage
-
-
-@dataclass(frozen=True)
-class ProfileData:
-    """Holds the parsed profile data."""
-
-    functions: list[ProfileDetails]
-    lines: dict[str, list[ProfileDetails]]
-    files: dict[str, float]
-    walltime: float
-    max_memory: str
-    samples: list[tuple[float, float]]
-    details: dict[str, float]
-
-    @cached_property
-    def has_memory_info(self) -> bool:
-        """Determine any memory usage data is stored."""
-        return any(fn.has_memory_info for fn in self.functions) or any(
-            ln.has_memory_info for lines in self.lines.values() for ln in lines
-        )
-
-    @cached_property
-    def functions_by_file(self) -> dict[str, list[ProfileDetails]]:
-        """Group functions by file path."""
-        result = defaultdict(list)
-        for func in self.functions:
-            result[func.file_path].append(func)
-        return result
-
-
-def parse_json(filename: str | Path) -> ProfileData:
-    """Parse profile results provided as a JSON dictionary."""
-    profile_path = Path(filename)
-    if not profile_path.exists():
-        Colour.print(Colour.RED("Error:"), "profile", Colour.purple(filename), "does not exist.")
-        raise Exit(code=66)  # Cannot open input: A specified file or input cannot be accessed.
-
-    content = json.loads(profile_path.read_text(encoding="utf-8"))
-    function_profs: list[ProfileDetails] = []
-    line_profs: dict[str, list[ProfileDetails]] = defaultdict(list)
-
-    # Extract walltime and max memory
-    walltime = content.get("elapsed_time_sec", 0)
-    max_memory = memory_with_units(content.get("max_footprint_mb", 0), digits=3)
-
-    files: dict[str, dict[str, Any]] = content.get("files", {}) if isinstance(content, dict) else {}
-    file_percentage: dict[str, float] = {}
-    for file_path, info in files.items():
-        file_percentage[file_path] = info.get("percent_cpu_time", 0)
-        lines: list[dict[str, Any]] = info.get("lines", []) if isinstance(info, dict) else []
-        for line in lines:
-            profile = ProfileDetails.from_scalene_dict(line, file_path)
-            if profile.has_data:
-                line_profs[file_path].append(profile)
-
-        funcs: list[dict[str, Any]] = info.get("functions", []) if isinstance(info, dict) else []
-        function_profs.extend(ProfileDetails.from_scalene_dict(fn, file_path) for fn in funcs)
-
-    keys: list[str] = ["max_footprint_mb", "growth_rate", "start_time_absolute", "start_time_perf"]
-    details: dict[str, float] = {k: content.get(k, -1) for k in keys}
-
-    return ProfileData(
-        functions=function_profs,
-        lines=line_profs,
-        files=file_percentage,
-        walltime=walltime,
-        max_memory=max_memory,
-        samples=content.get("samples", []),
-        details=details,
-    )
+from fixingahole import Config
+from fixingahole.profiler.scalene_json_parser import ProfileData, ProfileDetails
+from fixingahole.profiler.utils import format_time, installed_modules
 
 
 def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: float = 0.1) -> str:
@@ -219,7 +78,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
         lineno = func.line_number
         runtime_info = (
             f"{func.total_percentage:>5.2f}%"
-            if DURATION.is_relative()
+            if Config.is_duration_relative()
             else format_time(func.total_percentage * profile_data.walltime / 100, profile_data.walltime)
         )
         message.append(
@@ -245,7 +104,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
 
     message.append("\nFunctions by Module:")
     message.append("-" * width)
-    module_tree, depth = build_module_tree(by_file)
+    module_tree, depth = build_module_tree(by_file, threshold=threshold)
     tree_width = max_func_name_length + (depth * 3)
     tree = render_tree(module_tree, profile_data.walltime, max_func_name_length=tree_width, threshold=threshold)
     message.extend(tree)
@@ -255,14 +114,17 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     return "\n".join(line.rstrip() for line in message)
 
 
-def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> tuple[dict[str, Any], int]:
+def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]], threshold: float = 0.1) -> tuple[dict[str, Any], int]:
     """Build a hierarchical tree structure from file paths and compute the tree's max depth."""
     modules = installed_modules()
     tree: dict[str, Any] = {}
-    files = by_file_dict.keys()
-    common_root = Path(os.path.commonpath(files if len(files) > 1 else [*files, ROOT_DIR]))
+    files: list[str] = [file for file in by_file_dict if file[0] != "<" and file[-1] != ">"]
+    common_root = Path(os.path.commonpath(files if len(files) > 1 else [*files, Config.root()]))
     depth = 0
-    for file_path, file_functions in by_file_dict.items():
+    for file_path in files:
+        file_functions = by_file_dict[file_path]
+        if not any(f.total_percentage >= threshold or f.has_memory_info for f in file_functions):
+            continue
         d = 1
         parts = Path(file_path).relative_to(common_root).parts
         for i, part in enumerate(parts):
@@ -273,7 +135,6 @@ def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]]) -> tuple[di
         for i, part in enumerate(parts):
             if part not in current:
                 current[part] = {"_functions": [], "_children": {}}
-
             if i == len(parts) - 1:
                 current[part]["_functions"] = file_functions
             else:
@@ -329,7 +190,7 @@ def render_tree(
             total_runtime = sum(f.total_percentage for f in functions)
             dur = (
                 f"{total_runtime:.2f}% total"
-                if DURATION.is_relative()
+                if Config.is_duration_relative()
                 else format_time(total_runtime * walltime / 100, walltime)
             )
             file_display = f"{name} ({len(functions)} func, {dur})"
@@ -346,7 +207,7 @@ def render_tree(
                 peak_mem = f" ({func.peak_memory_info})" if func.has_memory_info else ""
                 runtime_info = (
                     f"{func.total_percentage:.>5.2f}%"
-                    if DURATION.is_relative()
+                    if Config.is_duration_relative()
                     else format_time(func.total_percentage * walltime / 100, walltime)
                 ) + f"{peak_mem}"
                 lines.append(f"{func_prefix}{func.name:.<{max(max_func_name_length - len(func_prefix), 2)}}{runtime_info}")
@@ -364,7 +225,7 @@ def render_tree(
                 return lines
             dur = (
                 f"{total_runtime:.2f}% total"
-                if DURATION.is_relative()
+                if Config.is_duration_relative()
                 else format_time(total_runtime * walltime / 100, walltime)
             )
             dir_display = f"{name} ({function_count} func, {dur})"
@@ -385,10 +246,10 @@ def render_tree(
 class ProfileSummary:
     """Parser for summarizing scalene cli profile results files."""
 
-    def __init__(self, filename: str | Path):
-        self.data = parse_json(filename)
-        self.walltime: float | None = self.data.walltime
-        self.max_memory: str | None = self.data.max_memory
+    def __init__(self, filename: Path):
+        self.data = ProfileData.from_file(filename)
+        self.walltime: float = self.data.walltime
+        self.max_memory: str = self.data.max_memory
 
     def summary(self, top_n: int = 10, threshold: float = 0.1) -> str:
         """Generate a summary of the profiling results."""

@@ -18,10 +18,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from typer import Exit
 
 from fixingahole import LogLevel
 from fixingahole.profiler import Profiler
+from fixingahole.profiler.profiler import ProfilerException, SuccessfulExit
 
 
 class TestProfilerRunProfiler:
@@ -29,23 +29,28 @@ class TestProfilerRunProfiler:
 
     def test_run_profiler_success(self, mock_file: Path):
         """Test successful profiler run."""
-        profiler = Profiler(path=mock_file, precision=5, loglevel=LogLevel.INFO, live_update=1)
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
+        profiler = Profiler(
+            path=mock_file,
+            precision=5,
+            log_level=LogLevel.INFO,
+            live_update=1,
+        )
+        with pytest.raises(SuccessfulExit) as exc_info:
+            profiler.run_profiler(raise_exit=True)
         assert exc_info.value.exit_code == 0
 
     def test_run_profiler_cpu_only(self, mock_file: Path):
         """Test successful profiler run using only CPU."""
         profiler = Profiler(path=mock_file, cpu_only=True)
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
+        with pytest.raises(SuccessfulExit) as exc_info:
+            profiler.run_profiler(raise_exit=True)
         assert exc_info.value.exit_code == 0
 
     def test_run_profiler_detailed_mode(self, mock_file: Path):
         """Test profiler run with detailed profiling enabled."""
         profiler = Profiler(path=mock_file, precision=5, detailed=True)
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
+        with pytest.raises(SuccessfulExit) as exc_info:
+            profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 0
         assert "numpy" in profiler.profile_file.read_text()
@@ -61,8 +66,8 @@ class TestProfilerRunProfiler:
 
         profiler = Profiler(path=mock_file, precision=5)
 
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
+        with pytest.raises(ProfilerException) as exc_info:
+            profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 1
         mock_run.assert_called_once()
@@ -75,11 +80,11 @@ class TestProfilerRunProfiler:
 
         profiler = Profiler(path=mock_file, precision=5)
 
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
+        with pytest.raises(ProfilerException) as exc_info:
+            profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 1
-        mock_run.assert_called_once()
+        mock_run.assert_called()
         assert "Profiling interrupted by user." in profiler.output_file.read_text()
 
     def test_run_profiler_with_script_args_and_logs(self, mock_file: Path):
@@ -89,10 +94,32 @@ class TestProfilerRunProfiler:
             path=mock_file,
             python_script_args=args,
             precision=5,
-            loglevel=LogLevel.INFO,
+            log_level=LogLevel.INFO,
         )
-        with pytest.raises(Exit) as exc_info:
-            profiler.run_profiler()
+        with pytest.raises(SuccessfulExit) as exc_info:
+            profiler.run_profiler(raise_exit=True)
+
+        assert exc_info.value.exit_code == 0
+        logs = profiler.log_file.read_text()
+        for arg in args:
+            assert arg in logs
+        assert "This is a warning." in logs
+        # Check that warning count is correctly calculated and included
+        final_content = profiler.output_summary.read_text()
+        assert "Check logs" in final_content
+        assert "(1 warning)" in final_content
+
+    def test_run_profiler_with_script_argparse(self, mock_file_with_argparse: Path):
+        """Test profiler run with script arguments."""
+        args = ["--base", "10", "--power", "5"]
+        profiler = Profiler(
+            path=mock_file_with_argparse,
+            python_script_args=args,
+            precision=5,
+            log_level=LogLevel.INFO,
+        )
+        with pytest.raises(SuccessfulExit) as exc_info:
+            profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 0
         logs = profiler.log_file.read_text()

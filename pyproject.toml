@@ -1,11 +1,12 @@
 [project]
 name = "FixingAHole"
-version = "0.2.1"
+version = "0.3.0"
 description = "Integrating Scalene into Python projects."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "colours",
+    "gitpython>=3.1.44",
     "scalene>=2.1.0",
     "sympy>=1.14.0",
     "typer>=0.20.0",
@@ -16,7 +17,7 @@ dependencies = [
 fixingahole = "fixingahole.cli.main:app"
 
 [tool.uv.sources]
-colours = { git = "https://github.com/XanaduAI/colours.git", rev = "61c77e904fe0f0479043138ce14c5ba730d9d2c0" }
+colours = { git = "https://github.com/XanaduAI/colours.git", rev = "5ef8c09cf59ebd691fae118fd52dcff87b33c023" }
 
 [dependency-groups]
 dev = [
@@ -113,10 +114,6 @@ mypy-init-return = true
 "tests/*" = ["INP001", "PLR2004"]
 "tests/test_init/*" = ["SLF001"]
 "tests/**/test_*.py" = ["ANN201", "S101", "PLR6301"]
-
-[tool.fixingahole]
-root = "." # default to root directory as the current working directory
-output = "performance/"
 
 [build-system]
 requires = ["hatchling"]

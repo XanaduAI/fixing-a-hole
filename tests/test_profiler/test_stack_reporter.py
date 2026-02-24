@@ -19,6 +19,7 @@ from typing import Any
 
 import pytest
 
+from fixingahole.profiler.scalene_json_parser import ProfileData
 from fixingahole.profiler.stack_reporter import StackReporter, StackReporterError
 
 
@@ -42,10 +43,7 @@ class TestStackReporterInitialization:
         # Test with Path object
         reporter: StackReporter = StackReporter(example_json)
         assert reporter.profile_json_path == example_json.resolve()
-        assert isinstance(reporter.data, dict)
-        assert "files" in reporter.data
-        assert "stacks" in reporter.data
-        assert "elapsed_time_sec" in reporter.data
+        assert isinstance(reporter.data, ProfileData)
 
         # Test with string path
         reporter_str: StackReporter = StackReporter(str(example_json))

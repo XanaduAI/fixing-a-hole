@@ -30,19 +30,64 @@ if you're not using [`uv`](https://docs.astral.sh/uv/).
 
 ### Configuring `fixing-a-hole`
 
-If you're installing `fixing-a-hole` into a repo, you can configure some defaults in your
-`pyproject.toml`. There are four keys: `root`, `output`, `ignore`, and `duration`.
-1. The `root` directory determines how to refer to your codebase and is set as the current working
-directory (meaning wherever `fixingahole profile` is invoked from). Setting this to the root of
-your repo will provide the best results for profiling code within your repo.
-1. The profiling results are saved in the specified `output` directory. The default is set as
-`performance/` relative to the `root` directory.
-1. Additional directories to `ignore` can be also specified. By default, the `.git`, `.venv`, and
-`output` (`performance/`) directories, relative to `root` are not searched when looking for scripts
-to profile and when providing a profiling breakdown and summary (also see the `--ignore` flag to
-temporarily ignore folders relative to the current directory when profiling).
+`fixing-a-hole` works best when configured for profiling a specific code base.
+The main settings are `root`, `output`, `ignore`, and `duration`.
+- `root` works best when configured to be the path to root of your git repo or code base.
+However, there may be circumstances where you want `root` to be your current directory.
+- `output` is always defined _relative_ to `root` and is where the profiling results are stored.
+- `ignore` is a list of folders to ignore when profiling (the `output` is always ignored). Paths
+are resolved relative to the `root` directory unless they're given as absolute paths. Directories
+are also only ignored if they exist after being resolved. Ignored folders are also not searched
+when looking for scripts to profile.
+- `duration` is _either_ "relative" (as a percent of total runtime) or "absolute" and changes how
+the resulting times are displayed in summaries. Defaults to "relative".
 
-The following is an example configuration:
+`fixing-a-hole` resolves global settings with **per-key** precedence:
+1. Explicit `Settings` passed to `Config.configure` (overrides everything).
+1. Environment variables with `FIXINGAHOLE_` prefix and upper case keys, i.e. `FIXINGAHOLE_ROOT`, etc.
+1. `[tool.fixingahole]` in `pyproject.toml`.
+1. Built-in defaults.
+
+> [!IMPORTANT]
+> When settings are resolved they **fail loudly**. When any configuration source is present, invalid
+> values raise an error immediately and are **never** silently replaced by defaults. Only when the
+> library finds no configuration at all does it fall back to built-in defaults.
+
+You can pass explicit settings directly from Python. Explicit settings have the highest precedence.
+
+```python
+from pathlib import Path
+from fixingahole.config import Config, DurationOption, Settings
+
+Config.configure(
+    Settings(
+        root=Path("/path/to/repo"),
+        output="performance",
+        ignore=[Path("/path/to/repo/scratch")],
+        duration="absolute",
+    )
+)
+```
+
+`Config.configure()` can also be called without arguments at any point to re-read the current
+environment variables and `pyproject.toml`. This can be useful when configuration changes after
+the initial import.
+
+For environment configuration, `FIXINGAHOLE_IGNORE` accepts a comma-separated list, for example:
+`FIXINGAHOLE_IGNORE="build, tmp, .cache"`.
+You can also reconfigure from environment variables at runtime:
+
+```python
+import os
+from fixingahole.config import Config
+
+os.environ["FIXINGAHOLE_IGNORE"] = "scratch,tmp"
+os.environ["FIXINGAHOLE_DURATION"] = "relative"
+
+Config.configure()
+```
+
+The following is an example configuration for a `pyproject.toml`:
 ```text
 [tool.fixingahole]
 root = "/path/to/my/repo/"
@@ -76,7 +121,7 @@ fixingahole profile --help
 Additional information for each option can also be found below.
 
 ```bash
---cpu/--memory
+--cpu/--memory (-c/-m)
 ```
 The main options are `--cpu` vs `--memory`. By default, `fixing-a-hole` will try to profile the
 RSS memory usage of the script/experiment. _However_, additional CPU overhead is required in order
@@ -92,7 +137,7 @@ memory usage.
 > establish an expectation on how long you may need to wait when using `--memory`.
 
 ```bash
---precision=<n>
+--precision (-p)
 ```
 It is possible to alter the memory sampling overhead using the `--precision` flag. By default,
 [scalene](https://github.com/plasma-umass/scalene) will highlight lines of code that allocate more
@@ -104,7 +149,7 @@ need to find the right balance for the level of profiling that you are doing. Ag
 depends on the script itself.
 
 ```bash
---detailed
+--detailed (-d)
 ```
 By default, `fixing-a-hole` will only report CPU and memory usage within the `root` directory
 (see how to configure `fixing-a-hole` above). However, if you would also like a report on the
@@ -112,7 +157,7 @@ usage by imported modules, such as `scipy`, `numpy`, etc., then use the `--detai
 This can be used along with `--ignore` to build a report with only the relevant modules.
 
 ```bash
---trace
+--trace (-t)
 ```
 By default, `fixing-a-hole` will build the stack traces for the most expensive function calls.
 This helps determine where the most expensive function calls are originating from and helps
@@ -120,23 +165,26 @@ distinguish the difference between functions that are expensive to call even onc
 that are called repeatedly.
 
 ```bash
---log-level
+--log-level (-l)
 ```
 By default, `fixing-a-hole` will capture warnings while profiling scripts and save them to a log
 file. More or less detailed capture can be specified using the `--log-level` flag. The options
 are: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Each level will capture that level of
 severity _and higher_. So the default capturing `WARNING` will also capture `ERROR` and
 `CRITICAL`. However, if you have a syntax error or something, your code will still crash, not run,
-and throw errors in the terminal.
+and throw errors during profiling.
 
 ```bash
---no-plots
+--no-plots (-np)
 ```
 By default, if your script or notebook generates plots, then `fixing-a-hole` will profile that
 too. The downside of this is that if a plot is opened and you take 5 seconds to close it, those 5
 seconds will count towards how long it took your code to run. If you would like to temporarily
-disable generating plots, you can profile your code with the `--no-plots` flag. This will
-temporarily prevent your code from generating plots without modifying your code.
+disable generating plots, you can specify which plotting libraries to suppress with the
+`--no-plots` flag. This will temporarily prevent your code from generating plots without modifying
+your code. Simply provide a separate library for each `--no-plots` flag,
+i.e. `-np matplotlib -np plotly`.
+The currently supported libraries are `matplotlib` and `plotly`.
 
 ```bash
 --live
@@ -146,12 +194,21 @@ can set the `--live` flag to a value (in seconds). However, this may cause addit
 unintentional side effects.
 
 ```bash
---ignore
+--ignore (-i)
 ```
-If there are specific folders within your repo that you would like to ignore while profiling, you
-can either set them globally in your `pyproject.toml` or you can specify each directory
-individually when invoking the profiler, i.e. `--ignore foo --ignore bar`. These are resolved
-relative to the directory you invoked the profiler from. But you can also set absolute paths.
+If there are specific folders that you would like to ignore while profiling, you can either
+configure them globally (see [configuration](#configuring-fixing-a-hole) above) or you can
+specify each directory individually when invoking the profiler,
+i.e. `--ignore foo --ignore /home/bar/baz`. These are resolved relative
+to the `root` directory you configure, but you can also set absolute paths.
+
+```bash
+--repeat (-r)
+```
+If there is a need to benchmark a script by profiling it repeatedly and then compute the average
+and standard deviation of the results, then using the `--repeat` flag will do this for you. See
+also the [benchmarking](#benchmarking) section below. Additional options associated with this flag
+can be seen with either `fixingahole profile --help` or `fixingahole stats --help`.
 
 ## Results
 
@@ -166,6 +223,20 @@ generated.
 
 See below for a portion of an example profile of `tests/scripts/advanced.py` and how to interpret
 it.
+
+### Benchmarking
+
+Small variations in profiling results and profiling summaries can arise from many different sources
+of noise or complications during a profiling session. In order to obtain a more stable measure of
+how changes to your code are affecting performance, you can profile the exact same script repeatedly
+and compute the average and standard deviation of the results. `fixing-a-hole` will do this
+automatically for you if you use the `--repeat` flag when profiling. Additionally, it will also try
+to save some additional metadata, such as the git repo name, git branch name, git commit hash, and
+the current UTC date and time when the statistics were generated, if possible.
+
+If multiple previous runs of the same code were made before, then these same statistics can be made
+using the `fixingahole stats <folder>` command, so long as all of the Scalene JSON files from each
+profile are in the same subfolder. See `fixingahole stats --help` for more details.
 
 ### Understanding Memory Profiling: Heap vs RSS
 
@@ -271,10 +342,10 @@ Instead of relying solely on profiling metrics, consider these approaches:
 
 The first line in the summary file is the command used to generate the results. This is followed
 by the runtime and max heap memory usage (as reported by scalene) as well as the max RSS memory
-usage and total wall time (as reported by `/usr/bin/time`, if available). If the `logs.log` file
-is not empty, then a summary is printed next. Following that, the main Profile Summary is given
-(it was also printed to stdout). Finally, if requested, the Stack Trace Summary is displayed. The
-Stack Trace Summary helps to identify whether or not expensive function calls are the result of
+usage and total wall time (as reported by `/usr/bin/time`, if available). If the `profile_logs.log`
+file is not empty, then a summary is printed next. Following that, the main Profile Summary is
+given (it was also printed to stdout). Finally, if requested, the Stack Trace Summary is displayed.
+The Stack Trace Summary helps to identify whether or not expensive function calls are the result of
 one long execution or repeated calls to a less expensive function call.
 
 ```text
@@ -284,7 +355,7 @@ Finished in 9.318 seconds using 1.376 GB of heap RAM
 Max RSS Memory Usage: 1.958 GB
 Total Wall Time: 9.950 seconds
 
-Check logs performance/advanced/20260129_201440/logs.log (6 warnings)
+Check logs performance/advanced/20260129_201440/profile_logs.log (6 warnings)
 
 Profile Summary
 =========================================================
@@ -370,7 +441,7 @@ We first see the total memory usage and memory growth rate (the scalene document
 on what "growth rate" is, or how to best interpret it). For each file that contains a significant
 portion of the runtime (≥1%) there is a table with headers which are described by the following:
 
-* **Time Python**: How much time was spent in Python code.
+* **Time Python**: How much time was spent in Python code (percent relative to the total runtime).
 * **native**: How much time was spent in non-Python code (e.g., libraries written in C/C++,
 compiled numpy, etc.).
 * **system**: How much time was spent in the system (e.g., I/O, reading and writing data).

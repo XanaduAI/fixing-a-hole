@@ -15,11 +15,12 @@
 
 import subprocess
 from pathlib import Path
+from unittest.mock import Mock, patch
 
+import pytest
 from colours import Colour
 from typer.testing import CliRunner
 
-from fixingahole import ROOT_DIR
 from fixingahole.cli import main as cli
 from tests.conftest import print_error
 
@@ -34,14 +35,20 @@ class TestProfilerSummarize:
         result = runner.invoke(cli.app, ["summarize", str(example_json)])
         assert result.exit_code == 0, print_error(result)
 
-    def test_summarize_cli_missing_file(self, tmp_path: Path):
+    @patch("fixingahole.profiler.utils.Colour.error")
+    def test_summarize_cli_missing_file(self, mock_colour_error: Mock, tmp_path: Path):
         """Test summarize CLI with a missing file."""
         missing_path = "tests/scripts/data/does_not_exist.json"
         result = runner.invoke(cli.app, ["summarize", str(missing_path)])
         # Should exit with nonzero and print error
         assert result.exit_code == 1, "Should be error code 1."
-        output = Colour.remove_ansi(result.stdout).replace("\n", "")
-        assert f"No files in {tmp_path.name} with name: {missing_path} were found." == output
+        expected_output: list[str] = [
+            "No %s in %s with name: %s were found.",
+            "files",
+            f"[magenta]{tmp_path.name}[/magenta]",
+            f"[green]{missing_path}[/green]",
+        ]
+        mock_colour_error.assert_called_once_with(*expected_output)
 
     def test_summarize_cli_options(self, example_json: Path):
         """Test summarize CLI with -n and -t options."""
@@ -59,6 +66,34 @@ class TestProfilerSummarize:
         assert "No functions to summarize by Total Runtime" in output
 
 
+class TestStats:
+    """Test the stats CLI command."""
+
+    def test_stats_cli(self, example_json: Path):
+        """Test stats CLI on a valid JSON profile file."""
+        tmp_dir = example_json.parent / "tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        example_json = example_json.rename(tmp_dir / example_json.name)
+        (tmp_dir / "dup_data.json").write_bytes(example_json.read_bytes())
+        result = runner.invoke(cli.app, ["stats", str(tmp_dir), "--no-metadata"])
+        assert result.exit_code == 0, print_error(result)
+
+    @patch("fixingahole.profiler.utils.Colour.error")
+    def test_stats_cli_missing_file(self, mock_colour_error: Mock, tmp_path: Path):
+        """Test stats CLI with a missing file."""
+        missing_dir = "tests/scripts/data/does_not_exist"
+        result = runner.invoke(cli.app, ["stats", str(missing_dir)])
+        # Should exit with nonzero and print error
+        assert result.exit_code == 1, "Should be error code 1."
+        expected_output: list[str] = [
+            "No %s in %s with name: %s were found.",
+            "folders",
+            f"[magenta]{tmp_path.name}[/magenta]",
+            f"[green]{missing_dir}[/green]",
+        ]
+        mock_colour_error.assert_called_once_with(*expected_output)
+
+
 class TestProfilerRunProfiler:
     """Test the run_profiler method."""
 
@@ -67,9 +102,24 @@ class TestProfilerRunProfiler:
         result = runner.invoke(cli.app, ["profile", str(mock_file)])
         assert result.exit_code == 0, print_error(result)
 
+    @pytest.mark.parametrize("n_runs", [2, 3])
+    def test_profiler_repeat(self, n_runs: int, mock_file: Path, root_dir: Path):
+        """Test how the profiler handles repeated profilings."""
+        result = runner.invoke(cli.app, ["profile", str(mock_file), "--repeat", str(n_runs), "-l", "info"])
+        assert result.exit_code == 0, print_error(result)
+        output_files: list[Path] = sorted(file for file in (root_dir / "performance").rglob("*") if file.is_file())
+        assert len(output_files) == (3 + 3 * n_runs)
+        assert len([f for f in output_files if f.suffix == ".py"]) == 1
+        assert len(logfile := [f for f in output_files if f.suffix == ".log"]) == 1  # one shared log file.
+        assert len(logfile.pop().read_text().splitlines()) == n_runs * 2  # one warning log and one info log per run.
+        assert len([f for f in output_files if f.suffix == ".json"]) == n_runs + 1  # one JSON per run, and one stats file.
+        assert len([f for f in output_files if f.suffix == ".txt"]) == n_runs * 2  # one results and one summary per run.
+
     def test_profile_directory(self, mock_file: Path):
         """Test that the CLI fails to profile a directory."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file.parent)])
+        tmp_dir = mock_file.parent / "tmp" / "nested" / "dir"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        result = runner.invoke(cli.app, ["profile", str(tmp_dir.relative_to(mock_file.parent))])
         assert result.exit_code == 1, print_error(result)
         assert "Error: cannot profile a directory." in Colour.remove_ansi(result.stdout)
 
@@ -83,6 +133,13 @@ class TestProfilerRunProfiler:
 
     def test_version_call(self):
         """Test how the CLI invokes the --version flag."""
-        cmd: list[str] = ["python", str(ROOT_DIR / "fixingahole" / "cli" / "main.py"), "--version"]
+        cmd: list[str] = ["python", str(Path(__file__).parents[2] / "fixingahole" / "cli" / "main.py"), "--version"]
         result = subprocess.run(cmd, check=False, text=True, capture_output=True)
         assert result.returncode == 0, result.stdout
+
+    def test_profiler_cli_call_ignore_files_fail(self, mock_file: Path, root_dir: Path):
+        """Test that the CLI invocation fails when the dynamic file ignore fails."""
+        name = "find_me_here"
+        (root_dir / name / name).mkdir(parents=True, exist_ok=True)
+        result = runner.invoke(cli.app, ["profile", str(mock_file), "--ignore", name])
+        assert result.exit_code == 1, print_error(result)
