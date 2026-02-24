@@ -91,7 +91,7 @@ class ProfileDetails:
         return self.n_copy_mb_s
 
     @property
-    def line_number(self) -> float:
+    def line_number(self) -> int:
         """The line number of the function or line."""
         return self.lineno
 
