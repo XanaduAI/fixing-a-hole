@@ -19,8 +19,7 @@ from colours import Colour as _Colour
 
 from fixingahole.config import Config
 from fixingahole.profiler.profile_summary import ProfileSummary
-from fixingahole.profiler.profiler import Profiler
-from fixingahole.profiler.profiler_config import ProfilerConfig
+from fixingahole.profiler.profiler import Profiler, ProfilerConfig
 from fixingahole.profiler.stats_manager import StatisticsManager
 from fixingahole.profiler.utils import LogLevel, PlottingLibrary
 

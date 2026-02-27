@@ -22,14 +22,13 @@ import sys
 from enum import Enum
 from pathlib import Path
 from subprocess import CompletedProcess
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from colours import Colour
 from sympy import nextprime
 from typer import Exit
 
 from fixingahole import Config
-from fixingahole.profiler.profiler_config import ProfilerConfig
 from fixingahole.profiler.utils import FileWatcher, LogLevel, PlottingLibrary, Spinner, date, memory_with_units
 
 if TYPE_CHECKING:
@@ -58,6 +57,24 @@ class SuccessfulExit(Exit):
     def __init__(self, message: str = "Profiling successful.", *, code: int = 0) -> None:
         self.message = message
         super().__init__(code=code)
+
+
+@runtime_checkable
+class ProfilerConfig(Protocol):
+    """A protocol for customizing Profiler initialization.
+
+    Users can implement this configuration object to dynamically determine
+    paths and settings before the profiler runs.
+    """
+
+    def setup(self, profiler: "Profiler") -> None:
+        """Perform any necessary setup on the profiler instance.
+
+        Args:
+            profiler: The Profiler instance being initialized.
+
+        """
+        ...
 
 
 class Profiler:

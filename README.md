@@ -96,6 +96,12 @@ ignore = ["unfinished_ideas/", "scratch/work/"]
 duration = "absolute"
 ```
 
+You can confirm that you configuration is setup correctly by running
+```bash
+fixingahole --version
+```
+in your terminal.
+
 ### Scripts and Notebooks
 
 Python scripts `.py` and notebooks `.ipynb` can be profiled using
@@ -111,6 +117,81 @@ and so long as `my_new_method.ipynb` is the only file in the repo with that name
 Otherwise, you will need to be more specific by calling
 `fixingahole profile my_work/my_new_method.ipynb`. You can also always specify the absolute path
 to the script.
+
+
+## Advanced Usage: Custom Profiler Configuration
+
+For more complex use cases, passing static paths to the `Profiler` might not be enough.
+You can implement the `ProfilerConfig` protocol to dynamically determine paths and
+settings at runtime.
+
+To use this feature, define a class that inherits from `ProfilerConfig` and implements the
+`setup(self, profiler: "Profiler") -> None` method.
+
+### Example 1: Environment-Aware Configuration
+
+This configuration adjusts the output directory and logging level based on whether the code is running in a CI environment (like GitHub Actions) or locally.
+
+```python
+import os
+from pathlib import Path
+from fixingahole.profiler import Profiler, ProfilerConfig
+
+class CIConfig(ProfilerConfig):
+    def setup(self, profiler: Profiler) -> None:
+        # Determine if we are running in CI
+        is_ci = os.getenv("CI", "false").lower() == "true"
+
+        profiler.python_file = Path("my_script.py")
+
+        if is_ci:
+            # excessive logging and specific artifact path for CI
+            profiler.profile_root = Path("./artifacts/profiling")
+            # You can also change other profiler settings dynamically
+            profiler.detailed = True
+        else:
+            # simplified local output
+            profiler.profile_root = Path("./local_profiles")
+
+        profiler.profile_file = profiler.python_file
+
+        # Ensure directory exists and set output file
+        profiler.profile_root.mkdir(parents=True, exist_ok=True)
+        profiler.output_file = profiler.profile_root / "results.txt"
+
+# Run the profiler with the dynamic config
+Profiler(path=CIConfig()).run_profiler()
+```
+
+### Example 2: Auto-Discover Latest Script
+
+This configuration automatically finds and profiles the most recently modified Python script in a specific directory ("experiments"), saving you from updating the path manually every time you switch scripts.
+
+```python
+from pathlib import Path
+from fixingahole.profiler import Profiler, ProfilerConfig
+
+class LatestExperimentConfig(ProfilerConfig):
+    def setup(self, profiler: Profiler) -> None:
+        experiments_dir = Path("./experiments")
+
+        # Find the most recently modified .py file
+        try:
+            latest_script = max(experiments_dir.glob("*.py"), key=lambda p: p.stat().st_mtime)
+        except ValueError:
+            raise FileNotFoundError("No python scripts found in experiments/")
+
+        print(f"Profiling latest script: {latest_script.name}")
+
+        profiler.python_file = latest_script
+        profiler.filestem = latest_script.stem
+        profiler.profile_root = Path("./profiling_results")
+        profiler.profile_file = latest_script
+        profiler.output_file = profiler.profile_root / f"{latest_script.stem}_results.txt"
+
+# Run with the auto-discovery config
+Profiler(path=LatestExperimentConfig()).run_profiler()
+```
 
 ## Options
 
