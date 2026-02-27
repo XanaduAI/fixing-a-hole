@@ -29,6 +29,7 @@ from sympy import nextprime
 from typer import Exit
 
 from fixingahole import Config
+from fixingahole.profiler.profiler_config import ProfilerConfig
 from fixingahole.profiler.utils import FileWatcher, LogLevel, PlottingLibrary, Spinner, date, memory_with_units
 
 if TYPE_CHECKING:
@@ -65,7 +66,7 @@ class Profiler:
     def __init__(  # noqa: PLR0913
         self,
         *,
-        path: Path,
+        path: Path | ProfilerConfig,
         python_script_args: list[str] | None = None,
         cpu_only: bool = True,
         precision: int | str | None = None,
@@ -102,9 +103,10 @@ class Profiler:
         # Prepare the results folder.
         # Default to profiling "in place", but use a modified copy if needed. A modified copy is needed
         #   when suppressing plotting, if the file is a Jupyter notebook, or if the log level changes.
-        path = Path(path)
-        in_place: bool = not (no_plots or path.suffix != ".py" or self.log_level != LogLevel.WARNING)
-        if path.is_file():
+        if isinstance(path, ProfilerConfig):
+            path.setup(self)
+        elif (path := Path(path)).is_file():
+            in_place: bool = not (no_plots or path.suffix != ".py" or self.log_level != LogLevel.WARNING)
             self.python_file: Path = path
             self.filestem: str = self.python_file.stem.replace(" ", "_")
             self.profile_root: Path = Config.output() / self.filestem / date() if output_dir is None else output_dir
