@@ -376,7 +376,14 @@ class Profiler:
 
     def json_to_tables(self, ncols: int) -> None:
         """Run the scalene view command to format the output."""
-        if not self.output_json.exists() or not json.loads(self.output_json.read_text(encoding="utf-8")):
+        try:
+            if (
+                not self.output_json.exists()
+                or not (content := self.output_json.read_text(encoding="utf-8"))
+                or not json.loads(content)
+            ):
+                return
+        except (json.JSONDecodeError, OSError):
             return
 
         result = subprocess.run(
