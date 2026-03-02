@@ -96,7 +96,7 @@ ignore = ["unfinished_ideas/", "scratch/work/"]
 duration = "absolute"
 ```
 
-You can confirm that you configuration is setup correctly by running
+You can confirm that your configuration is set up correctly by running
 ```bash
 fixingahole --version
 ```
@@ -160,7 +160,7 @@ class CIConfig(ProfilerConfig):
         profiler.output_file = profiler.profile_root / "results.txt"
 
 # Run the profiler with the dynamic config
-Profiler(path=CIConfig()).run_profiler()
+Profiler(CIConfig()).run_profiler()
 ```
 
 ### Example 2: Auto-Discover Latest Script
@@ -190,7 +190,7 @@ class LatestExperimentConfig(ProfilerConfig):
         profiler.output_file = profiler.profile_root / f"{latest_script.stem}_results.txt"
 
 # Run with the auto-discovery config
-Profiler(path=LatestExperimentConfig()).run_profiler()
+Profiler(LatestExperimentConfig()).run_profiler()
 ```
 
 ## Options

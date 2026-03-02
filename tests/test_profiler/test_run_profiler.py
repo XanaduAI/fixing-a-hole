@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fixingahole import LogLevel
+from fixingahole import LogLevel, ProfilerConfig
 from fixingahole.profiler import Profiler
 from fixingahole.profiler.profiler import ProfilerException, SuccessfulExit
 
@@ -30,7 +30,7 @@ class TestProfilerRunProfiler:
     def test_run_profiler_success(self, mock_file: Path):
         """Test successful profiler run."""
         profiler = Profiler(
-            path=mock_file,
+            mock_file,
             precision=5,
             log_level=LogLevel.INFO,
             live_update=1,
@@ -41,14 +41,14 @@ class TestProfilerRunProfiler:
 
     def test_run_profiler_cpu_only(self, mock_file: Path):
         """Test successful profiler run using only CPU."""
-        profiler = Profiler(path=mock_file, cpu_only=True)
+        profiler = Profiler(mock_file, cpu_only=True)
         with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler(raise_exit=True)
         assert exc_info.value.exit_code == 0
 
     def test_run_profiler_detailed_mode(self, mock_file: Path):
         """Test profiler run with detailed profiling enabled."""
-        profiler = Profiler(path=mock_file, precision=5, detailed=True)
+        profiler = Profiler(mock_file, precision=5, detailed=True)
         with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler(raise_exit=True)
 
@@ -64,7 +64,7 @@ class TestProfilerRunProfiler:
         error.stderr = b"stderr error message"
         mock_run.side_effect = error
 
-        profiler = Profiler(path=mock_file, precision=5)
+        profiler = Profiler(mock_file, precision=5)
 
         with pytest.raises(ProfilerException) as exc_info:
             profiler.run_profiler(raise_exit=True)
@@ -78,7 +78,7 @@ class TestProfilerRunProfiler:
         # Setup subprocess to raise KeyboardInterrupt.
         mock_run.side_effect = KeyboardInterrupt()
 
-        profiler = Profiler(path=mock_file, precision=5)
+        profiler = Profiler(mock_file, precision=5)
 
         with pytest.raises(ProfilerException) as exc_info:
             profiler.run_profiler(raise_exit=True)
@@ -91,7 +91,7 @@ class TestProfilerRunProfiler:
         """Test profiler run with script arguments."""
         args = ["arg1=value1", "arg2=value2"]
         profiler = Profiler(
-            path=mock_file,
+            mock_file,
             python_script_args=args,
             precision=5,
             log_level=LogLevel.INFO,
@@ -113,7 +113,7 @@ class TestProfilerRunProfiler:
         """Test profiler run with script arguments."""
         args = ["--base", "10", "--power", "5"]
         profiler = Profiler(
-            path=mock_file_with_argparse,
+            mock_file_with_argparse,
             python_script_args=args,
             precision=5,
             log_level=LogLevel.INFO,
@@ -130,3 +130,41 @@ class TestProfilerRunProfiler:
         final_content = profiler.output_summary.read_text()
         assert "Check logs" in final_content
         assert "(1 warning)" in final_content
+
+    def test_run_profiler_with_config_object(self, mock_file: Path, root_dir: Path):
+        """Test profiler run using ProfilerConfig object."""
+
+        class CustomConfig(ProfilerConfig):
+            """A custom config for profiling."""
+
+            def setup(self, profiler: Profiler) -> None:
+                """Set up profiler with custom configuration."""
+                output = root_dir / "config_test_output"
+                output.mkdir(parents=True, exist_ok=True)
+
+                profiler.python_file = mock_file
+                profiler.filestem = "config_test"
+                profiler.profile_root = output
+                profiler.output_file = output / "config_results.txt"
+
+        config = CustomConfig()
+        profiler = Profiler(config, precision=3, log_level=LogLevel.INFO)
+
+        # Verify config was applied
+        assert profiler.filestem == "config_test"
+        assert profiler.output_file.name == "config_results.txt"
+
+        # Run the profiler
+        with pytest.raises(SuccessfulExit) as exc_info:
+            profiler.run_profiler(raise_exit=True)
+
+        assert exc_info.value.exit_code == 0
+
+        # Verify outputs were created
+        assert profiler.output_file.exists()
+        assert profiler.output_json.exists()
+        assert profiler.output_summary.exists()
+
+        # Verify the command ran successfully
+        summary_content = profiler.output_summary.read_text()
+        assert "Finished in" in summary_content
