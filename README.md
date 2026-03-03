@@ -141,9 +141,7 @@ class CIConfig(ProfilerConfig):
     def setup(self, profiler: Profiler) -> None:
         # Determine if we are running in CI
         is_ci = os.getenv("CI", "false").lower() == "true"
-
         profiler.python_file = Path("my_script.py")
-
         if is_ci:
             # excessive logging and specific artifact path for CI
             profiler.profile_root = Path("./artifacts/profiling")
@@ -152,9 +150,6 @@ class CIConfig(ProfilerConfig):
         else:
             # simplified local output
             profiler.profile_root = Path("./local_profiles")
-
-        profiler.profile_file = profiler.python_file
-
         # Ensure directory exists and set output file
         profiler.profile_root.mkdir(parents=True, exist_ok=True)
         profiler.output_file = profiler.profile_root / "results.txt"
@@ -169,24 +164,22 @@ This configuration automatically finds and profiles the most recently modified P
 
 ```python
 from pathlib import Path
+from colours import Colour
 from fixingahole.profiler import Profiler, ProfilerConfig
 
 class LatestExperimentConfig(ProfilerConfig):
     def setup(self, profiler: Profiler) -> None:
         experiments_dir = Path("./experiments")
-
         # Find the most recently modified .py file
         try:
             latest_script = max(experiments_dir.glob("*.py"), key=lambda p: p.stat().st_mtime)
         except ValueError:
             raise FileNotFoundError("No python scripts found in experiments/")
-
-        print(f"Profiling latest script: {latest_script.name}")
+        Colour.print(f"Profiling latest script: {latest_script.name}")
 
         profiler.python_file = latest_script
         profiler.filestem = latest_script.stem
         profiler.profile_root = Path("./profiling_results")
-        profiler.profile_file = latest_script
         profiler.output_file = profiler.profile_root / f"{latest_script.stem}_results.txt"
 
 # Run with the auto-discovery config

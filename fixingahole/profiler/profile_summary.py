@@ -40,7 +40,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     for file, file_functions in by_file.items():
         for func in file_functions:
             max_func_name_length = max(
-                len(func.name) + 3,
+                len(func.name),
                 max_func_name_length,
             )
             max_file_name_length = max(
@@ -105,7 +105,7 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     message.append("\nFunctions by Module:")
     message.append("-" * width)
     module_tree, depth = build_module_tree(by_file, threshold=threshold)
-    tree_width = max_func_name_length + (depth * 3)
+    tree_width = max_func_name_length + (depth + 2) * 3  # depth + 2 because the minimum tree depth is 2.
     tree = render_tree(module_tree, profile_data.walltime, max_func_name_length=tree_width, threshold=threshold)
     message.extend(tree)
     message.append("")

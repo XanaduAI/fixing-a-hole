@@ -22,7 +22,7 @@ import sys
 from enum import Enum
 from pathlib import Path
 from subprocess import CompletedProcess
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from colours import Colour
 from sympy import nextprime
@@ -147,7 +147,7 @@ class Profiler:
         live_update: float | str = float("inf"),
         ignore_dirs: list[Path] | None = None,
         output_dir: Path | None = None,
-        **_: dict,
+        **_: dict[str, Any],
     ) -> None:
         self.cpu_only = cpu_only
         self.precision = int(precision)
@@ -174,9 +174,7 @@ class Profiler:
         self.ignored_folders: list[Path] = ignore_dirs if ignore_dirs is not None else []
         self.run_count: int = 0
 
-        # Prepare the results folder.
-        # Default to profiling "in place", but use a modified copy if needed. A modified copy is needed
-        #   when suppressing plotting, if the file is a Jupyter notebook, or if the log level changes.
+        # Run the user defined setup config.
         if isinstance(path_or_config, ProfilerConfig):
             path_or_config.setup(self)
             # Validate that setup() configured the python_file property.
@@ -184,29 +182,30 @@ class Profiler:
                 msg = "ProfilerConfig.setup() must set `python_file` property."
                 Colour.error("Error: %s", msg.replace("python_file", Colour.BOLD("python_file")))
                 raise ProfilerException(msg)
-            self.python_file = Path(self.python_file)
-        elif (path := Path(path_or_config)).is_file():
-            self.python_file = path
-        elif path.is_dir():
+        else:
+            self.python_file = path_or_config
+
+        self.python_file = Path(self.python_file)
+        if self.python_file.is_dir():
             msg = "Error: cannot profile a directory."
             Colour.error(msg)
             raise ProfilerException(msg)
-        elif not path.exists():
-            Colour.error("Error: %s does not exist.", Colour.purple(path))
-            msg = f"Error: {path} does not exist."
+        if not self.python_file.exists():
+            Colour.error("Error: %s does not exist.", Colour.purple(self.python_file))
+            msg = f"Error: {self.python_file} does not exist."
             raise ProfilerException(msg, code=127)
 
-        # Infer or set the necessary properties.
-        self.filestem = self.filestem or self.python_file.stem.replace(" ", "_")
+        # Prepare the results folder by inferring or setting the necessary properties.
+        self.filestem = (self.filestem or self.python_file.stem).replace(" ", "_")
         self.profile_root = self.profile_root or (
             Config.output() / self.filestem / date() if output_dir is None else output_dir
         )
         # Ensure profile_root exists and that the _profile_file and output_file are set.
         self.profile_root.mkdir(parents=True, exist_ok=True)
-        self._profile_file = self.profile_root / f"{self.filestem}.py"
+        self._profile_file = (self.profile_root / self.filestem).with_suffix(".py")
         if self._output_file is None:
             self.output_file = self._output_name
-        self.prepare_code_for_profiling(self.in_place)
+        self.prepare_code_for_profiling()
 
     def assert_platform_os(self) -> None:
         """Explain that memory profiling is not available on Windows."""
@@ -226,7 +225,11 @@ class Profiler:
 
     @property
     def in_place(self) -> bool:
-        """Determine whether or not to profile the script directly, or make a copy."""
+        """Determine whether or not to profile the script directly or profile a modified a copy.
+
+        Default to profiling "in place", but use a modified copy if needed. A modified copy is needed
+          when suppressing plotting, if the file is a Jupyter notebook, or if the log level changes.
+        """
         return not (self.no_plots or self.python_file.suffix != ".py" or self.log_level != LogLevel.WARNING)
 
     @property
@@ -243,7 +246,7 @@ class Profiler:
 
     @property
     def profile_file(self) -> Path:
-        """The file being profiled."""
+        """The file being profiled. Either the original file, or a modified copy."""
         return self.python_file if self.in_place else self._profile_file
 
     @property
@@ -339,14 +342,14 @@ class Profiler:
         memory_threshold = nextprime(int(memory_threshold / 2**verbosity))
         return f"--allocation-sampling-window={memory_threshold}"
 
-    def prepare_code_for_profiling(self, in_place: bool) -> None:
+    def prepare_code_for_profiling(self) -> None:
         """Make a copy of the code being profiled.
 
         Add modifiers if needed by adding prefix and suffix lines to the code.
         """
         code_to_profile: str = self.python_file.read_text()
 
-        if not in_place:
+        if not self.in_place:
             if self.python_file.suffix == ".ipynb":
                 code_to_profile = Profiler.convert_ipynb_to_py(code_to_profile)
             code_lines: list[str] = code_to_profile.split("\n")

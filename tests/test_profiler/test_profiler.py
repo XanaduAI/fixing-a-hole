@@ -443,7 +443,7 @@ class TestProfilerCodePreparation:
         test_file.write_text(test_code)
 
         profiler = Profiler(test_file, log_level=LogLevel.INFO)
-        profiler.prepare_code_for_profiling(in_place=False)
+        profiler.prepare_code_for_profiling()
 
         # Check that the profile file was created and contains expected content
         profile_content = profiler.profile_file.read_text()
@@ -466,7 +466,7 @@ class TestProfilerCodePreparation:
 
         # Passing a string is technically allowed, even if the type checker doesn't like it.
         profiler = Profiler(test_file, no_plots="matplotlib")  # ty:ignore[invalid-argument-type]
-        profiler.prepare_code_for_profiling(in_place=False)
+        profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
         # Should contain plot mocking for `matplotlib`
@@ -489,7 +489,7 @@ class TestProfilerCodePreparation:
         test_file.write_text(json.dumps(notebook_content))
 
         profiler = Profiler(test_file)
-        profiler.prepare_code_for_profiling(in_place=False)
+        profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
         # Should contain converted notebook content
@@ -500,7 +500,7 @@ class TestProfilerCodePreparation:
         """Test code preparation with warning log level."""
         profiler = Profiler(mock_file, log_level=LogLevel.WARNING)
 
-        profiler.prepare_code_for_profiling(in_place=False)
+        profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
         # Should not contain warning capture because warning is the default level.
@@ -512,7 +512,7 @@ class TestProfilerCodePreparation:
         test_file.write_text("print('hello world')")
 
         profiler = Profiler(test_file, log_level=LogLevel.ERROR)
-        profiler.prepare_code_for_profiling(in_place=False)
+        profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
         # Should NOT contain warning capture
