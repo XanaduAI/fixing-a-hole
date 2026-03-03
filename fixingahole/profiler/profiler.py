@@ -136,6 +136,7 @@ class Profiler:
     def __init__(  # noqa: PLR0913
         self,
         path_or_config: Path | ProfilerConfig,
+        /,
         *,
         python_script_args: list[str] | None = None,
         cpu_only: bool = True,
