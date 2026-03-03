@@ -73,20 +73,9 @@ class ProfilerConfig(Protocol):
 
     Optional Attributes:
         You may optionally set these attributes to customize behavior:
-
         - `profiler.filestem` (str): Base name for output files (defaults to python_file.stem)
         - `profiler.profile_root` (Path): Directory for profiling outputs
         - `profiler.output_file` (Path): Location for the main output file
-
-    Example:
-        >>> class MyConfig:
-        ...     def setup(self, profiler):
-        ...         profiler.python_file = Path("/path/to/script.py")
-        ...         profiler.filestem = "my_profile"
-        ...         profiler.profile_root = Path("/custom/output/dir")
-        ...         profiler.output_file = profiler.profile_root / "results.txt"
-        >>> Profiler(MyConfig())
-
     """
 
     def setup(self, profiler: "Profiler") -> None:
