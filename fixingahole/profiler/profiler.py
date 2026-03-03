@@ -360,6 +360,7 @@ class Profiler:
                 profile_prefix.append("from unittest.mock import patch, MagicMock")
                 for lib in self.no_plots:
                     if lib == PlottingLibrary.matplotlib:
+                        code_lines = [line for line in code_lines if "%matplotlib" not in line]
                         profile_prefix += [
                             "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())",
                             "patch_plt.start()",
