@@ -176,14 +176,18 @@ class Profiler:
             self.python_file = path_or_config
 
         self.python_file = Path(self.python_file)
-        if self.python_file.is_dir():
-            msg = "Error: cannot profile a directory."
-            Colour.error(msg)
-            raise ProfilerException(msg)
         if not self.python_file.exists():
             Colour.error("Error: %s does not exist.", Colour.purple(self.python_file))
             msg = f"Error: {self.python_file} does not exist."
             raise ProfilerException(msg, code=127)
+        if not self.python_file.is_file():
+            msg = "Error: can only profile a regular file."
+            Colour.error(msg)
+            raise ProfilerException(msg)
+        if self.python_file.is_dir():
+            msg = "Error: cannot profile a directory."
+            Colour.error(msg)
+            raise ProfilerException(msg)
 
         # Prepare the results folder by inferring or setting the necessary properties.
         self.filestem = (self.filestem or self.python_file.stem).replace(" ", "_")
@@ -191,6 +195,10 @@ class Profiler:
             Config.output() / self.filestem / date() if output_dir is None else output_dir
         )
         # Ensure profile_root exists and that the _profile_file and output_file are set.
+        if not isinstance(self.profile_root, (str, Path)):
+            msg = f"Error: the `profile_root` must be either a string or a Path object, not {type(self.profile_root)}"
+            Colour.error(msg)
+            raise ProfilerException(msg)
         self.profile_root.mkdir(parents=True, exist_ok=True)
         self._profile_file = (self.profile_root / self.filestem).with_suffix(".py")
         if self._output_file is None:
@@ -251,7 +259,14 @@ class Profiler:
     @output_file.setter
     def output_file(self, value: str | Path) -> None:
         """Location of the Scalene output (as a .txt file)."""
-        self._output_file = value if isinstance(value, Path) else self.profile_root / value
+        if isinstance(value, Path):
+            self._output_file = value
+        elif self.profile_root is None:
+            msg = "Error: The `profile_root` must be set before setting the `output_file` with a string."
+            Colour.error(msg)
+            raise ProfilerException(msg)
+        else:
+            self._output_file = self.profile_root / value
         # Extract the filename stem to enable auto-appending the run_count if multiple runs are made.
         self._output_name = self._output_file.stem
         self._output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -372,10 +387,15 @@ class Profiler:
                             "patch_plotly.start()",
                         ]
                         profile_suffix.append("patch_plotly.stop()")
-
-            code_to_profile = "\n".join(
-                ["; ".join([ln for ln in profile_prefix if ln]), *code_lines, "; ".join([ln for ln in profile_suffix if ln])],
-            )
+            prefix_line = "; ".join([ln for ln in profile_prefix if ln])
+            suffix_line = "; ".join([ln for ln in profile_suffix if ln])
+            lines_to_join: list[str] = []
+            if prefix_line:
+                lines_to_join.append(prefix_line)
+            lines_to_join.extend(code_lines)
+            if suffix_line:
+                lines_to_join.append(suffix_line)
+            code_to_profile = "\n".join(lines_to_join)
 
         self._profile_file.write_text(code_to_profile, encoding="utf-8")
 
@@ -414,6 +434,15 @@ class Profiler:
         memory_str = memory_with_units(memory_used, unit=unit, digits=3)
         return memory_str, walltime
 
+    def env(self) -> dict[str, str]:
+        """Clean the environment variables."""
+        # With Python 3.12, pytest-cov sets `COV_CORE` environment variables which will inject coverage.py into the
+        #  Scalene profiler subprocess, where both tracing tools fight over sys.settrace().
+        # This conflict is due to changes in CPython's internal tracing infrastructure and causes significant slowdown.
+        clean_env: dict[str, str] = {k: v for k, v in os.environ.items() if not k.startswith("COV_CORE")}
+        ncols = max(160, len(str(self.profile_file)) + 75)
+        return clean_env | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXINGAHOLE_PROFILE": "1"}
+
     @property
     def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
@@ -443,7 +472,7 @@ class Profiler:
         cmd_str = " ".join([ln.strip() for ln in cmd if ln]).strip()
         return cmd_str.split()
 
-    def json_to_tables(self, ncols: int) -> None:
+    def json_to_tables(self) -> None:
         """Run the scalene view command to format the output."""
         try:
             if (
@@ -460,12 +489,12 @@ class Profiler:
             check=False,
             text=True,
             capture_output=True,
-            env=os.environ.copy() | {"LINES": "320", "COLUMNS": str(ncols), "FIXING_A_HOLE_PROFILE": "1"},
+            env=self.env(),
         )
         if result.returncode == 0 and result.stdout:
             self.output_file.write_text(Colour.remove_ansi(result.stdout))
 
-    def summarize(self, preamble: str, capture: CompletedProcess, ncols: int = 128) -> tuple[str, "ProfileSummary"]:
+    def summarize(self, preamble: str, capture: CompletedProcess) -> tuple[str, "ProfileSummary"]:
         """Gather all the details and logs and consicely present them to the user."""
         from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
@@ -487,7 +516,7 @@ class Profiler:
             raise ProfilerException(msg) from err
 
         profile_data = ProfileSummary(self.output_json)
-        self.json_to_tables(ncols)
+        self.json_to_tables()
         profile_summary = profile_data.summary()
         memory = "" if self.cpu_only else f" using {profile_data.max_memory} of heap RAM"
         finished = f"\nFinished in {profile_data.walltime or 0:,.3f} seconds{memory}"
@@ -521,27 +550,21 @@ class Profiler:
     def run_profiler(self, preamble: str = "\n", raise_exit: bool = False) -> "ProfileSummary":
         """Profile the python script using Scalene."""
         Colour.info(f"See {Colour.purple(self.output_path)} for details.")
-        ncols = max(160, len(str(self.profile_file)) + 75)
         try:
             # Profile the code.
             watcher = (
-                FileWatcher(file_path=self.output_json, on_change_callback=lambda: self.json_to_tables(ncols))
+                FileWatcher(file_path=self.output_json, on_change_callback=self.json_to_tables)
                 if 0 < self.live_update < float("inf")
                 else contextlib.nullcontext()
             )
             with Spinner(), watcher:
-                # Clean the environment variables.
-                # With Python 3.12 pytest-cov sets `COV_CORE` environment variables which will inject coverage.py into the
-                #  Scalene profiler subprocess, where both tracing tools fight over sys.settrace().
-                # This conflict is due to changes in CPython's internal tracing infrastructure and causes significant slowdown.
-                clean_env: dict[str, str] = {k: v for k, v in os.environ.items() if not k.startswith("COV_CORE")}
                 # Run the profiling command
                 capture = subprocess.run(
                     self._scalene_run_cmd,
                     check=True,
                     text=True,
                     capture_output=self.log_level.should_catch_warnings(),
-                    env=clean_env | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXINGAHOLE_PROFILE": "1"},
+                    env=self.env(),
                 )
 
         except subprocess.CalledProcessError as exc:
@@ -560,12 +583,12 @@ class Profiler:
             # Make sure to indicate in the profile_results.txt of the interruption.
             msg = "\n Profiling interrupted by user. \n"
             with contextlib.suppress(KeyboardInterrupt):
-                self.json_to_tables(ncols)
+                self.json_to_tables()
             self.output_file.write_text(msg + self.output_file.read_text(), encoding="utf-8")
             Colour.error(msg)
             raise ProfilerException(msg) from ki
         else:
-            text, summary = self.summarize(preamble, capture, ncols)
+            text, summary = self.summarize(preamble, capture)
             Colour.info(text)
             if raise_exit:
                 raise SuccessfulExit

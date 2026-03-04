@@ -123,10 +123,9 @@ to the script.
 
 For more complex use cases, passing static paths to the `Profiler` might not be enough.
 You can implement the `ProfilerConfig` protocol to dynamically determine paths and
-settings at runtime.
-
-To use this feature, define a class that inherits from `ProfilerConfig` and implements the
-`setup(self, profiler: "Profiler") -> None` method.
+settings at runtime. To use this feature, define a class that implements
+a `setup(self, profiler: "Profiler") -> None` method and sets `profiler.python_file` with
+a `Path` or string to the file being profiled.
 
 ### Example 1: Environment-Aware Configuration
 
@@ -135,9 +134,9 @@ This configuration adjusts the output directory and logging level based on wheth
 ```python
 import os
 from pathlib import Path
-from fixingahole.profiler import Profiler, ProfilerConfig
+from fixingahole import Profiler
 
-class CIConfig(ProfilerConfig):
+class CIConfig:
     def setup(self, profiler: Profiler) -> None:
         # Determine if we are running in CI
         is_ci = os.getenv("CI", "false").lower() == "true"
@@ -165,9 +164,9 @@ This configuration automatically finds and profiles the most recently modified P
 ```python
 from pathlib import Path
 from colours import Colour
-from fixingahole.profiler import Profiler, ProfilerConfig
+from fixingahole import Profiler
 
-class LatestExperimentConfig(ProfilerConfig):
+class LatestExperimentConfig:
     def setup(self, profiler: Profiler) -> None:
         experiments_dir = Path("./experiments")
         # Find the most recently modified .py file
