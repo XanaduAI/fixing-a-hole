@@ -530,13 +530,18 @@ class Profiler:
                 else contextlib.nullcontext()
             )
             with Spinner(), watcher:
+                # Clean the environment variables.
+                # With Python 3.12 pytest-cov sets `COV_CORE` environment variables which will inject coverage.py into the
+                #  Scalene profiler subprocess, where both tracing tools fight over sys.settrace().
+                # This conflict is due to changes in CPython's internal tracing infrastructure and causes significant slowdown.
+                clean_env: dict[str, str] = {k: v for k, v in os.environ.items() if not k.startswith("COV_CORE")}
                 # Run the profiling command
                 capture = subprocess.run(
                     self._scalene_run_cmd,
                     check=True,
                     text=True,
                     capture_output=self.log_level.should_catch_warnings(),
-                    env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXINGAHOLE_PROFILE": "1"},
+                    env=clean_env | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXINGAHOLE_PROFILE": "1"},
                 )
 
         except subprocess.CalledProcessError as exc:
