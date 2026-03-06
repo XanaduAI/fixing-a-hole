@@ -268,8 +268,9 @@ class TestStatisticsManagerSaveAsJson:
         mock_repo.head.object.hexsha = "mocked_commit_sha_abc123def456"
         mock_repo.remotes.origin.url = "https://github.com/xanadu/mocked_repo_name.git"
         mock_repo.is_dirty.side_effect = TypeError("This is an mocked error.")
-        with patch("fixingahole.profiler.stats_manager.git.Repo") as mock_git_repo:
-            mock_git_repo.return_value = mock_repo
+        mock_repo.__enter__ = MagicMock(return_value=mock_repo)
+        mock_repo.__exit__ = MagicMock(return_value=None)
+        with patch("fixingahole.profiler.stats_manager.git.Repo", return_value=mock_repo):
             output = StatisticsManager.save_as_json(file_path, stats, sort=False, save_metadata=True)
 
         assert file_path.exists()

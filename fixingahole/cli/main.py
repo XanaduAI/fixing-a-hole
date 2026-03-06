@@ -65,7 +65,7 @@ def profile(  # noqa: PLR0913
         ),
     ] = False,
     precision: Annotated[
-        int | None,
+        int,
         typer.Option(
             "--precision",
             "-p",
@@ -75,7 +75,7 @@ def profile(  # noqa: PLR0913
             max=10,
             rich_help_panel="Profiling",
         ),
-    ] = None,
+    ] = 0,
     trace: Annotated[
         bool,
         typer.Option(
@@ -219,7 +219,7 @@ def profile(  # noqa: PLR0913
         Colour.info("Ignoring: %s", [str(p) for p in ignore_dirs])
 
     profiler = Profiler(
-        path=python_file,
+        python_file,
         python_script_args=python_script_args.args,
         cpu_only=cpu_only,
         precision=precision,

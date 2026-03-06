@@ -22,7 +22,7 @@ import sys
 from enum import Enum
 from pathlib import Path
 from subprocess import CompletedProcess
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from colours import Colour
 from sympy import nextprime
@@ -59,27 +59,88 @@ class SuccessfulExit(Exit):
         super().__init__(code=code)
 
 
-class Profiler:
-    """Class for managing profiling."""
+@runtime_checkable
+class ProfilerConfig(Protocol):
+    """A protocol for customizing Profiler initialization.
 
-    def __init__(  # noqa: PLR0913
+    Users can implement this configuration object to dynamically determine
+    paths and settings before the profiler runs. This is useful for advanced
+    use cases where you need to programmatically configure the profiler.
+
+    Required Attributes:
+        The setup() method **must** set `profiler.python_file` to a Path object.
+        This is the Python script to be profiled.
+
+    Optional Attributes:
+        You may optionally set these attributes to customize behavior:
+        - `profiler.filestem` (str): Base name for output files (defaults to python_file.stem)
+        - `profiler.profile_root` (Path): Directory for profiling outputs
+        - `profiler.output_file` (Path): Location for the main output file
+    """
+
+    def setup(self, profiler: "Profiler") -> None:
+        """Perform any necessary setup on the profiler instance.
+
+        Args:
+            profiler: The Profiler instance being initialized. You **must** set
+                profiler.python_file to the Path of the script to profile.
+
+        """
+        ...
+
+
+class Profiler:
+    """Class for managing profiling with Scalene.
+
+    This class provides a wrapper around Scalene profiling with additional
+    features like automatic output organization, live updates, and summary generation.
+
+    Attributes:
+        python_file (Path): The original Python script to be profiled.
+        filestem (str): Base name used for output files (derived from python_file.stem).
+        profile_root (Path): Root directory where all profiling outputs are stored.
+        output_file (Path): Scalene table output file containing formatted profile results.
+        output_json (Path): Scalene JSON output file containing raw profiling data.
+        output_summary (Path): Summary text file with condensed profiling insights.
+        log_file (Path): Log file capturing stdout/stderr during profiling.
+        cpu_only (bool): If True, profile CPU only (no memory profiling).
+        precision (int): Memory allocation sampling precision (-10 to 10).
+        detailed (bool): If True, profile all modules including libraries.
+        log_level (LogLevel): Logging verbosity during profiling.
+        trace (bool): If True, capture stack traces for function calls.
+        live_update (float): Interval in seconds for live output updates (inf = disabled).
+        ignored_folders (list[Path]): Directories to exclude from profiling.
+        run_count (int): Number of times run_profiler() has been called on this instance.
+
+    """
+
+    if TYPE_CHECKING:
+        # Runtime types - these attributes are always set before use
+        python_file: Path
+        filestem: str
+        profile_root: Path
+        _profile_file: Path
+        _output_file: Path
+
+    def __init__(  # noqa: PLR0913, PLR0915
         self,
+        path_or_config: Path | ProfilerConfig,
+        /,
         *,
-        path: Path,
         python_script_args: list[str] | None = None,
         cpu_only: bool = True,
-        precision: int | str | None = None,
+        precision: int | str = 0,
         detailed: bool = False,
         log_level: LogLevel = LogLevel.WARNING,
         no_plots: list[PlottingLibrary] | None = None,
         trace: bool = True,
-        live_update: float = float("inf"),
+        live_update: float | str = float("inf"),
         ignore_dirs: list[Path] | None = None,
         output_dir: Path | None = None,
-        **_: dict,
+        **_: dict[str, Any],
     ) -> None:
         self.cpu_only = cpu_only
-        self.precision = int(precision) if precision is not None else 0
+        self.precision = int(precision)
         self.platform = None
 
         #  Assert correct python environment.
@@ -91,35 +152,59 @@ class Profiler:
         self.no_plots: list[PlottingLibrary] = (
             [PlottingLibrary(no_plots)] if isinstance(no_plots, str) else (no_plots if no_plots is not None else [])
         )
+        # These are always set during initialization.
+        self.filestem = None  # type: ignore[assignment]
+        self.profile_root = None  # type: ignore[assignment]
+        self._profile_file = None  # type: ignore[assignment]
+        self._output_file = None  # type: ignore[assignment]
         self._output_name: str = "profile_results"
-        self._output_file: Path | None = None
         self._precision_limit: int = 10
         self.trace: bool = trace
-        self.live_update: float = live_update
+        self.live_update: float = float(live_update)
         self.ignored_folders: list[Path] = ignore_dirs if ignore_dirs is not None else []
         self.run_count: int = 0
 
-        # Prepare the results folder.
-        # Default to profiling "in place", but use a modified copy if needed. A modified copy is needed
-        #   when suppressing plotting, if the file is a Jupyter notebook, or if the log level changes.
-        path = Path(path)
-        in_place: bool = not (no_plots or path.suffix != ".py" or self.log_level != LogLevel.WARNING)
-        if path.is_file():
-            self.python_file: Path = path
-            self.filestem: str = self.python_file.stem.replace(" ", "_")
-            self.profile_root: Path = Config.output() / self.filestem / date() if output_dir is None else output_dir
-            self.profile_root.mkdir(parents=True, exist_ok=True)
-            self.profile_file: Path = self.python_file if in_place else self.profile_root / f"{self.filestem}.py"
-            self.output_file = self._output_name
-            self.prepare_code_for_profiling(in_place)
-        elif path.is_dir():
+        # Run the user defined setup config.
+        if isinstance(path_or_config, ProfilerConfig):
+            path_or_config.setup(self)
+            # Validate that setup() configured the python_file property.
+            if not hasattr(self, "python_file") or self.python_file is None:
+                msg = "ProfilerConfig.setup() must set `python_file` property."
+                Colour.error("Error: %s", msg.replace("python_file", Colour.BOLD("python_file")))
+                raise ProfilerException(msg)
+        else:
+            self.python_file = path_or_config
+
+        self.python_file = Path(self.python_file)
+        if not self.python_file.exists():
+            Colour.error("Error: %s does not exist.", Colour.purple(self.python_file))
+            msg = f"Error: {self.python_file} does not exist."
+            raise ProfilerException(msg, code=127)
+        if not self.python_file.is_file():
+            msg = "Error: can only profile a regular file."
+            Colour.error(msg)
+            raise ProfilerException(msg)
+        if self.python_file.is_dir():
             msg = "Error: cannot profile a directory."
             Colour.error(msg)
             raise ProfilerException(msg)
-        elif not path.exists():
-            Colour.error("Error: %s does not exist.", Colour.purple(path))
-            msg = f"Error: {path} does not exist."
-            raise ProfilerException(msg, code=127)
+
+        # Prepare the results folder by inferring or setting the necessary properties.
+        self.filestem = (self.filestem or self.python_file.stem).replace(" ", "_")
+        self.profile_root = self.profile_root or (
+            Config.output() / self.filestem / date() if output_dir is None else output_dir
+        )
+        # Ensure profile_root exists and that the _profile_file and output_file are set.
+        if not isinstance(self.profile_root, (str, Path)):
+            msg = f"Error: the `profile_root` must be either a string or a Path object, not {type(self.profile_root)}"
+            Colour.error(msg)
+            raise ProfilerException(msg)
+        self.profile_root = Path(self.profile_root)
+        self.profile_root.mkdir(parents=True, exist_ok=True)
+        self._profile_file = (self.profile_root / self.filestem).with_suffix(".py")
+        if self._output_file is None:
+            self.output_file = self._output_name
+        self.prepare_code_for_profiling()
 
     def assert_platform_os(self) -> None:
         """Explain that memory profiling is not available on Windows."""
@@ -138,6 +223,15 @@ class Profiler:
             Colour.warning("--precision option is not used with --cpu")
 
     @property
+    def in_place(self) -> bool:
+        """Determine whether or not to profile the script directly or profile a modified a copy.
+
+        Default to profiling "in place", but use a modified copy if needed. A modified copy is needed
+          when suppressing plotting, if the file is a Jupyter notebook, or if the log level changes.
+        """
+        return not (self.no_plots or self.python_file.suffix != ".py" or self.log_level != LogLevel.WARNING)
+
+    @property
     def excluded_folders(self) -> str:
         """Scalene flag to exclude system python directory when profiling all modules."""
         exclude_dir: list[Path] = [
@@ -150,11 +244,17 @@ class Profiler:
         return f"--profile-exclude {','.join(map(str, exclude_dir))}"
 
     @property
+    def profile_file(self) -> Path:
+        """The file being profiled. Either the original file, or a modified copy."""
+        return self.python_file if self.in_place else self._profile_file
+
+    @property
     def output_file(self) -> Path:
         """The location of the Scalene output (as a .txt file)."""
         if self._output_file is None:
             return Path.cwd() / "profile_results.txt"
-        name = f"{self._output_file.name}_{self.run_count}" if self.run_count > 0 else self._output_file.name
+        # Auto-append the run_count if multiple runs are made.
+        name = f"{self._output_name}_{self.run_count}" if self.run_count > 0 else self._output_name
         return (self._output_file.parent / name).with_suffix(".txt")
 
     @output_file.setter
@@ -162,12 +262,15 @@ class Profiler:
         """Location of the Scalene output (as a .txt file)."""
         if isinstance(value, Path):
             self._output_file = value
-            self._output_name = self._output_file.stem
-            self._output_file.parent.mkdir(parents=True, exist_ok=True)
-            self.output_file.touch()
-            return
-        self._output_name = value
-        self._output_file: Path = self.profile_root / self._output_name
+        elif self.profile_root is None:
+            msg = "Error: The `profile_root` must be set before setting the `output_file` with a string."
+            Colour.error(msg)
+            raise ProfilerException(msg)
+        else:
+            self._output_file = self.profile_root / value
+        # Extract the filename stem to enable auto-appending the run_count if multiple runs are made.
+        self._output_name = self._output_file.stem
+        self._output_file.parent.mkdir(parents=True, exist_ok=True)
         self.output_file.touch()
 
     @property
@@ -245,51 +348,57 @@ class Profiler:
         memory_threshold = nextprime(int(memory_threshold / 2**verbosity))
         return f"--allocation-sampling-window={memory_threshold}"
 
-    def prepare_code_for_profiling(self, in_place: bool) -> tuple[Path, Path]:
+    def prepare_code_for_profiling(self) -> None:
         """Make a copy of the code being profiled.
 
         Add modifiers if needed by adding prefix and suffix lines to the code.
         """
         code_to_profile: str = self.python_file.read_text()
-        if self.python_file.suffix == ".ipynb":
-            code_to_profile = Profiler.convert_ipynb_to_py(code_to_profile)
 
-        code_lines: list[str] = code_to_profile.split("\n")
-        profile_prefix: list[str] = []
-        profile_suffix: list[str] = []
-        logger: list[str] = [
-            "import sys",
-            "import logging",
-            "from pathlib import Path",
-            f"log_file = Path(r'{self.log_path}')",
-            f"logging.basicConfig(filename=log_file, level=logging.{self.log_level.name})",
-            "logging.captureWarnings(True)" if self.log_level.should_catch_warnings() else "",
-            "sys.stdout = log_file.open(mode='a')",
-        ]
-        profile_prefix += logger
-        if self.no_plots:
-            profile_prefix.append("from unittest.mock import patch, MagicMock")
-        for lib in self.no_plots:
-            if lib == PlottingLibrary.matplotlib:
-                profile_prefix += [
-                    "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())",
-                    "patch_plt.start()",
+        if not self.in_place:
+            if self.python_file.suffix == ".ipynb":
+                code_to_profile = Profiler.convert_ipynb_to_py(code_to_profile)
+            code_lines: list[str] = code_to_profile.split("\n")
+            profile_prefix: list[str] = []
+            profile_suffix: list[str] = []
+            if self.log_level != LogLevel.WARNING:
+                logger: list[str] = [
+                    "import sys",
+                    "import logging",
+                    "from pathlib import Path",
+                    f"log_file = Path(r'{self.log_path}')",
+                    f"logging.basicConfig(filename=log_file, level=logging.{self.log_level.name})",
+                    "logging.captureWarnings(True)" if self.log_level.should_catch_warnings() else "",
+                    "sys.stdout = log_file.open(mode='a')",
                 ]
-                profile_suffix.append("patch_plt.stop()")
-            elif lib == PlottingLibrary.plotly:
-                profile_prefix += [
-                    "patch_plotly = patch('plotly.graph_objects.Figure.show', new=MagicMock())",
-                    "patch_plotly.start()",
-                ]
-                profile_suffix.append("patch_plotly.stop()")
+                profile_prefix += logger
+            if self.no_plots:
+                profile_prefix.append("from unittest.mock import patch, MagicMock")
+                for lib in self.no_plots:
+                    if lib == PlottingLibrary.matplotlib:
+                        code_lines = [line for line in code_lines if "%matplotlib" not in line]
+                        profile_prefix += [
+                            "patch_plt = patch('matplotlib.pyplot.show', new=MagicMock())",
+                            "patch_plt.start()",
+                        ]
+                        profile_suffix.append("patch_plt.stop()")
+                    elif lib == PlottingLibrary.plotly:
+                        profile_prefix += [
+                            "patch_plotly = patch('plotly.graph_objects.Figure.show', new=MagicMock())",
+                            "patch_plotly.start()",
+                        ]
+                        profile_suffix.append("patch_plotly.stop()")
+            prefix_line = "; ".join([ln for ln in profile_prefix if ln])
+            suffix_line = "; ".join([ln for ln in profile_suffix if ln])
+            lines_to_join: list[str] = []
+            if prefix_line:
+                lines_to_join.append(prefix_line)
+            lines_to_join.extend(code_lines)
+            if suffix_line:
+                lines_to_join.append(suffix_line)
+            code_to_profile = "\n".join(lines_to_join)
 
-        if not in_place:
-            code_to_profile = "\n".join(
-                ["; ".join([ln for ln in profile_prefix if ln]), *code_lines, "; ".join([ln for ln in profile_suffix if ln])],
-            )
-        self.profile_file.write_text(code_to_profile, encoding="utf-8")
-
-        return self.profile_file, self.output_file
+        self._profile_file.write_text(code_to_profile, encoding="utf-8")
 
     def get_usr_bin_time_data(self, stderr: str) -> tuple[str, float]:
         """Max memory resident set size (RSS) and wall time from /usr/bin/time output.
@@ -326,6 +435,31 @@ class Profiler:
         memory_str = memory_with_units(memory_used, unit=unit, digits=3)
         return memory_str, walltime
 
+    def _json_output_exists(self) -> bool:
+        try:
+            if not (
+                self.output_json.exists() and (content := self.output_json.read_text(encoding="utf-8")) and json.loads(content)
+            ):
+                raise ValueError("JSON file missing or empty")  # noqa: EM101, TRY003, TRY301
+        except (json.JSONDecodeError, OSError, ValueError):
+            note = (
+                " Did you ignore the script's parent?"
+                if any(self.python_file.is_relative_to(d) for d in self.ignored_folders)
+                else ""
+            )
+            Colour.error("Error: Scalene JSON file is empty or unavailable.%s", note)
+            return False
+        return True
+
+    def env(self) -> dict[str, str]:
+        """Clean the environment variables."""
+        # With Python 3.12, pytest-cov sets `COV_CORE` environment variables which will inject coverage.py into the
+        #  Scalene profiler subprocess, where both tracing tools fight over sys.settrace().
+        # This conflict is due to changes in CPython's internal tracing infrastructure and causes significant slowdown.
+        clean_env: dict[str, str] = {k: v for k, v in os.environ.items() if not k.startswith("COV_CORE")}
+        ncols = max(160, len(str(self.profile_file)) + 75)
+        return clean_env | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXINGAHOLE_PROFILE": "1"}
+
     @property
     def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
@@ -355,9 +489,9 @@ class Profiler:
         cmd_str = " ".join([ln.strip() for ln in cmd if ln]).strip()
         return cmd_str.split()
 
-    def json_to_tables(self, ncols: int) -> None:
+    def json_to_tables(self) -> None:
         """Run the scalene view command to format the output."""
-        if not self.output_json.exists() or not json.loads(self.output_json.read_text(encoding="utf-8")):
+        if not self._json_output_exists():
             return
 
         result = subprocess.run(
@@ -365,27 +499,21 @@ class Profiler:
             check=False,
             text=True,
             capture_output=True,
-            env=os.environ.copy() | {"LINES": "320", "COLUMNS": str(ncols), "FIXING_A_HOLE_PROFILE": "1"},
+            env=self.env(),
         )
         if result.returncode == 0 and result.stdout:
             self.output_file.write_text(Colour.remove_ansi(result.stdout))
 
-    def summarize(self, preamble: str, capture: CompletedProcess, ncols: int = 128) -> tuple[str, "ProfileSummary"]:
+    def summarize(self, preamble: str, capture: CompletedProcess) -> tuple[str, "ProfileSummary"]:
         """Gather all the details and logs and consicely present them to the user."""
         from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
-        if not self.output_json.exists() or not json.loads(self.output_json.read_text(encoding="utf-8")):
-            note: str = (
-                " Did you ignore the script's parent?"
-                if any(self.python_file.is_relative_to(d) for d in self.ignored_folders)
-                else ""
-            )
-            msg = "Scalene JSON file unavailable."
-            Colour.error("Error: %s%s", msg, note)
+        if not self._json_output_exists():
+            msg = "Scalene JSON file is empty or unavailable."
             raise ProfilerException(msg)
 
         profile_data = ProfileSummary(self.output_json)
-        self.json_to_tables(ncols)
+        self.json_to_tables()
         profile_summary = profile_data.summary()
         memory = "" if self.cpu_only else f" using {profile_data.max_memory} of heap RAM"
         finished = f"\nFinished in {profile_data.walltime or 0:,.3f} seconds{memory}"
@@ -419,11 +547,10 @@ class Profiler:
     def run_profiler(self, preamble: str = "\n", raise_exit: bool = False) -> "ProfileSummary":
         """Profile the python script using Scalene."""
         Colour.info(f"See {Colour.purple(self.output_path)} for details.")
-        ncols = max(160, len(str(self.profile_file)) + 75)
         try:
             # Profile the code.
             watcher = (
-                FileWatcher(file_path=self.output_json, on_change_callback=lambda: self.json_to_tables(ncols))
+                FileWatcher(file_path=self.output_json, on_change_callback=self.json_to_tables)
                 if 0 < self.live_update < float("inf")
                 else contextlib.nullcontext()
             )
@@ -434,7 +561,7 @@ class Profiler:
                     check=True,
                     text=True,
                     capture_output=self.log_level.should_catch_warnings(),
-                    env=os.environ.copy() | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXINGAHOLE_PROFILE": "1"},
+                    env=self.env(),
                 )
 
         except subprocess.CalledProcessError as exc:
@@ -453,12 +580,12 @@ class Profiler:
             # Make sure to indicate in the profile_results.txt of the interruption.
             msg = "\n Profiling interrupted by user. \n"
             with contextlib.suppress(KeyboardInterrupt):
-                self.json_to_tables(ncols)
+                self.json_to_tables()
             self.output_file.write_text(msg + self.output_file.read_text(), encoding="utf-8")
             Colour.error(msg)
             raise ProfilerException(msg) from ki
         else:
-            text, summary = self.summarize(preamble, capture, ncols)
+            text, summary = self.summarize(preamble, capture)
             Colour.info(text)
             if raise_exit:
                 raise SuccessfulExit
