@@ -435,6 +435,22 @@ class Profiler:
         memory_str = memory_with_units(memory_used, unit=unit, digits=3)
         return memory_str, walltime
 
+    def _json_output_exists(self) -> bool:
+        try:
+            if not (
+                self.output_json.exists() and (content := self.output_json.read_text(encoding="utf-8")) and json.loads(content)
+            ):
+                raise ValueError("JSON file missing or empty")  # noqa: EM101, TRY003, TRY301
+        except (json.JSONDecodeError, OSError, ValueError):
+            note = (
+                " Did you ignore the script's parent?"
+                if any(self.python_file.is_relative_to(d) for d in self.ignored_folders)
+                else ""
+            )
+            Colour.error("Error: Scalene JSON file is empty or unavailable.%s", note)
+            return False
+        return True
+
     def env(self) -> dict[str, str]:
         """Clean the environment variables."""
         # With Python 3.12, pytest-cov sets `COV_CORE` environment variables which will inject coverage.py into the
@@ -475,12 +491,7 @@ class Profiler:
 
     def json_to_tables(self) -> None:
         """Run the scalene view command to format the output."""
-        try:
-            if not (
-                self.output_json.exists() and (content := self.output_json.read_text(encoding="utf-8")) and json.loads(content)
-            ):
-                return
-        except (json.JSONDecodeError, OSError):
+        if not self._json_output_exists():
             return
 
         result = subprocess.run(
@@ -497,20 +508,9 @@ class Profiler:
         """Gather all the details and logs and consicely present them to the user."""
         from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
-        try:
-            if not (
-                self.output_json.exists() and (content := self.output_json.read_text(encoding="utf-8")) and json.loads(content)
-            )
-                raise ValueError("JSON file missing or empty")  # noqa: EM101, TRY003, TRY301
-        except (json.JSONDecodeError, OSError, ValueError) as err:
-            note = (
-                " Did you ignore the script's parent?"
-                if any(self.python_file.is_relative_to(d) for d in self.ignored_folders)
-                else ""
-            )
+        if not self._json_output_exists():
             msg = "Scalene JSON file is empty or unavailable."
-            Colour.error("Error: %s%s", msg, note)
-            raise ProfilerException(msg) from err
+            raise ProfilerException(msg)
 
         profile_data = ProfileSummary(self.output_json)
         self.json_to_tables()
