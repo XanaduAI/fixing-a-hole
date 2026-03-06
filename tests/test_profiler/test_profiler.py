@@ -621,7 +621,7 @@ class TestProfilerConfig:
         class NullConfig:
             """Does literally nothing."""
 
-        def setup(profler):  # noqa: ANN001, ANN202
+        def setup(profiler):  # noqa: ANN001, ANN202
             """Also does nothing."""
 
         with pytest.raises(TypeError):

@@ -498,11 +498,9 @@ class Profiler:
         from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
         try:
-            if (
-                not self.output_json.exists()
-                or not (content := self.output_json.read_text(encoding="utf-8"))
-                or not json.loads(content)
-            ):
+            if not (
+                self.output_json.exists() and (content := self.output_json.read_text(encoding="utf-8")) and json.loads(content)
+            )
                 raise ValueError("JSON file missing or empty")  # noqa: EM101, TRY003, TRY301
         except (json.JSONDecodeError, OSError, ValueError) as err:
             note = (
