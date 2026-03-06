@@ -199,6 +199,7 @@ class Profiler:
             msg = f"Error: the `profile_root` must be either a string or a Path object, not {type(self.profile_root)}"
             Colour.error(msg)
             raise ProfilerException(msg)
+        self.profile_root = Path(self.profile_root)
         self.profile_root.mkdir(parents=True, exist_ok=True)
         self._profile_file = (self.profile_root / self.filestem).with_suffix(".py")
         if self._output_file is None:
@@ -475,10 +476,10 @@ class Profiler:
     def json_to_tables(self) -> None:
         """Run the scalene view command to format the output."""
         try:
-            if (
-                not self.output_json.exists()
-                or not (content := self.output_json.read_text(encoding="utf-8"))
-                or not json.loads(content)
+            if not (
+                self.output_json.exists()
+                and (content := self.output_json.read_text(encoding="utf-8"))
+                and json.loads(content)
             ):
                 return
         except (json.JSONDecodeError, OSError):
