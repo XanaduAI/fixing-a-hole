@@ -20,9 +20,8 @@ from unittest.mock import patch
 
 import pytest
 
-from fixingahole import Config, LogLevel, PlottingLibrary, ProfilerConfig
-from fixingahole.profiler import Profiler
-from fixingahole.profiler.profiler import ProfilerException
+from fixingahole import Config, LogLevel, PlottingLibrary
+from fixingahole.profiler.profiler import Profiler, ProfilerConfig, ProfilerException
 from fixingahole.profiler.utils import FindPathException, find_path
 from tests.conftest import basic_name
 
@@ -522,7 +521,7 @@ class TestProfilerCodePreparation:
 class TestProfilerConfig:
     """Test the ProfilerConfig protocol and custom configuration."""
 
-    class MockProfilerConfig(ProfilerConfig):
+    class MockProfilerConfig:
         """A mock implementation of ProfilerConfig for testing."""
 
         def __init__(self, test_file: Path, output_dir: Path):
@@ -576,8 +575,6 @@ class TestProfilerConfig:
 
     def test_profiler_config_with_protocol_check(self, mock_file: Path, root_dir: Path):
         """Test that config objects are properly recognized by the Protocol."""
-        from fixingahole.profiler.profiler import ProfilerConfig  # noqa: PLC0415
-
         output_dir = root_dir / "custom_output"
         config = self.MockProfilerConfig(mock_file, output_dir)
 
@@ -587,6 +584,19 @@ class TestProfilerConfig:
         # And can be used to initialize
         profiler = Profiler(config)
         assert profiler.python_file == mock_file
+
+        # Make a strange "ProfilerConfig"
+        def a_func(profiler):  # noqa: ANN001, ANN202
+            """Create a basic function."""
+
+        # Verify it is NOT recognized as a ProfilerConfig
+        assert not isinstance(a_func, ProfilerConfig)
+
+        # Add a callable property that takes "profiler" as an argument.
+        a_func.setup = a_func  # ty:ignore[unresolved-attribute]
+
+        # Verify it's recognized as a ProfilerConfig
+        assert isinstance(a_func, ProfilerConfig)
 
     def test_profiler_config_missing_required_attributes(self):
         """Test that ProfilerConfig validation catches missing required attributes."""
@@ -604,3 +614,21 @@ class TestProfilerConfig:
         # Should mention multiple missing attributes
         error_msg = exc_info.value.message
         assert "ProfilerConfig.setup() must set `python_file` property." in error_msg
+
+    def test_profiler_config_does_not_conform_to_protocol(self):
+        """Test that ProfilerConfig validation catches when it doesn't conform to the protocol."""
+
+        class NullConfig:
+            """Does literally nothing."""
+
+        def setup(profler):  # noqa: ANN001, ANN202
+            """Also does nothing."""
+
+        with pytest.raises(TypeError):
+            Profiler(NullConfig())  # ty:ignore[invalid-argument-type]
+
+        with pytest.raises(TypeError):
+            Profiler(lambda: "")  # ty:ignore[invalid-argument-type]
+
+        with pytest.raises(TypeError):
+            Profiler(setup)  # ty:ignore[invalid-argument-type]

@@ -122,7 +122,7 @@ class Profiler:
         _profile_file: Path
         _output_file: Path
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0915
         self,
         path_or_config: Path | ProfilerConfig,
         /,
@@ -477,9 +477,7 @@ class Profiler:
         """Run the scalene view command to format the output."""
         try:
             if not (
-                self.output_json.exists()
-                and (content := self.output_json.read_text(encoding="utf-8"))
-                and json.loads(content)
+                self.output_json.exists() and (content := self.output_json.read_text(encoding="utf-8")) and json.loads(content)
             ):
                 return
         except (json.JSONDecodeError, OSError):
