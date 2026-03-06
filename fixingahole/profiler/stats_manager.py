@@ -158,9 +158,9 @@ class StatisticsManager:
             }
             for info, method in metadata.items():
                 try:
-                    repo = git.Repo(Config.root(), search_parent_directories=True)
-                    if value := method(repo):
-                        save_data["metadata"][info] = value
+                    with git.Repo(Config.root(), search_parent_directories=True) as repo:
+                        if value := method(repo):
+                            save_data["metadata"][info] = value
                 except (TypeError, git.InvalidGitRepositoryError, git.exc.NoSuchPathError):
                     Colour.error("Error: Failed to save git %s", info)
                     save_data["metadata"][info] = f"Failed to save git {info}."
