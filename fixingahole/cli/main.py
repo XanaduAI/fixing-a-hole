@@ -353,7 +353,7 @@ def stats(
     directory, files = find_path(
         folder,
         in_dir=Config.root(),
-        exclude=[*Config.ignore(), ".venv", ".git"],
+        exclude=[".venv", ".git"],
         return_suffix=".json",
         subfolder_only=subfolder_only,
     )

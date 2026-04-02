@@ -122,7 +122,7 @@ class Profiler:
         _profile_file: Path
         _output_file: Path
 
-    def __init__(  # noqa: PLR0913, PLR0915
+    def __init__(  # noqa: PLR0913
         self,
         path_or_config: Path | ProfilerConfig,
         /,
@@ -153,10 +153,6 @@ class Profiler:
             [PlottingLibrary(no_plots)] if isinstance(no_plots, str) else (no_plots if no_plots is not None else [])
         )
         # These are always set during initialization.
-        self.filestem = None  # type: ignore[assignment]
-        self.profile_root = None  # type: ignore[assignment]
-        self._profile_file = None  # type: ignore[assignment]
-        self._output_file = None  # type: ignore[assignment]
         self._output_name: str = "profile_results"
         self._precision_limit: int = 10
         self.trace: bool = trace
