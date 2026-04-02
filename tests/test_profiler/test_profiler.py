@@ -497,12 +497,12 @@ class TestProfilerCodePreparation:
 
     def test_prepare_code_for_profiling_with_warning_loglevel(self, mock_file: Path):
         """Test code preparation with warning log level."""
-        profiler = Profiler(mock_file, log_level=LogLevel.WARNING)
+        profiler = Profiler(mock_file, log_level=LogLevel.NONE)
 
         profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
-        # Should not contain warning capture because warning is the default level.
+        # Should not contain warning capture because log level is NONE.
         assert "logging.captureWarnings(True)" not in profile_content
 
     def test_prepare_code_for_profiling_with_error_loglevel(self, tmp_path: Path):

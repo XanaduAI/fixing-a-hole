@@ -21,7 +21,7 @@ from fixingahole.config import Config
 from fixingahole.profiler.profile_summary import ProfileSummary
 from fixingahole.profiler.profiler import Profiler, ProfilerConfig
 from fixingahole.profiler.stats_manager import StatisticsManager
-from fixingahole.profiler.utils import LogLevel, PlottingLibrary
+from fixingahole.profiler.utils import LogLevel, PlottingLibrary, find_path
 
 try:
     __version__ = version("fixingahole")
@@ -57,4 +57,5 @@ __all__ = [
     "Profiler",
     "ProfilerConfig",
     "StatisticsManager",
+    "find_path",
 ]
