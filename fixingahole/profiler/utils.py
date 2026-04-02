@@ -15,6 +15,7 @@
 
 import datetime
 import importlib.metadata
+import logging
 from collections.abc import Callable
 from enum import Enum
 from pathlib import Path, PurePath
@@ -65,15 +66,22 @@ class PlottingLibrary(Enum):
 class LogLevel(Enum):
     """Valid Log Levels to profile."""
 
+    NONE = "NONE"
+    NOTSET = "NOTSET"
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
 
-    def should_catch_warnings(self) -> bool:
-        """Determine whether or not to catch warnings during profiling."""
-        return self.name in {"DEBUG", "INFO", "WARNING"}
+    @property
+    def level(self) -> int:
+        """Return the numeric logging level corresponding to this log level."""
+        return getattr(logging, self.name, logging.CRITICAL + 1)
+
+    def capture_output(self) -> bool:
+        """Determine whether or not to capture output during profiling."""
+        return self.name != "NONE"
 
 
 def date() -> str:

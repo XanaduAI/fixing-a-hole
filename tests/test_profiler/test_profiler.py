@@ -130,7 +130,7 @@ class TestProfilerInit:
         assert profiler.precision == 0
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is False
-        assert profiler.log_level == LogLevel.WARNING
+        assert profiler.log_level == LogLevel.NONE
         assert profiler.no_plots == []
         assert profiler.filestem == basic_name()
         assert profiler.python_file == mock_file

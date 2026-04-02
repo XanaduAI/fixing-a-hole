@@ -122,7 +122,7 @@ class Profiler:
         _profile_file: Path
         _output_file: Path
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0915
         self,
         path_or_config: Path | ProfilerConfig,
         /,
@@ -131,7 +131,7 @@ class Profiler:
         cpu_only: bool = True,
         precision: int | str = 0,
         detailed: bool = False,
-        log_level: LogLevel = LogLevel.WARNING,
+        log_level: LogLevel = LogLevel.NONE,
         no_plots: list[PlottingLibrary] | None = None,
         trace: bool = True,
         live_update: float | str = float("inf"),
@@ -153,6 +153,10 @@ class Profiler:
             [PlottingLibrary(no_plots)] if isinstance(no_plots, str) else (no_plots if no_plots is not None else [])
         )
         # These are always set during initialization.
+        self.filestem = None  # type:ignore[ty:invalid-assignment]
+        self.profile_root = None  # type:ignore[ty:invalid-assignment]
+        self._profile_file = None  # type:ignore[ty:invalid-assignment]
+        self._output_file = None  # type:ignore[ty:invalid-assignment]
         self._output_name: str = "profile_results"
         self._precision_limit: int = 10
         self.trace: bool = trace
@@ -225,7 +229,7 @@ class Profiler:
         Default to profiling "in place", but use a modified copy if needed. A modified copy is needed
           when suppressing plotting, if the file is a Jupyter notebook, or if the log level changes.
         """
-        return not (self.no_plots or self.python_file.suffix != ".py" or self.log_level != LogLevel.WARNING)
+        return not (self.no_plots or self.python_file.suffix != ".py" or self.log_level.capture_output())
 
     @property
     def excluded_folders(self) -> str:
@@ -364,7 +368,7 @@ class Profiler:
                     "from pathlib import Path",
                     f"log_file = Path(r'{self.log_path}')",
                     f"logging.basicConfig(filename=log_file, level=logging.{self.log_level.name})",
-                    "logging.captureWarnings(True)" if self.log_level.should_catch_warnings() else "",
+                    "logging.captureWarnings(True)" if self.log_level.level <= LogLevel.WARNING.level else "",
                     "sys.stdout = log_file.open(mode='a')",
                 ]
                 profile_prefix += logger
@@ -556,7 +560,8 @@ class Profiler:
                     self._scalene_run_cmd,
                     check=True,
                     text=True,
-                    capture_output=self.log_level.should_catch_warnings(),
+                    stdout=subprocess.PIPE if self.log_level.capture_output() else None,
+                    stderr=subprocess.PIPE,
                     env=self.env(),
                 )
 

@@ -43,16 +43,18 @@ class TestLogLevel:
     @pytest.mark.parametrize(
         ("level", "should_catch"),
         [
+            (LogLevel.NONE, False),
+            (LogLevel.NOTSET, True),
             (LogLevel.DEBUG, True),
             (LogLevel.INFO, True),
             (LogLevel.WARNING, True),
-            (LogLevel.ERROR, False),
-            (LogLevel.CRITICAL, False),
+            (LogLevel.ERROR, True),
+            (LogLevel.CRITICAL, True),
         ],
     )
-    def test_should_catch_warnings(self, level: LogLevel, should_catch: bool):
-        """Test should_catch_warnings returns correct value for each level."""
-        assert level.should_catch_warnings() == should_catch
+    def test_capture_output(self, level: LogLevel, should_catch: bool):
+        """Test capture_output returns correct value for each level."""
+        assert level.capture_output() == should_catch
 
 
 class TestFormatTime:

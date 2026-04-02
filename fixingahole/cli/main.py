@@ -96,7 +96,7 @@ def profile(  # noqa: PLR0913
             show_default=True,
             rich_help_panel="Preprocessing",
         ),
-    ] = LogLevel.WARNING,
+    ] = LogLevel.NONE,
     no_plots: Annotated[
         list[PlottingLibrary] | None,
         typer.Option(
