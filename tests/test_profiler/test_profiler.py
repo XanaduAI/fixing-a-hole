@@ -464,7 +464,7 @@ class TestProfilerCodePreparation:
         test_file.write_text(test_code)
 
         # Passing a string is technically allowed, even if the type checker doesn't like it.
-        profiler = Profiler(test_file, no_plots="matplotlib")  # ty:ignore[invalid-argument-type]
+        profiler = Profiler(test_file, no_plots="matplotlib")  # type:ignore[ty:invalid-argument-type]
         profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
@@ -495,8 +495,8 @@ class TestProfilerCodePreparation:
         assert "print('hello from notebook')" in profile_content
         assert "import numpy as np" in profile_content
 
-    def test_prepare_code_for_profiling_with_warning_loglevel(self, mock_file: Path):
-        """Test code preparation with warning log level."""
+    def test_prepare_code_for_profiling_with_none_loglevel(self, mock_file: Path):
+        """Test code preparation with a log level of NONE."""
         profiler = Profiler(mock_file, log_level=LogLevel.NONE)
 
         profiler.prepare_code_for_profiling()
@@ -593,7 +593,7 @@ class TestProfilerConfig:
         assert not isinstance(a_func, ProfilerConfig)
 
         # Add a callable property that takes "profiler" as an argument.
-        a_func.setup = a_func  # ty:ignore[unresolved-attribute]
+        a_func.setup = a_func  # type:ignore[ty:unresolved-attribute]
 
         # Verify it's recognized as a ProfilerConfig
         assert isinstance(a_func, ProfilerConfig)
@@ -625,10 +625,10 @@ class TestProfilerConfig:
             """Also does nothing."""
 
         with pytest.raises(TypeError):
-            Profiler(NullConfig())  # ty:ignore[invalid-argument-type]
+            Profiler(NullConfig())  # type:ignore[ty:invalid-argument-type]
 
         with pytest.raises(TypeError):
-            Profiler(lambda: "")  # ty:ignore[invalid-argument-type]
+            Profiler(lambda: "")  # type:ignore[ty:invalid-argument-type]
 
         with pytest.raises(TypeError):
-            Profiler(setup)  # ty:ignore[invalid-argument-type]
+            Profiler(setup)  # type:ignore[ty:invalid-argument-type]

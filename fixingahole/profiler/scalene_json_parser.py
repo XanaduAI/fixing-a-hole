@@ -171,12 +171,12 @@ class FileDetails:
         object.__setattr__(
             self,
             "functions",
-            tuple(ProfileDetails(**(func_details | meta_details)) for func_details in self.functions),  # ty:ignore[unsupported-operator]
+            tuple(ProfileDetails(**(func_details | meta_details)) for func_details in self.functions),  # type:ignore[ty:unsupported-operator]
         )
         object.__setattr__(
             self,
             "lines",
-            tuple(ProfileDetails(**(line_details | meta_details)) for line_details in self.lines),  # ty:ignore[unsupported-operator]
+            tuple(ProfileDetails(**(line_details | meta_details)) for line_details in self.lines),  # type:ignore[ty:unsupported-operator]
         )
         object.__setattr__(self, "imports", _freeze(self.imports))
         object.__setattr__(self, "leaks", _freeze(self.leaks))
@@ -211,7 +211,7 @@ class ProfileData:
         files: dict[str, FileDetails] = {}
         for file_path, value in self.files.items():
             meta_details: dict[str, Any] = {"file_path": file_path, "walltime": self.elapsed_time_sec}
-            files[file_path] = FileDetails(**(value | meta_details))  # ty:ignore[unsupported-operator]
+            files[file_path] = FileDetails(**(value | meta_details))  # type:ignore[ty:unsupported-operator]
 
         object.__setattr__(self, "args", _freeze(self.args))
         object.__setattr__(self, "samples", _freeze(self.samples))

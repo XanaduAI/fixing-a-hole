@@ -480,20 +480,21 @@ class Profiler:
 
     def _run_scalene(self, usage: ResourceUsage) -> None:
         """Launch the Scalene subprocess, forwarding stderr while suppressing Scalene's own status lines."""
-        suppress = ("Scalene: profile saved", "  To view in browser:", "  To view in terminal:")
-        capture = subprocess.PIPE if self.log_level.capture_output() else None
-
         proc = subprocess.Popen(
             self._scalene_run_cmd,
             text=True,
-            stdout=capture,
+            stdout=subprocess.DEVNULL if self.log_level.capture_output() else None,
             stderr=subprocess.PIPE,
             env=self.env(),
         )
+        stderr_lines: list[str] = []
 
         def _forward_stderr(pipe: TextIO) -> None:
+            """Forward stderr to the terminal, suppressing Scalene's own status lines."""
+            suppress = ("Scalene: profile saved", "  To view in browser:", "  To view in terminal:")
             for line in pipe:
                 if not line.startswith(suppress):
+                    stderr_lines.append(line)
                     sys.stderr.write(line)
                     sys.stderr.flush()
 
@@ -507,7 +508,7 @@ class Profiler:
             proc.wait()
         stderr_thread.join()
         if proc.returncode != 0:
-            raise subprocess.CalledProcessError(proc.returncode, proc.args)
+            raise subprocess.CalledProcessError(proc.returncode, proc.args, stderr="".join(stderr_lines))
 
     def json_to_tables(self) -> None:
         """Run the scalene view command to format the output."""
