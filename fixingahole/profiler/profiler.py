@@ -48,8 +48,6 @@ class Platform(Enum):
 
 
 HOST: Platform = next((p for p in Platform if p.value == platform.system().lower()), Platform.Unknown)
-if HOST is not Platform.Windows:
-    import resource
 
 
 class ProfilerException(Exit):
@@ -74,26 +72,22 @@ class ResourceUsage:
     def __init__(self) -> None:
         self.rss: str = ""
         self.walltime: float = 0.0
-        self._before: struct_rusage | None = None
+        self.child_rusage: struct_rusage | None = None
         self._t0: float = 0.0
         self._finished: bool = False
 
     def __enter__(self) -> "ResourceUsage":
         """Start measuring walltime and RSS."""
-        if HOST is not Platform.Windows:
-            self._before = resource.getrusage(resource.RUSAGE_CHILDREN)
         self._t0 = time.perf_counter()
         return self
 
     def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
-        """Stop measuring and compute RSS delta and walltime."""
+        """Stop measuring and compute RSS and walltime."""
         self._finished = True
         self.walltime = time.perf_counter() - self._t0
-        if HOST is not Platform.Windows and self._before is not None:
-            after = resource.getrusage(resource.RUSAGE_CHILDREN)
-            rss_delta = max(0.0, float(after.ru_maxrss - self._before.ru_maxrss))
+        if HOST is not Platform.Windows and self.child_rusage is not None:
             unit = "KB" if HOST is Platform.Linux else "B"
-            self.rss = memory_with_units(rss_delta, unit=unit, digits=3)
+            self.rss = memory_with_units(self.child_rusage.ru_maxrss, unit=unit, digits=3)
 
     @property
     def report(self) -> str:
@@ -484,7 +478,7 @@ class Profiler:
         cmd_str = " ".join([ln.strip() for ln in cmd if ln]).strip()
         return cmd_str.split()
 
-    def _run_scalene(self) -> None:
+    def _run_scalene(self, usage: ResourceUsage) -> None:
         """Launch the Scalene subprocess, forwarding stderr while suppressing Scalene's own status lines."""
         suppress = ("Scalene: profile saved", "  To view in browser:", "  To view in terminal:")
         capture = subprocess.PIPE if self.log_level.capture_output() else None
@@ -505,7 +499,12 @@ class Profiler:
 
         stderr_thread = threading.Thread(target=_forward_stderr, args=(proc.stderr,), daemon=True)
         stderr_thread.start()
-        proc.wait()
+        if HOST is not Platform.Windows:
+            _, status, child_rusage = os.wait4(proc.pid, 0)
+            proc.returncode = os.waitstatus_to_exitcode(status)
+            usage.child_rusage = child_rusage
+        else:
+            proc.wait()
         stderr_thread.join()
         if proc.returncode != 0:
             raise subprocess.CalledProcessError(proc.returncode, proc.args)
@@ -571,7 +570,7 @@ class Profiler:
                 else contextlib.nullcontext()
             )
             with Spinner(), watcher, ResourceUsage() as usage:
-                self._run_scalene()
+                self._run_scalene(usage)
 
         except subprocess.CalledProcessError as exc:
             # Catch any shell errors and display them.
