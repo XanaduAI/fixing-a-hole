@@ -77,8 +77,14 @@ class LogLevel(Enum):
 
     @property
     def level(self) -> int:
-        """Return the numeric logging level corresponding to this log level."""
-        return getattr(logging, self.name, logging.CRITICAL + 1)
+        """Return the numeric logging level corresponding to this log level.
+
+        LogLevel.NONE is a sentinel meaning "do not capture output".
+        It has no stdlib equivalent but is considered to be level 100.
+        """
+        if self is LogLevel.NONE:
+            return 100
+        return getattr(logging, self.name, 100)
 
     def capture_output(self) -> bool:
         """Determine whether or not to capture output during profiling."""
@@ -87,7 +93,9 @@ class LogLevel(Enum):
     def should_catch_warnings(self) -> bool:
         """`should_catch_warnings` is deprecated; use `capture_output` instead."""
         warnings.warn(
-            "should_catch_warnings() is deprecated; use capture_output() instead.",
+            "should_catch_warnings() is deprecated; use capture_output() instead. "
+            "Note: capture_output() returns True for ERROR and CRITICAL, "
+            "whereas should_catch_warnings() returned False for those levels.",
             DeprecationWarning,
             stacklevel=2,
         )

@@ -56,6 +56,12 @@ class TestLogLevel:
         """Test capture_output returns correct value for each level."""
         assert level.capture_output() == should_catch
 
+    def test_should_catch_warnings_emits_deprecation(self):
+        """should_catch_warnings() emits DeprecationWarning and delegates to capture_output()."""
+        with pytest.warns(DeprecationWarning, match="should_catch_warnings.*deprecated"):
+            result = LogLevel.WARNING.should_catch_warnings()
+        assert result == LogLevel.WARNING.capture_output()
+
 
 class TestFormatTime:
     """Test the format_time function."""
