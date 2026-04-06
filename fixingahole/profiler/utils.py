@@ -16,6 +16,7 @@
 import datetime
 import importlib.metadata
 import logging
+import warnings
 from collections.abc import Callable
 from enum import Enum
 from pathlib import Path, PurePath
@@ -82,6 +83,15 @@ class LogLevel(Enum):
     def capture_output(self) -> bool:
         """Determine whether or not to capture output during profiling."""
         return self.name != "NONE"
+
+    def should_catch_warnings(self) -> bool:
+        """`should_catch_warnings` is deprecated; use `capture_output` instead."""
+        warnings.warn(
+            "should_catch_warnings() is deprecated; use capture_output() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.capture_output()
 
 
 def date() -> str:

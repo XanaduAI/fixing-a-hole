@@ -17,6 +17,7 @@ import contextlib
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import threading
@@ -98,7 +99,7 @@ class ResourceUsage:
             raise RuntimeError(msg)
         lines = [
             f"\nMax RSS Memory Usage: {self.rss}" if self.rss else "",
-            f"\nTotal Wall Time: {self.walltime:.3f} seconds\n" if self.walltime else "",
+            f"\nTotal Wall Time: {self.walltime:.3f} seconds\n" if self.walltime > 0 else "",
         ]
         return "".join(lines)
 
@@ -166,7 +167,7 @@ class Profiler:
         _profile_file: Path
         _output_file: Path
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0915
         self,
         path_or_config: Path | ProfilerConfig,
         /,
@@ -185,6 +186,7 @@ class Profiler:
     ) -> None:
         self.cpu_only = cpu_only
         self.precision = int(precision)
+        self.platform = HOST
 
         #  Assert correct python environment.
         self.assert_platform_os()
@@ -507,7 +509,9 @@ class Profiler:
             usage.child_rusage = child_rusage
         else:
             proc.wait()
-        stderr_thread.join()
+        stderr_thread.join(timeout=2)
+        if stderr_thread.is_alive():
+            Colour.warning("Warning: stderr reader thread did not finish within timeout.\n")
         if proc.returncode != 0:
             raise subprocess.CalledProcessError(proc.returncode, proc.args, stderr="".join(stderr_tail))
 
@@ -527,7 +531,7 @@ class Profiler:
             self.output_file.write_text(Colour.remove_ansi(result.stdout))
 
     def summarize(self, preamble: str, usage: ResourceUsage) -> tuple[str, "ProfileSummary"]:
-        """Gather all the details and logs and consicely present them to the user."""
+        """Gather all the details and logs and concisely present them to the user."""
         from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
         if not self._json_output_exists():
@@ -541,8 +545,11 @@ class Profiler:
         finished = f"\nFinished in {profile_data.walltime or 0:,.3f} seconds{memory}"
 
         log_info = self.log_file.read_text() if self.log_file.exists() else ""
+
         level_counts = {
-            lvl.name: log_info.count(lvl.name) for lvl in LogLevel if lvl != LogLevel.NONE and log_info.count(lvl.name) >= 1
+            lvl.name: count
+            for lvl in LogLevel
+            if lvl is not LogLevel.NONE and (count := len(re.findall(rf"^{lvl.name}\b", log_info, re.MULTILINE))) >= 1
         }
         warning_str = f" ({', '.join(f'{n} {lvl}' for lvl, n in level_counts.items())})" if level_counts else ""
         logs_plain = f"\nCheck logs {self.log_path}{warning_str}\n" if log_info else ""
