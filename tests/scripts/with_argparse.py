@@ -3,6 +3,7 @@
 import argparse
 import logging
 from sys import argv
+from time import sleep
 
 import numpy as np
 
@@ -16,6 +17,7 @@ def main(base: int, exp: int) -> tuple[int, ...]:
     """Test script with command line args."""
     logger.info(" ".join(argv[1:]))
     logger.warning("This is a warning.")
+    sleep(0.5)
     rand = rng.uniform(size=base**exp)
     return rand.shape
 

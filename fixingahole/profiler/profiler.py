@@ -21,6 +21,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import deque
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, TextIO, runtime_checkable
@@ -487,14 +488,14 @@ class Profiler:
             stderr=subprocess.PIPE,
             env=self.env(),
         )
-        stderr_lines: list[str] = []
+        stderr_tail: deque[str] = deque(maxlen=50)
 
         def _forward_stderr(pipe: TextIO) -> None:
             """Forward stderr to the terminal, suppressing Scalene's own status lines."""
             suppress = ("Scalene: profile saved", "  To view in browser:", "  To view in terminal:")
             for line in pipe:
                 if not line.startswith(suppress):
-                    stderr_lines.append(line)
+                    stderr_tail.append(line)
                     sys.stderr.write(line)
                     sys.stderr.flush()
 
@@ -508,7 +509,7 @@ class Profiler:
             proc.wait()
         stderr_thread.join()
         if proc.returncode != 0:
-            raise subprocess.CalledProcessError(proc.returncode, proc.args, stderr="".join(stderr_lines))
+            raise subprocess.CalledProcessError(proc.returncode, proc.args, stderr="".join(stderr_tail))
 
     def json_to_tables(self) -> None:
         """Run the scalene view command to format the output."""

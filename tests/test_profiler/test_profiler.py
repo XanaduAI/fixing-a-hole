@@ -21,9 +21,36 @@ from unittest.mock import patch
 import pytest
 
 from fixingahole import Config, LogLevel, PlottingLibrary
-from fixingahole.profiler.profiler import Profiler, ProfilerConfig, ProfilerException
+from fixingahole.profiler.profiler import Profiler, ProfilerConfig, ProfilerException, ResourceUsage
 from fixingahole.profiler.utils import FindPathException, find_path
 from tests.conftest import basic_name
+
+
+class TestResourceUsage:
+    """Test ResourceUsage context manager behaviour."""
+
+    def test_report_raises_before_exit(self):
+        """Accessing .report before __exit__ raises RuntimeError."""
+        with ResourceUsage() as usage, pytest.raises(RuntimeError, match="before context exit"):
+            _ = usage.report
+
+    def test_report_available_after_exit(self):
+        """Accessing .report after __exit__ returns a string without raising."""
+        with ResourceUsage() as usage:
+            pass
+        assert isinstance(usage.report, str)
+
+    def test_walltime_populated_after_exit(self):
+        """Walltime is a positive float after the context exits."""
+        with ResourceUsage() as usage:
+            pass
+        assert usage.walltime > 0.0
+
+    def test_report_contains_walltime(self):
+        """Report includes wall time when walltime is non-zero."""
+        with ResourceUsage() as usage:
+            pass
+        assert "Wall Time" in usage.report
 
 
 class TestFindPath:
