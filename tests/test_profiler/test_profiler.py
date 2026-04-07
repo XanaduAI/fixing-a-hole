@@ -21,9 +21,36 @@ from unittest.mock import patch
 import pytest
 
 from fixingahole import Config, LogLevel, PlottingLibrary
-from fixingahole.profiler.profiler import Profiler, ProfilerConfig, ProfilerException
+from fixingahole.profiler.profiler import Profiler, ProfilerConfig, ProfilerException, ResourceUsage
 from fixingahole.profiler.utils import FindPathException, find_path
 from tests.conftest import basic_name
+
+
+class TestResourceUsage:
+    """Test ResourceUsage context manager behaviour."""
+
+    def test_report_raises_before_exit(self):
+        """Accessing .report before __exit__ raises RuntimeError."""
+        with ResourceUsage() as usage, pytest.raises(RuntimeError, match="before context exit"):
+            _ = usage.report
+
+    def test_report_available_after_exit(self):
+        """Accessing .report after __exit__ returns a string without raising."""
+        with ResourceUsage() as usage:
+            pass
+        assert isinstance(usage.report, str)
+
+    def test_walltime_populated_after_exit(self):
+        """Walltime is a positive float after the context exits."""
+        with ResourceUsage() as usage:
+            pass
+        assert usage.walltime > 0.0
+
+    def test_report_contains_walltime(self):
+        """Report includes wall time when walltime is non-zero."""
+        with ResourceUsage() as usage:
+            pass
+        assert "Wall Time" in usage.report
 
 
 class TestFindPath:
@@ -130,7 +157,7 @@ class TestProfilerInit:
         assert profiler.precision == 0
         assert profiler.precision_limit == precision_limit
         assert profiler.detailed is False
-        assert profiler.log_level == LogLevel.WARNING
+        assert profiler.log_level == LogLevel.NONE
         assert profiler.no_plots == []
         assert profiler.filestem == basic_name()
         assert profiler.python_file == mock_file
@@ -464,7 +491,7 @@ class TestProfilerCodePreparation:
         test_file.write_text(test_code)
 
         # Passing a string is technically allowed, even if the type checker doesn't like it.
-        profiler = Profiler(test_file, no_plots="matplotlib")  # ty:ignore[invalid-argument-type]
+        profiler = Profiler(test_file, no_plots="matplotlib")  # type:ignore[ty:invalid-argument-type]
         profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
@@ -495,14 +522,14 @@ class TestProfilerCodePreparation:
         assert "print('hello from notebook')" in profile_content
         assert "import numpy as np" in profile_content
 
-    def test_prepare_code_for_profiling_with_warning_loglevel(self, mock_file: Path):
-        """Test code preparation with warning log level."""
-        profiler = Profiler(mock_file, log_level=LogLevel.WARNING)
+    def test_prepare_code_for_profiling_with_none_loglevel(self, mock_file: Path):
+        """Test code preparation with a log level of NONE."""
+        profiler = Profiler(mock_file, log_level=LogLevel.NONE)
 
         profiler.prepare_code_for_profiling()
         profile_content = profiler.profile_file.read_text()
 
-        # Should not contain warning capture because warning is the default level.
+        # Should not contain warning capture because log level is NONE.
         assert "logging.captureWarnings(True)" not in profile_content
 
     def test_prepare_code_for_profiling_with_error_loglevel(self, tmp_path: Path):
@@ -593,7 +620,7 @@ class TestProfilerConfig:
         assert not isinstance(a_func, ProfilerConfig)
 
         # Add a callable property that takes "profiler" as an argument.
-        a_func.setup = a_func  # ty:ignore[unresolved-attribute]
+        a_func.setup = a_func  # type:ignore[ty:unresolved-attribute]
 
         # Verify it's recognized as a ProfilerConfig
         assert isinstance(a_func, ProfilerConfig)
@@ -625,10 +652,10 @@ class TestProfilerConfig:
             """Also does nothing."""
 
         with pytest.raises(TypeError):
-            Profiler(NullConfig())  # ty:ignore[invalid-argument-type]
+            Profiler(NullConfig())  # type:ignore[ty:invalid-argument-type]
 
         with pytest.raises(TypeError):
-            Profiler(lambda: "")  # ty:ignore[invalid-argument-type]
+            Profiler(lambda: "")  # type:ignore[ty:invalid-argument-type]
 
         with pytest.raises(TypeError):
-            Profiler(setup)  # ty:ignore[invalid-argument-type]
+            Profiler(setup)  # type:ignore[ty:invalid-argument-type]

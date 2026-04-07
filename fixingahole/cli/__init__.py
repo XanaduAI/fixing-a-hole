@@ -12,3 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Integrated Scalene Profiler CLI."""
+
+from fixingahole.cli.main import profile, stats, summarize
+
+__all__ = [
+    "profile",
+    "stats",
+    "summarize",
+]

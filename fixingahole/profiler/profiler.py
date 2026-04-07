@@ -17,12 +17,15 @@ import contextlib
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
+import threading
+import time
+from collections import deque
 from enum import Enum
 from pathlib import Path
-from subprocess import CompletedProcess
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, TextIO, runtime_checkable
 
 from colours import Colour
 from sympy import nextprime
@@ -32,6 +35,8 @@ from fixingahole import Config
 from fixingahole.profiler.utils import FileWatcher, LogLevel, PlottingLibrary, Spinner, date, memory_with_units
 
 if TYPE_CHECKING:
+    from resource import struct_rusage
+
     from fixingahole import ProfileSummary
 
 
@@ -41,6 +46,10 @@ class Platform(Enum):
     MacOS = "darwin"
     Linux = "linux"
     Windows = "windows"
+    Unknown = "unknown"
+
+
+HOST: Platform = next((p for p in Platform if p.value == platform.system().lower()), Platform.Unknown)
 
 
 class ProfilerException(Exit):
@@ -57,6 +66,42 @@ class SuccessfulExit(Exit):
     def __init__(self, message: str = "Profiling successful.", *, code: int = 0) -> None:
         self.message = message
         super().__init__(code=code)
+
+
+class ResourceUsage:
+    """Measures wall time and max RSS of the code executed inside the context."""
+
+    def __init__(self) -> None:
+        self.rss: str = ""
+        self.walltime: float = 0.0
+        self.child_rusage: struct_rusage | None = None
+        self._t0: float = 0.0
+        self._finished: bool = False
+
+    def __enter__(self) -> "ResourceUsage":
+        """Start measuring walltime and RSS."""
+        self._t0 = time.perf_counter()
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        """Stop measuring and compute RSS and walltime."""
+        self._finished = True
+        self.walltime = time.perf_counter() - self._t0
+        if HOST is not Platform.Windows and self.child_rusage is not None:
+            unit = "KB" if HOST is Platform.Linux else "B"
+            self.rss = memory_with_units(self.child_rusage.ru_maxrss, unit=unit, digits=3)
+
+    @property
+    def report(self) -> str:
+        """Formatted report string, empty if no data is available."""
+        if not self._finished:
+            msg = "ResourceUsage.report accessed before context exit."
+            raise RuntimeError(msg)
+        lines = [
+            f"\nMax RSS Memory Usage: {self.rss}" if self.rss else "",
+            f"\nTotal Wall Time: {self.walltime:.3f} seconds\n" if self.walltime > 0 else "",
+        ]
+        return "".join(lines)
 
 
 @runtime_checkable
@@ -131,7 +176,7 @@ class Profiler:
         cpu_only: bool = True,
         precision: int | str = 0,
         detailed: bool = False,
-        log_level: LogLevel = LogLevel.WARNING,
+        log_level: LogLevel = LogLevel.NONE,
         no_plots: list[PlottingLibrary] | None = None,
         trace: bool = True,
         live_update: float | str = float("inf"),
@@ -141,7 +186,7 @@ class Profiler:
     ) -> None:
         self.cpu_only = cpu_only
         self.precision = int(precision)
-        self.platform = None
+        self.platform = HOST
 
         #  Assert correct python environment.
         self.assert_platform_os()
@@ -153,10 +198,10 @@ class Profiler:
             [PlottingLibrary(no_plots)] if isinstance(no_plots, str) else (no_plots if no_plots is not None else [])
         )
         # These are always set during initialization.
-        self.filestem = None  # type: ignore[assignment]
-        self.profile_root = None  # type: ignore[assignment]
-        self._profile_file = None  # type: ignore[assignment]
-        self._output_file = None  # type: ignore[assignment]
+        self.filestem = None  # type:ignore[ty:invalid-assignment]
+        self.profile_root = None  # type:ignore[ty:invalid-assignment]
+        self._profile_file = None  # type:ignore[ty:invalid-assignment]
+        self._output_file = None  # type:ignore[ty:invalid-assignment]
         self._output_name: str = "profile_results"
         self._precision_limit: int = 10
         self.trace: bool = trace
@@ -208,15 +253,7 @@ class Profiler:
 
     def assert_platform_os(self) -> None:
         """Explain that memory profiling is not available on Windows."""
-        match platform.system().lower():
-            case Platform.MacOS.value:
-                self.platform = Platform.MacOS
-            case Platform.Linux.value:
-                self.platform = Platform.Linux
-            case Platform.Windows.value:
-                self.platform = Platform.Windows
-
-        if not self.cpu_only and self.platform == Platform.Windows:
+        if not self.cpu_only and HOST is Platform.Windows:
             Colour.error("Memory profiling is not available on Windows\nUsing --cpu")
             self.cpu_only = True
         if self.cpu_only and self.precision != 0:
@@ -229,15 +266,13 @@ class Profiler:
         Default to profiling "in place", but use a modified copy if needed. A modified copy is needed
           when suppressing plotting, if the file is a Jupyter notebook, or if the log level changes.
         """
-        return not (self.no_plots or self.python_file.suffix != ".py" or self.log_level != LogLevel.WARNING)
+        return not (self.no_plots or self.python_file.suffix != ".py" or self.log_level.capture_output())
 
     @property
     def excluded_folders(self) -> str:
         """Scalene flag to exclude system python directory when profiling all modules."""
         exclude_dir: list[Path] = [
-            Path(os.getenv("APPDATA") or sys.prefix)
-            if platform.system() == "Windows"
-            else Path(sys.executable).resolve().parents[1]
+            Path(os.getenv("APPDATA") or sys.prefix) if HOST is Platform.Windows else Path(sys.executable).resolve().parents[1]
         ]
         exclude_dir.extend([folder for folder in Config.ignore() if folder != Config.output()])
         exclude_dir.extend(self.ignored_folders)  # allow users to ignore the OUTPUT_DIR if they want to.
@@ -361,14 +396,14 @@ class Profiler:
             code_lines: list[str] = code_to_profile.split("\n")
             profile_prefix: list[str] = []
             profile_suffix: list[str] = []
-            if self.log_level != LogLevel.WARNING:
+            if self.log_level.capture_output():
                 logger: list[str] = [
                     "import sys",
                     "import logging",
                     "from pathlib import Path",
                     f"log_file = Path(r'{self.log_path}')",
                     f"logging.basicConfig(filename=log_file, level=logging.{self.log_level.name})",
-                    "logging.captureWarnings(True)" if self.log_level.should_catch_warnings() else "",
+                    "logging.captureWarnings(True)" if self.log_level.level <= LogLevel.WARNING.level else "",
                     "sys.stdout = log_file.open(mode='a')",
                 ]
                 profile_prefix += logger
@@ -400,41 +435,6 @@ class Profiler:
 
         self._profile_file.write_text(code_to_profile, encoding="utf-8")
 
-    def get_usr_bin_time_data(self, stderr: str) -> tuple[str, float]:
-        """Max memory resident set size (RSS) and wall time from /usr/bin/time output.
-
-        Returns:
-            tuple: (memory_string, walltime_seconds)
-
-        """
-        memory_used = -1.0
-        walltime = -1.0
-        rss_line: str = "Maximum resident set size (kbytes)" if self.platform == Platform.Linux else "maximum resident set size"
-
-        for line in stderr.splitlines():
-            if rss_line in line:
-                for part in line.strip().split():
-                    try:
-                        memory_used = float(part)
-                        break
-                    except ValueError:
-                        pass
-
-            # Parse wall time based on platform
-            if self.platform == Platform.Linux and "Elapsed (wall clock) time" in line:
-                # Elapsed (wall clock) time (h:mm:ss or m:ss): 0:46.59
-                time_parts = line.strip().split()[-1].split(":")
-                time_parts.reverse()
-                units = [1, 60, 3600]
-                walltime = sum(float(t) * u for t, u in zip(time_parts, units, strict=False))
-            elif self.platform == Platform.MacOS and " real " in line:
-                # 1.55 real  0.65 user  0.32 sys
-                walltime = float(line.strip().split()[0])
-
-        unit = "KB" if self.platform == Platform.Linux else "B"
-        memory_str = memory_with_units(memory_used, unit=unit, digits=3)
-        return memory_str, walltime
-
     def _json_output_exists(self) -> bool:
         try:
             if not (
@@ -464,15 +464,7 @@ class Profiler:
     def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
         sampling_detail = self.get_memory_precision()
-        usr_bin_time = ""
-        if Path("/usr/bin/time").exists():
-            if self.platform == Platform.MacOS:
-                usr_bin_time = "/usr/bin/time -l"
-            elif self.platform == Platform.Linux:
-                usr_bin_time = "/usr/bin/time -v"
-
         cmd = [
-            usr_bin_time,
             f"{sys.executable} -m scalene run",
             "--stacks" if self.trace else "",
             "--profile-all" if self.detailed else "",
@@ -489,6 +481,40 @@ class Profiler:
         cmd_str = " ".join([ln.strip() for ln in cmd if ln]).strip()
         return cmd_str.split()
 
+    def _run_scalene(self, usage: ResourceUsage) -> None:
+        """Launch the Scalene subprocess, forwarding stderr while suppressing Scalene's own status lines."""
+        proc = subprocess.Popen(
+            self._scalene_run_cmd,
+            text=True,
+            stdout=subprocess.DEVNULL if self.log_level.capture_output() else None,
+            stderr=subprocess.PIPE,
+            env=self.env(),
+        )
+        stderr_tail: deque[str] = deque(maxlen=50)
+
+        def _forward_stderr(pipe: TextIO) -> None:
+            """Forward stderr to the terminal, suppressing Scalene's own status lines."""
+            suppress = ("Scalene: profile saved", "  To view in browser:", "  To view in terminal:")
+            for line in pipe:
+                if not line.startswith(suppress):
+                    stderr_tail.append(line)
+                    sys.stderr.write(line)
+                    sys.stderr.flush()
+
+        stderr_thread = threading.Thread(target=_forward_stderr, args=(proc.stderr,), daemon=True)
+        stderr_thread.start()
+        if HOST is not Platform.Windows:
+            _, status, child_rusage = os.wait4(proc.pid, 0)
+            proc.returncode = os.waitstatus_to_exitcode(status)
+            usage.child_rusage = child_rusage
+        else:
+            proc.wait()
+        stderr_thread.join(timeout=2)
+        if stderr_thread.is_alive():
+            Colour.warning("Warning: stderr reader thread did not finish within timeout.\n")
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(proc.returncode, proc.args, stderr="".join(stderr_tail))
+
     def json_to_tables(self) -> None:
         """Run the scalene view command to format the output."""
         if not self._json_output_exists():
@@ -504,8 +530,8 @@ class Profiler:
         if result.returncode == 0 and result.stdout:
             self.output_file.write_text(Colour.remove_ansi(result.stdout))
 
-    def summarize(self, preamble: str, capture: CompletedProcess) -> tuple[str, "ProfileSummary"]:
-        """Gather all the details and logs and consicely present them to the user."""
+    def summarize(self, preamble: str, usage: ResourceUsage) -> tuple[str, "ProfileSummary"]:
+        """Gather all the details and logs and concisely present them to the user."""
         from fixingahole.profiler import ProfileSummary, StackReporter  # noqa: PLC0415
 
         if not self._json_output_exists():
@@ -519,27 +545,25 @@ class Profiler:
         finished = f"\nFinished in {profile_data.walltime or 0:,.3f} seconds{memory}"
 
         log_info = self.log_file.read_text() if self.log_file.exists() else ""
-        n_warns = log_info.count("WARNING")
-        warning_str = f" ({n_warns} {'warning' if n_warns == 1 else 'warnings'})" if n_warns > 0 else ""
+
+        level_counts = {
+            lvl.name: count
+            for lvl in LogLevel
+            if lvl is not LogLevel.NONE and (count := len(re.findall(rf"^{lvl.name}\b", log_info, re.MULTILINE))) >= 1
+        }
+        warning_str = f" ({', '.join(f'{n} {lvl}' for lvl, n in level_counts.items())})" if level_counts else ""
         logs_plain = f"\nCheck logs {self.log_path}{warning_str}\n" if log_info else ""
         logs_colored = f"\nCheck logs {Colour.purple(self.log_path)}{Colour.ORANGE(warning_str)}\n" if log_info else ""
-
-        if capture.stderr is not None and self.platform != Platform.Windows:
-            ubt_rss, ubt_walltime = self.get_usr_bin_time_data(capture.stderr)
-            rss_report = f"\nMax RSS Memory Usage: {ubt_rss}" if ubt_rss else ""
-            rss_report += f"\nTotal Wall Time: {ubt_walltime:.3f} seconds\n" if ubt_walltime > 0 else ""
-        else:
-            rss_report = ""
 
         stack_report = ""
         if self.trace:
             reporter = StackReporter(self.output_json)
             stack_report = reporter.report_stacks_for_top_functions(top_n=5)
 
-        results = f"{preamble}{finished}{rss_report}{logs_plain}{profile_summary}\n{stack_report}"
+        results = f"{preamble}{finished}{usage.report}{logs_plain}{profile_summary}\n{stack_report}"
         self.output_summary.write_text(results, encoding="utf-8")
 
-        summary = f"{finished}{rss_report}{logs_colored}{profile_summary}"
+        summary = f"{finished}{usage.report}{logs_colored}{profile_summary}"
         desc: str = "the stack traces of top function calls." if self.trace else "a copy of this summary."
         summary += f"\nSee {Colour.purple(self.path_to_summary)} for {desc}\n"
         return summary, profile_data
@@ -554,15 +578,8 @@ class Profiler:
                 if 0 < self.live_update < float("inf")
                 else contextlib.nullcontext()
             )
-            with Spinner(), watcher:
-                # Run the profiling command
-                capture = subprocess.run(
-                    self._scalene_run_cmd,
-                    check=True,
-                    text=True,
-                    capture_output=self.log_level.should_catch_warnings(),
-                    env=self.env(),
-                )
+            with Spinner(), watcher, ResourceUsage() as usage:
+                self._run_scalene(usage)
 
         except subprocess.CalledProcessError as exc:
             # Catch any shell errors and display them.
@@ -585,7 +602,7 @@ class Profiler:
             Colour.error(msg)
             raise ProfilerException(msg) from ki
         else:
-            text, summary = self.summarize(preamble, capture)
+            text, summary = self.summarize(preamble, usage)
             Colour.info(text)
             if raise_exit:
                 raise SuccessfulExit

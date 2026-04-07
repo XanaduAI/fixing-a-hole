@@ -15,6 +15,8 @@
 
 import datetime
 import importlib.metadata
+import logging
+import warnings
 from collections.abc import Callable
 from enum import Enum
 from pathlib import Path, PurePath
@@ -65,15 +67,39 @@ class PlottingLibrary(Enum):
 class LogLevel(Enum):
     """Valid Log Levels to profile."""
 
+    NONE = "NONE"
+    NOTSET = "NOTSET"
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
 
+    @property
+    def level(self) -> int:
+        """Return the numeric logging level corresponding to this log level.
+
+        LogLevel.NONE is a sentinel meaning "do not capture output".
+        It has no stdlib equivalent but is considered to be level 100.
+        """
+        if self is LogLevel.NONE:
+            return 100
+        return getattr(logging, self.name, 100)
+
+    def capture_output(self) -> bool:
+        """Determine whether or not to capture output during profiling."""
+        return self.name != "NONE"
+
     def should_catch_warnings(self) -> bool:
-        """Determine whether or not to catch warnings during profiling."""
-        return self.name in {"DEBUG", "INFO", "WARNING"}
+        """`should_catch_warnings` is deprecated; use `capture_output` instead."""
+        warnings.warn(
+            "should_catch_warnings() is deprecated; use capture_output() instead. "
+            "Note: capture_output() returns True for ERROR and CRITICAL, "
+            "whereas should_catch_warnings() returned False for those levels.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.capture_output()
 
 
 def date() -> str:

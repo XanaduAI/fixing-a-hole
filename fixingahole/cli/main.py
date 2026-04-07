@@ -96,7 +96,7 @@ def profile(  # noqa: PLR0913
             show_default=True,
             rich_help_panel="Preprocessing",
         ),
-    ] = LogLevel.WARNING,
+    ] = LogLevel.NONE,
     no_plots: Annotated[
         list[PlottingLibrary] | None,
         typer.Option(
@@ -350,10 +350,11 @@ def stats(
 ) -> StatisticsManager:
     """Generate statistics for a group of Scalene JSON profiles."""
     stats = StatisticsManager()
+    ignore = [path for path in Config.ignore() if path != Config.output()]
     directory, files = find_path(
         folder,
         in_dir=Config.root(),
-        exclude=[*Config.ignore(), ".venv", ".git"],
+        exclude=[*ignore, ".venv", ".git"],
         return_suffix=".json",
         subfolder_only=subfolder_only,
     )

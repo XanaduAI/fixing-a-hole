@@ -13,7 +13,6 @@
 # limitations under the License.
 """Tests for the Profiler."""
 
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -55,24 +54,28 @@ class TestProfilerRunProfiler:
         assert exc_info.value.exit_code == 0
         assert "numpy" in profiler.profile_file.read_text()
 
-    @patch("subprocess.run")
-    def test_run_profiler_subprocess_error(self, mock_run: MagicMock, mock_file: Path):
-        """Test profiler run handling subprocess errors."""
-        # Setup subprocess to raise CalledProcessError
-        error = subprocess.CalledProcessError(1, ["cmd"])
-        error.stdout = b"stdout error message"
-        error.stderr = b"stderr error message"
-        mock_run.side_effect = error
+    @patch("os.wait4")
+    @patch("subprocess.Popen")
+    def test_run_profiler_subprocess_error(self, mock_popen: MagicMock, mock_wait4: MagicMock, mock_file: Path):
+        """Test that a non-zero subprocess exit code is surfaced as a ProfilerException."""
+        mock_rusage = MagicMock()
+        mock_rusage.ru_maxrss = 1024 * 1024  # 1 MiB in bytes
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        mock_proc.stderr = iter(["expected stderr error message\n"])
+        mock_popen.return_value = mock_proc
+        mock_wait4.return_value = (12345, 256, mock_rusage)  # raw status 256 → exit code 1
 
-        profiler = Profiler(mock_file, precision=5)
+        profiler = Profiler(mock_file, cpu_only=False, precision=5)
 
-        with pytest.raises(ProfilerException) as exc_info:
+        with pytest.raises(ProfilerException) as exc_info, patch("os.waitstatus_to_exitcode", return_value=1):
             profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 1
-        mock_run.assert_called_once()
+        assert "stderr error message" in exc_info.value.message
+        mock_popen.assert_called_once()
 
-    @patch("subprocess.run")
+    @patch("subprocess.Popen")
     def test_run_profiler_keyboard_interrupt(self, mock_run: MagicMock, mock_file: Path):
         """Test profiler run handling keyboard interrupt."""
         # Setup subprocess to raise KeyboardInterrupt.
@@ -103,11 +106,11 @@ class TestProfilerRunProfiler:
         logs = profiler.log_file.read_text()
         for arg in args:
             assert arg in logs
-        assert "This is a warning." in logs
+        assert all(phrase in logs for phrase in ["This is a warning.", "This is an error.", "This is critical."])
         # Check that warning count is correctly calculated and included
         final_content = profiler.output_summary.read_text()
         assert "Check logs" in final_content
-        assert "(1 warning)" in final_content
+        assert "(3 INFO, 1 WARNING, 1 ERROR, 1 CRITICAL)" in final_content
 
     def test_run_profiler_with_script_argparse(self, mock_file_with_argparse: Path):
         """Test profiler run with script arguments."""
@@ -129,7 +132,7 @@ class TestProfilerRunProfiler:
         # Check that warning count is correctly calculated and included
         final_content = profiler.output_summary.read_text()
         assert "Check logs" in final_content
-        assert "(1 warning)" in final_content
+        assert "(2 INFO, 1 WARNING)" in final_content
 
     def test_run_profiler_with_config_object(self, mock_file: Path, root_dir: Path):
         """Test profiler run using ProfilerConfig object."""
