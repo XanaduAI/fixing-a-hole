@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from fixingahole.profiler.scalene_json_parser import ProfileData
+from fixingahole.profiler.scalene_json_parser import ProfileData, ProfileStack, ProfileStackTimeline
 from fixingahole.profiler.utils import memory_with_units
 
 
@@ -94,7 +94,7 @@ class TestProfileData:
         assert set(data.lines) == set(data.files)
         assert len(set(data.lines)) == 2
         # Assert that the correct number of line details are found (based on the test data).
-        lines_in_each_file: list[int] = [53, 21]
+        lines_in_each_file: list[int] = [3, 3]
         for i, lines in enumerate(data.lines.values()):
             assert len(lines) == lines_in_each_file[i]
 
@@ -123,3 +123,86 @@ class TestGetFunctionsByFile:
         for file_path, funcs in result.items():
             for func in funcs:
                 assert func.file_path == file_path
+
+
+class TestProfileDataNewFormat:
+    """Test initializing ProfileData from a new-format Scalene JSON file."""
+
+    def test_parse_json_new_format_basic(self, example_json_new: Path):
+        """Test that the new format parses with correct top-level metrics."""
+        result = ProfileData.from_file(example_json_new)
+        assert result.walltime == pytest.approx(8.84775710105896)
+        assert result.max_memory == "1.471 GB"
+        assert len(result.files) == 2
+
+    def test_parse_json_new_format_specific_fields(self, example_json_new: Path):
+        """Test new-format-specific top-level fields are accessible."""
+        result = ProfileData.from_file(example_json_new)
+        assert result.async_profile is True
+        assert result.main_thread_id == 8452578944
+        assert result.native_allocations_mb == 0
+
+    def test_parse_json_new_format_combined_stacks(self, example_json_new: Path):
+        """Test that combined_stacks are parsed into ProfileStack dataclasses."""
+        result = ProfileData.from_file(example_json_new)
+        assert result.combined_stacks is not None
+        assert len(result.combined_stacks) == 3
+
+        frames, count = result.combined_stacks[0]
+        assert isinstance(count, int)
+        assert len(frames) == 3
+        assert isinstance(frames[0], ProfileStack)
+        assert frames[0].display_name == "<module>"
+        assert frames[0].kind == "py"
+        assert frames[0].line == 8
+
+    def test_parse_json_new_format_combined_stacks_timeline(self, example_json_new: Path):
+        """Test that combined_stacks_timeline entries are parsed into ProfileStackTimeline dataclasses."""
+        result = ProfileData.from_file(example_json_new)
+        assert result.combined_stacks_timeline is not None
+        assert len(result.combined_stacks_timeline) == 5
+
+        entry = result.combined_stacks_timeline[0]
+        assert isinstance(entry, ProfileStackTimeline)
+        assert entry.count == 1
+        assert entry.stack_index == 0
+        assert entry.t_sec == pytest.approx(0.0)
+        assert entry.thread_id == 8452578944
+
+    def test_parse_json_new_format_memory_stacks(self, example_json_new: Path):
+        """Test that memory_stacks entries are parsed correctly."""
+        result = ProfileData.from_file(example_json_new)
+        assert result.memory_stacks is not None
+        assert len(result.memory_stacks) == 3
+
+        frames, amount = result.memory_stacks[0]
+        assert isinstance(amount, float)
+        assert amount > 0
+        assert len(frames) == 3
+        assert isinstance(frames[0], ProfileStack)
+
+    def test_parse_json_new_format_functions(self, example_json_new: Path):
+        """Test that functions from both files are parsed in the new format."""
+        result = ProfileData.from_file(example_json_new)
+        # 6 from advanced.py + 2 from numpy/_methods.py
+        assert len(result.functions) == 8
+        function_names = [f.name for f in result.functions]
+        assert "matrix_operations" in function_names
+        assert "data_serialization" in function_names
+        assert "_mean" in function_names
+        assert "_var" in function_names
+
+    def test_parse_json_new_format_lines(self, example_json_new: Path):
+        """Test that lines from each file are parsed in the new format."""
+        result = ProfileData.from_file(example_json_new)
+        assert len(result.lines) == 2
+        lines_in_each_file: list[int] = [3, 3]
+        for i, lines in enumerate(result.lines.values()):
+            assert len(lines) == lines_in_each_file[i]
+
+    def test_parse_json_new_format_has_memory_info(self, example_json_new: Path):
+        """Test that memory information is captured in the new format."""
+        result = ProfileData.from_file(example_json_new)
+        assert result.has_memory_info
+        funcs_with_memory = [f for f in result.functions if f.has_memory_info]
+        assert len(funcs_with_memory) > 0

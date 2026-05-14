@@ -39,6 +39,28 @@ def _freeze(value: list | tuple | Mapping) -> tuple | MappingProxyType:
 
 
 @dataclass(frozen=True)
+class ProfileStack:
+    """Represents a Stack."""
+
+    display_name: str
+    filename_or_module: str
+    kind: str
+    line: int | None
+    ip: int | None
+    offset: int | None
+
+
+@dataclass(frozen=True)
+class ProfileStackTimeline:
+    """Represents a Stack."""
+
+    count: int
+    stack_index: int
+    t_sec: float
+    thread_id: int
+
+
+@dataclass(frozen=True)
 class ProfileDetails:
     """Represents a function or line's profiling information."""
 
@@ -63,6 +85,11 @@ class ProfileDetails:
     n_python_fraction: int
     n_sys_percent: float
     n_usage_fraction: float
+    async_task_names: list[str] | None = None
+    is_coroutine: bool | None = None
+    n_async_await_percent: float | None = None
+    n_async_concurrency_mean: float | None = None
+    n_async_concurrency_peak: float | None = None
     end_function_line: int | None = None
     end_outermost_loop: int | None = None
     end_region_line: int | None = None
@@ -205,18 +232,45 @@ class ProfileData:
     stacks: list[tuple[list[str], dict[str, float]]]
     start_time_absolute: float
     start_time_perf: float
+    main_thread_id: int | None = None
+    async_profile: bool | None = None
+    combined_stacks: list[tuple[tuple[ProfileStack], int]] | None = None
+    combined_stacks_timeline: list[ProfileStackTimeline] | None = None
+    memory_stacks: list[tuple[tuple[ProfileStack], float]] | None = None
+    native_allocations_mb: float | None = None
 
     def __post_init__(self) -> None:
         """Normalize and freeze mutable nested profile data."""
+        object.__setattr__(self, "args", _freeze(self.args))
+        object.__setattr__(self, "samples", _freeze(self.samples))
+        object.__setattr__(self, "stacks", _freeze(self.stacks))
+
         files: dict[str, FileDetails] = {}
         for file_path, value in self.files.items():
             meta_details: dict[str, Any] = {"file_path": file_path, "walltime": self.elapsed_time_sec}
             files[file_path] = FileDetails(**(value | meta_details))  # type:ignore[ty:unsupported-operator]
-
-        object.__setattr__(self, "args", _freeze(self.args))
-        object.__setattr__(self, "samples", _freeze(self.samples))
-        object.__setattr__(self, "stacks", _freeze(self.stacks))
         object.__setattr__(self, "files", MappingProxyType(files))
+
+        if self.combined_stacks is not None:
+            combined_stacks: list[tuple[tuple[ProfileStack], int]] = []
+            for i in range(len(self.combined_stacks)):
+                stacks, num = self.combined_stacks[i]
+                combined_stacks.append((tuple(ProfileStack(**stack) for stack in stacks), num))  # ty:ignore[invalid-argument-type]
+            object.__setattr__(self, "combined_stacks", _freeze(combined_stacks))
+
+        if self.memory_stacks is not None:
+            memory_stacks: list[tuple[tuple[ProfileStack], float]] = []
+            for i in range(len(self.memory_stacks)):
+                stacks, num = self.memory_stacks[i]
+                memory_stacks.append((tuple(ProfileStack(**stack) for stack in stacks), num))  # ty:ignore[invalid-argument-type]
+            object.__setattr__(self, "memory_stacks", _freeze(memory_stacks))
+
+        if self.combined_stacks_timeline is not None:
+            object.__setattr__(
+                self,
+                "combined_stacks_timeline",
+                _freeze([ProfileStackTimeline(**stack) for stack in self.combined_stacks_timeline]),  # ty:ignore[invalid-argument-type]
+            )
 
     @classmethod
     def from_file(cls, filename: Path) -> "ProfileData":

@@ -1,0 +1,633 @@
+{
+    "alloc_samples": 5254,
+    "args": [
+        "/home/ubuntu/fixing-a-hole/performance/advanced.py"
+    ],
+    "elapsed_time_sec": 10.986895561218262,
+    "entrypoint_dir": "/home/ubuntu/fixing-a-hole/performance",
+    "filename": "/home/ubuntu/fixing-a-hole",
+    "files": {
+        "/home/ubuntu/fixing-a-hole/performance/advanced.py": {
+            "functions": [
+                {
+                    "cpu_samples_list": [],
+                    "line": "matrix_operations",
+                    "lineno": 35,
+                    "memory_samples": [
+                        [
+                            96980500,
+                            36.31560134887695
+                        ],
+                        [
+                            186262500,
+                            97.11856937408447
+                        ]
+                    ],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.09616174037840142,
+                    "n_cpu_percent_c": 0.009041007225759054,
+                    "n_cpu_percent_python": 0.003940147384761709,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0.0,
+                    "n_growth_mb": 36.31560134887695,
+                    "n_malloc_mb": 66.75268459320068,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 36.31560134887695,
+                    "n_python_fraction": 0.20126943997844543,
+                    "n_sys_percent": 0.0038929610193535105,
+                    "n_usage_fraction": 0.0018903851360701405
+                },
+                {
+                    "cpu_samples_list": [],
+                    "line": "monte_carlo_simulation",
+                    "lineno": 56,
+                    "memory_samples": [
+                        [
+                            256334334,
+                            177.13565158843994
+                        ],
+                        [
+                            326925000,
+                            215.2000617980957
+                        ],
+                        [
+                            326927542,
+                            253.35640335083008
+                        ],
+                        [
+                            326933084,
+                            215.2000617980957
+                        ],
+                        [
+                            326934834,
+                            253.3563117980957
+                        ],
+                        [
+                            326936084,
+                            215.2000617980957
+                        ]
+                    ],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.08449933229644783,
+                    "n_cpu_percent_c": 0.007843676588465236,
+                    "n_cpu_percent_python": 0.0007439925828487425,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0.0,
+                    "n_growth_mb": 76.22075176239014,
+                    "n_malloc_mb": 182.3349609375,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 76.22075176239014,
+                    "n_python_fraction": 0.001107552478579864,
+                    "n_sys_percent": 0.00411608383170677,
+                    "n_usage_fraction": 0.005163587083316924
+                },
+                {
+                    "cpu_samples_list": [],
+                    "line": "statistical_analysis",
+                    "lineno": 72,
+                    "memory_samples": [
+                        [
+                            331264542,
+                            176.95128536224365
+                        ],
+                        [
+                            376122250,
+                            253.15733909606934
+                        ]
+                    ],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.11769605760571357,
+                    "n_cpu_percent_c": 0.01294731076553961,
+                    "n_cpu_percent_python": 0.00418693896858683,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0.0,
+                    "n_growth_mb": 76.29718017578125,
+                    "n_malloc_mb": 152.50323390960693,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 76.29718017578125,
+                    "n_python_fraction": 0.0014740203162841017,
+                    "n_sys_percent": 0.0010633115124945509,
+                    "n_usage_fraction": 0.004318775317310811
+                },
+                {
+                    "cpu_samples_list": [],
+                    "line": "fourier_analysis",
+                    "lineno": 108,
+                    "memory_samples": [
+                        [
+                            964636084,
+                            340.66732597351074
+                        ],
+                        [
+                            964643625,
+                            416.96420097351074
+                        ],
+                        [
+                            964646334,
+                            340.66732597351074
+                        ],
+                        [
+                            1037203459,
+                            340.48282623291016
+                        ],
+                        [
+                            1041833584,
+                            340.39036083221436
+                        ],
+                        [
+                            1087975459,
+                            340.2979793548584
+                        ],
+                        [
+                            964648459,
+                            416.8719606399536
+                        ],
+                        [
+                            997342417,
+                            493.1688508987427
+                        ],
+                        [
+                            997344250,
+                            416.8719758987427
+                        ],
+                        [
+                            1037210209,
+                            416.77979278564453
+                        ],
+                        [
+                            1037211959,
+                            493.07666778564453
+                        ],
+                        [
+                            1037213250,
+                            416.77979278564453
+                        ],
+                        [
+                            1041846875,
+                            416.6874189376831
+                        ],
+                        [
+                            1334163917,
+                            645.1515293121338
+                        ]
+                    ],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.11448301830173317,
+                    "n_cpu_percent_c": 0.024470808010832335,
+                    "n_cpu_percent_python": 0.005838759461426653,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0.0,
+                    "n_growth_mb": 152.59384155273438,
+                    "n_malloc_mb": 610.1936588287354,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 152.59384155273438,
+                    "n_python_fraction": 0.00038632593656346954,
+                    "n_sys_percent": 0.002787613927638393,
+                    "n_usage_fraction": 0.017280219212211123
+                },
+                {
+                    "cpu_samples_list": [],
+                    "line": "recursive_computation",
+                    "lineno": 135,
+                    "memory_samples": [],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.12087045318257915,
+                    "n_cpu_percent_c": 0.0005000280021600182,
+                    "n_cpu_percent_python": 0.00117471617733837,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0.0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 5.721774275136453e-05,
+                    "n_usage_fraction": 0.0
+                },
+                {
+                    "cpu_samples_list": [],
+                    "line": "data_serialization",
+                    "lineno": 144,
+                    "memory_samples": [
+                        [
+                            2406113167,
+                            197.1902313232422
+                        ],
+                        [
+                            2420470667,
+                            207.19041919708252
+                        ],
+                        [
+                            2431787417,
+                            217.1904525756836
+                        ],
+                        [
+                            2445975250,
+                            227.1904706954956
+                        ],
+                        [
+                            2459114750,
+                            237.19339561462402
+                        ],
+                        [
+                            2471840084,
+                            247.1934289932251
+                        ],
+                        [
+                            2483251167,
+                            257.1935691833496
+                        ],
+                        [
+                            2496786959,
+                            267.19369411468506
+                        ],
+                        [
+                            5032851959,
+                            191.91514587402344
+                        ],
+                        [
+                            9900519709,
+                            216.1216640472412
+                        ],
+                        [
+                            170961646459,
+                            258.09209537506104
+                        ],
+                        [
+                            549254378334,
+                            257.19365215301514
+                        ]
+                    ],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.12298210766922059,
+                    "n_cpu_percent_c": 97.33181179390056,
+                    "n_cpu_percent_python": 0.6287068443635774,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0.0,
+                    "n_growth_mb": 80.003493309021,
+                    "n_malloc_mb": 80.003493309021,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 80.003493309021,
+                    "n_python_fraction": 0.7786115844763882,
+                    "n_sys_percent": 1.6073377097341752,
+                    "n_usage_fraction": 0.0022656379366121407
+                }
+            ],
+            "imports": [
+                "import sys",
+                "from pathlib import Path",
+                "from scalene import scalene_profiler",
+                "import time",
+                "from sys import argv",
+                "import numpy as np"
+            ],
+            "leaks": {},
+            "lines": [
+                {
+                    "cpu_samples_list": [],
+                    "end_outermost_loop": 2,
+                    "end_region_line": 2,
+                    "line": "### Add extras for profiling. ###\n",
+                    "lineno": 2,
+                    "memory_samples": [],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0.0,
+                    "start_outermost_loop": 2,
+                    "start_region_line": 2
+                },
+                {
+                    "cpu_samples_list": [],
+                    "end_outermost_loop": 132,
+                    "end_region_line": 132,
+                    "line": "def fourier_analysis(signal_length: int = 10_000_000) -\\u003e dict:\n",
+                    "lineno": 108,
+                    "memory_samples": [],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0.0,
+                    "start_outermost_loop": 108,
+                    "start_region_line": 108
+                },
+                {
+                    "cpu_samples_list": [],
+                    "end_outermost_loop": 113,
+                    "end_region_line": 132,
+                    "line": "    t = np.linspace(0, 10, signal_length)\n",
+                    "lineno": 113,
+                    "memory_samples": [],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0.0,
+                    "start_outermost_loop": 113,
+                    "start_region_line": 108
+                }
+            ],
+            "percent_cpu_time": 99.65046092120004
+        },
+        "/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core/_methods.py": {
+            "functions": [
+                {
+                    "cpu_samples_list": [],
+                    "line": "_mean",
+                    "lineno": 117,
+                    "memory_samples": [],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.08984775597296271,
+                    "n_cpu_percent_c": 0.0007486768065240792,
+                    "n_cpu_percent_python": 0.0008428998455607842,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0.0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0006226921335537646,
+                    "n_usage_fraction": 0.0
+                },
+                {
+                    "cpu_samples_list": [],
+                    "line": "_var",
+                    "lineno": 150,
+                    "memory_samples": [
+                        [
+                            437211959,
+                            329.36407566070557
+                        ],
+                        [
+                            820289292,
+                            310.5948190689087
+                        ]
+                    ],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.07099683038079131,
+                    "n_cpu_percent_c": 0.0007409236679542751,
+                    "n_cpu_percent_python": 0.00031929295455452385,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0.0,
+                    "n_growth_mb": 152.5031614303589,
+                    "n_malloc_mb": 152.5031614303589,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 152.5031614303589,
+                    "n_python_fraction": 0.0003814897081132333,
+                    "n_sys_percent": 0.0008064452707446214,
+                    "n_usage_fraction": 0.004318773264753764
+                },
+                {
+                    "cpu_samples_list": [],
+                    "line": "_std",
+                    "lineno": 220,
+                    "memory_samples": [],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0.0
+                }
+            ],
+            "imports": [
+                "import os",
+                "import pickle",
+                "import warnings",
+                "from contextlib import nullcontext",
+                "import numpy as np",
+                "from numpy._core import multiarray as mu",
+                "from numpy._core import numerictypes as nt",
+                "from numpy._core import umath as um",
+                "from numpy._core.multiarray import asanyarray",
+                "from numpy._globals import _NoValue"
+            ],
+            "leaks": {},
+            "lines": [
+                {
+                    "cpu_samples_list": [],
+                    "end_outermost_loop": 73,
+                    "end_region_line": 73,
+                    "line": "def _all(a, axis=None, dtype=None, out=None, keepdims=False, *, where=True):\n",
+                    "lineno": 66,
+                    "memory_samples": [],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0.0,
+                    "start_outermost_loop": 66,
+                    "start_region_line": 66
+                },
+                {
+                    "cpu_samples_list": [],
+                    "end_outermost_loop": 69,
+                    "end_region_line": 73,
+                    "line": "    if dtype is None:\n",
+                    "lineno": 68,
+                    "memory_samples": [],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0.0,
+                    "start_outermost_loop": 68,
+                    "start_region_line": 66
+                },
+                {
+                    "cpu_samples_list": [],
+                    "end_outermost_loop": 69,
+                    "end_region_line": 73,
+                    "line": "        dtype = bool_dt\n",
+                    "lineno": 69,
+                    "memory_samples": [],
+                    "n_avg_mb": 0.0,
+                    "n_copy_mb_s": 0.0,
+                    "n_core_utilization": 0.0,
+                    "n_cpu_percent_c": 0.0,
+                    "n_cpu_percent_python": 0.0,
+                    "n_gpu_avg_memory_mb": 0.0,
+                    "n_gpu_peak_memory_mb": 0.0,
+                    "n_gpu_percent": 0,
+                    "n_growth_mb": 0.0,
+                    "n_malloc_mb": 0.0,
+                    "n_mallocs": 0,
+                    "n_peak_mb": 0.0,
+                    "n_python_fraction": 0,
+                    "n_sys_percent": 0.0,
+                    "n_usage_fraction": 0.0,
+                    "start_outermost_loop": 69,
+                    "start_region_line": 66
+                }
+            ],
+            "percent_cpu_time": 0.0040809306788920485
+        }
+    },
+    "gpu": false,
+    "gpu_device": "",
+    "growth_rate": 1.0559640890201978,
+    "max_footprint_fname": "/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/fft/_pocketfft.py",
+    "max_footprint_lineno": 101,
+    "max_footprint_mb": 950.7153148651123,
+    "max_footprint_python_fraction": 0.0,
+    "memory": true,
+    "program": "/home/ubuntu/fixing-a-hole/performance/advanced.py",
+    "samples": [
+        [
+            487601926917,
+            214.43082427978516
+        ],
+        [
+            487601930625,
+            375.5656490325928
+        ],
+        [
+            499199818917,
+            289.3892936706543
+        ],
+        [
+            499199819125,
+            299.8912010192871
+        ],
+        [
+            503797222709,
+            297.23434829711914
+        ]
+    ],
+    "stacks": [
+        [
+            [
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py <module>:216;",
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py main:206;",
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py data_serialization:155;",
+                "/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core/fromnumeric.py prod:3445;",
+                "/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core/fromnumeric.py _wrapreduction:86;"
+            ],
+            {
+                "c_time": 7.977784071654976e-248,
+                "count": 1,
+                "cpu_samples": 5.494262015431125e-247,
+                "python_time": 4.696483608265631e-247
+            }
+        ],
+        [
+            [
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py <module>:216;",
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py main:206;",
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py data_serialization:153;"
+            ],
+            {
+                "c_time": 3.02851201446238e-247,
+                "count": 8,
+                "cpu_samples": 2.011486517321033e-246,
+                "python_time": 1.7086353158747953e-246
+            }
+        ],
+        [
+            [
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py <module>:216;",
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py main:206;",
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py data_serialization:166;"
+            ],
+            {
+                "c_time": 1.6653624975483662e-05,
+                "count": 330,
+                "cpu_samples": 1.6705111665027312e-05,
+                "python_time": 5.148668954365042e-08
+            }
+        ],
+        [
+            [
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py <module>:216;",
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py main:206;",
+                "/home/ubuntu/fixing-a-hole/performance/advanced.py data_serialization:167;"
+            ],
+            {
+                "c_time": 0.009204043350112462,
+                "count": 5,
+                "cpu_samples": 0.009254202675918947,
+                "python_time": 5.015932580648415e-05
+            }
+        ]
+    ],
+    "start_time_absolute": 1764178962.491593,
+    "start_time_perf": 597701.726955708
+}

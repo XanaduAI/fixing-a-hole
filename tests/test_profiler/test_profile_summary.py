@@ -30,7 +30,13 @@ from fixingahole.profiler.scalene_json_parser import ProfileData
 
 @pytest.fixture
 def advanced_profile_json() -> Path:
-    """Return the path to the advanced profile results JSON file."""
+    """Return the path to the old-format advanced profile results JSON file."""
+    return Path(__file__).parent.parent / "scripts" / "data" / "advanced_profile_results-old.json"
+
+
+@pytest.fixture
+def advanced_profile_json_new() -> Path:
+    """Return the path to the new-format advanced profile results JSON file."""
     return Path(__file__).parent.parent / "scripts" / "data" / "advanced_profile_results.json"
 
 
@@ -242,3 +248,32 @@ class TestProfileSummaryExtraction:
         with pytest.raises(FileNotFoundError) as exc:
             ProfileSummary(filename=nonexistent)
         assert exc.value.errno == 2
+
+
+class TestProfileSummaryExtractionNewFormat:
+    """Test the ProfileSummary class with new-format profile data."""
+
+    def test_parse_json_profile_new(self, advanced_profile_json_new: Path):
+        """Test parsing a new-format JSON profile results file."""
+        parser = ProfileSummary(filename=advanced_profile_json_new)
+        assert parser.walltime == pytest.approx(8.84775710105896, rel=1e-6)
+        assert parser.max_memory == "1.471 GB"
+
+    def test_profile_has_functions_new(self, advanced_profile_json_new: Path):
+        """Test that functions are extracted from the new-format profile."""
+        parser = ProfileSummary(filename=advanced_profile_json_new)
+        assert parser.data.functions
+        assert len(parser.data.functions) == 8
+
+        function_names = [f.name for f in parser.data.functions]
+        assert "matrix_operations" in function_names
+        assert "monte_carlo_simulation" in function_names
+        assert "fourier_analysis" in function_names
+        assert "data_serialization" in function_names
+
+    def test_profile_has_memory_info_new(self, advanced_profile_json_new: Path):
+        """Test that memory information is captured in the new-format profile."""
+        parser = ProfileSummary(filename=advanced_profile_json_new)
+        assert parser.data.has_memory_info
+        funcs_with_memory = [f for f in parser.data.functions if f.has_memory_info]
+        assert len(funcs_with_memory) > 0

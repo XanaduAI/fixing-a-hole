@@ -23,10 +23,11 @@ from fixingahole.profiler.profile_summary import ProfileSummary
 from fixingahole.profiler.stats_manager import StatisticsManager, _get_dirty_files, _get_used_dirty_files  # noqa: PLC2701
 
 
-@pytest.fixture
-def profile_summary_obj(example_json: Path) -> ProfileSummary:
-    """Load a real ProfileSummary from example JSON."""
-    return ProfileSummary(example_json)
+@pytest.fixture(params=["old", "new"])
+def profile_summary_obj(request: pytest.FixtureRequest, example_json: Path, example_json_new: Path) -> ProfileSummary:
+    """Load a real ProfileSummary from either the old or new format example JSON."""
+    json_path = example_json if request.param == "old" else example_json_new
+    return ProfileSummary(json_path)
 
 
 class TestStatisticsManagerInit:
