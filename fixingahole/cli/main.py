@@ -353,7 +353,7 @@ def stats(
     ignore = [path for path in Config.ignore() if path != Config.output()]
     directory, files = find_path(
         folder,
-        in_dir=Config.root(),
+        in_dir=Path(folder).resolve().parent,
         exclude=[*ignore, ".venv", ".git"],
         return_suffix=".json",
         subfolder_only=subfolder_only,
