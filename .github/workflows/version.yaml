@@ -11,53 +11,35 @@ env:
 
 jobs:
   check-version:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - name: Checkout main branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: main
           path: main_branch
 
       - name: Checkout current branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: current_branch
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v8.0.0
+        with:
+          version: "0.11.14"
+          python-version: "3.14"
 
       - name: Compare versions
         run: |
-          uv run --python ${{ env.PYTHON_VERSION }} --with packaging python - <<EOF
-          import tomllib
-          from packaging import version
-          import sys
-          import os
-
-          def get_version(path):
-              try:
-                  with open(path, "rb") as f:
-                      data = tomllib.load(f)
-                  return data["project"]["version"]
-              except Exception as e:
-                  print(f"Error reading {path}: {e}")
-                  sys.exit(1)
-
-          print("Checking versions...")
-          if not os.path.exists("main_branch/pyproject.toml"):
-              print("main_branch/pyproject.toml not found. Assuming this is the first version.")
-              sys.exit(0)
-
-          main_ver_str = get_version("main_branch/pyproject.toml")
-          curr_ver_str = get_version("current_branch/pyproject.toml")
-
-          print(f"Main version: {main_ver_str}")
-          print(f"Current version: {curr_ver_str}")
-
-          if version.parse(curr_ver_str) <= version.parse(main_ver_str):
-              print("Error: Current version must be greater than main version.")
+          uv run --with packaging python - <<EOF
+          import sys, tomllib
+          from pathlib import Path
+          from packaging.version import Version, parse
+          def get_version(branch: str) -> Version:
+              path = Path.cwd() / f"{branch}_branch" / "pyproject.toml"
+              return parse(tomllib.loads(path.read_text(encoding="utf-8"))["project"]["version"])
+          if (curr := get_version("current")) <= (main := get_version("main")):
+              print(f"Error: current version {curr} must be greater than main version {main}.")
               sys.exit(1)
-          else:
-              print("Success: Current version is greater than main version.")
           EOF
