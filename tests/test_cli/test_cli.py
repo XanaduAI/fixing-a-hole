@@ -109,13 +109,14 @@ class TestProfilerRunProfiler:
         result = runner.invoke(cli.app, ["profile", str(mock_file), "--repeat", str(n_runs), "-l", "info"])
         assert result.exit_code == 0, print_error(result)
         output_files: list[Path] = sorted(file for file in (root_dir / "performance").rglob("*") if file.is_file())
-        assert len(output_files) == (3 + 3 * n_runs)
+        assert len(output_files) == (4 + 3 * n_runs)
         assert len([f for f in output_files if f.suffix == ".py"]) == 1
         assert len(logfile := [f for f in output_files if f.suffix == ".log"]) == 1  # one shared log file.
         # one each warning, error, and critical with three info logs per run.
         assert len(logfile.pop().read_text().splitlines()) == n_runs * 6
         assert len([f for f in output_files if f.suffix == ".json"]) == n_runs + 1  # one JSON per run, and one stats file.
-        assert len([f for f in output_files if f.suffix == ".txt"]) == n_runs * 2  # one results and one summary per run.
+        txt_files = [f for f in output_files if f.suffix == ".txt"]
+        assert len(txt_files) == n_runs * 2 + 1  # results + summary per run, plus stats summary.
 
     def test_profile_directory(self, mock_file: Path):
         """Test that the CLI fails to profile a directory."""

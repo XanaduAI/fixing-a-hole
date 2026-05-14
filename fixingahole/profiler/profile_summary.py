@@ -18,12 +18,59 @@ and presents the data in a tree form for easier interpretation.
 """
 
 import os
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from fixingahole import Config
 from fixingahole.profiler.scalene_json_parser import ProfileData, ProfileDetails
 from fixingahole.profiler.utils import format_time, installed_modules
+
+
+@runtime_checkable
+class FunctionDataProtocol(Protocol):
+    """Minimal interface for function profiling data consumed by the module tree.
+
+    Both ``ProfileDetails`` (single-run Scalene data) and ``StatsProfileDetails``
+    (averaged benchmark data) satisfy this protocol, allowing ``build_module_tree``
+    to work with either without modification.
+
+    Note: ``total_percentage`` carries different semantics depending on the
+    concrete type — a real CPU percentage for ``ProfileDetails`` and total average
+    runtime in seconds for ``StatsProfileDetails``.  It is used only as a sort key
+    and filter comparator inside the tree functions, so the unit mismatch is safe as
+    long as callers pass a ``threshold`` in the appropriate units.
+    """
+
+    @property
+    def name(self) -> str:
+        """Function name."""
+        ...
+
+    @property
+    def file_path(self) -> str:
+        """Absolute or relative path to the source file."""
+        ...
+
+    @property
+    def total_percentage(self) -> float:
+        """Sort/filter key; unit depends on the concrete type (% or seconds)."""
+        ...
+
+    @property
+    def has_memory_info(self) -> bool:
+        """True when this function has non-zero memory profiling data."""
+        ...
+
+    @property
+    def peak_memory(self) -> float:
+        """Peak heap memory in MB."""
+        ...
+
+    @property
+    def peak_memory_info(self) -> str:
+        """Peak memory formatted with auto-scaled units."""
+        ...
 
 
 def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: float = 0.1) -> str:
@@ -114,7 +161,10 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     return "\n".join(line.rstrip() for line in message)
 
 
-def build_module_tree(by_file_dict: dict[str, list[ProfileDetails]], threshold: float = 0.1) -> tuple[dict[str, Any], int]:
+def build_module_tree(
+    by_file_dict: Mapping[str, Sequence[FunctionDataProtocol]],
+    threshold: float = 0.1,
+) -> tuple[dict[str, Any], int]:
     """Build a hierarchical tree structure from file paths and compute the tree's max depth."""
     modules = installed_modules()
     tree: dict[str, Any] = {}
