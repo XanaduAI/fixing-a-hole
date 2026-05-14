@@ -40,7 +40,7 @@ def _freeze(value: list | tuple | Mapping) -> tuple | MappingProxyType:
 
 @dataclass(frozen=True)
 class ProfileStack:
-    """Represents a Stack."""
+    """Represents a single stack frame."""
 
     display_name: str
     filename_or_module: str
@@ -52,7 +52,7 @@ class ProfileStack:
 
 @dataclass(frozen=True)
 class ProfileStackTimeline:
-    """Represents a Stack."""
+    """Represents a timeline-sampling entry."""
 
     count: int
     stack_index: int
@@ -234,9 +234,9 @@ class ProfileData:
     start_time_perf: float
     main_thread_id: int | None = None
     async_profile: bool | None = None
-    combined_stacks: list[tuple[tuple[ProfileStack], int]] | None = None
+    combined_stacks: list[tuple[list[ProfileStack], int]] | None = None
     combined_stacks_timeline: list[ProfileStackTimeline] | None = None
-    memory_stacks: list[tuple[tuple[ProfileStack], float]] | None = None
+    memory_stacks: list[tuple[list[ProfileStack], float]] | None = None
     native_allocations_mb: float | None = None
 
     def __post_init__(self) -> None:
@@ -252,25 +252,22 @@ class ProfileData:
         object.__setattr__(self, "files", MappingProxyType(files))
 
         if self.combined_stacks is not None:
-            combined_stacks: list[tuple[tuple[ProfileStack], int]] = []
-            for i in range(len(self.combined_stacks)):
-                stacks, num = self.combined_stacks[i]
-                combined_stacks.append((tuple(ProfileStack(**stack) for stack in stacks), num))  # ty:ignore[invalid-argument-type]
+            combined_stacks: list[tuple[tuple[ProfileStack], int]] = [
+                (tuple(ProfileStack(**stack) for stack in stacks), num)  # ty:ignore[invalid-argument-type]
+                for stacks, num in self.combined_stacks
+            ]  # ty:ignore[invalid-assignment]
             object.__setattr__(self, "combined_stacks", _freeze(combined_stacks))
 
         if self.memory_stacks is not None:
-            memory_stacks: list[tuple[tuple[ProfileStack], float]] = []
-            for i in range(len(self.memory_stacks)):
-                stacks, num = self.memory_stacks[i]
-                memory_stacks.append((tuple(ProfileStack(**stack) for stack in stacks), num))  # ty:ignore[invalid-argument-type]
+            memory_stacks: list[tuple[tuple[ProfileStack], float]] = [
+                (tuple(ProfileStack(**stack) for stack in stacks), num)  # ty:ignore[invalid-argument-type]
+                for stacks, num in self.memory_stacks
+            ]  # ty:ignore[invalid-assignment]
             object.__setattr__(self, "memory_stacks", _freeze(memory_stacks))
 
         if self.combined_stacks_timeline is not None:
-            object.__setattr__(
-                self,
-                "combined_stacks_timeline",
-                _freeze([ProfileStackTimeline(**stack) for stack in self.combined_stacks_timeline]),  # ty:ignore[invalid-argument-type]
-            )
+            combined_stacks_timeline = [ProfileStackTimeline(**stack) for stack in self.combined_stacks_timeline]  # ty:ignore[invalid-argument-type]
+            object.__setattr__(self, "combined_stacks_timeline", _freeze(combined_stacks_timeline))
 
     @classmethod
     def from_file(cls, filename: Path) -> "ProfileData":
