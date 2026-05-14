@@ -78,17 +78,18 @@ class TestStats:
         result = runner.invoke(cli.app, ["stats", str(tmp_dir), "--no-metadata"])
         assert result.exit_code == 0, print_error(result)
 
+    @pytest.mark.usefixtures("tmp_path")
     @patch("fixingahole.profiler.utils.Colour.error")
-    def test_stats_cli_missing_file(self, mock_colour_error: Mock, tmp_path: Path):
+    def test_stats_cli_missing_file(self, mock_colour_error: Mock):
         """Test stats CLI with a missing file."""
-        missing_dir = "tests/scripts/data/does_not_exist"
+        missing_dir = Path("tests/scripts/data/does_not_exist")
         result = runner.invoke(cli.app, ["stats", str(missing_dir)])
         # Should exit with nonzero and print error
         assert result.exit_code == 1, "Should be error code 1."
         expected_output: list[str] = [
             "No %s in %s with name: %s were found.",
             "folders",
-            f"[magenta]{tmp_path.name}[/magenta]",
+            f"[magenta]{missing_dir.parent.name}[/magenta]",
             f"[green]{missing_dir}[/green]",
         ]
         mock_colour_error.assert_called_once_with(*expected_output)
