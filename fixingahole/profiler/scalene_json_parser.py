@@ -252,17 +252,17 @@ class ProfileData:
         object.__setattr__(self, "files", MappingProxyType(files))
 
         if self.combined_stacks is not None:
-            combined_stacks: list[tuple[tuple[ProfileStack], int]] = [
+            combined_stacks = [
                 (tuple(ProfileStack(**stack) for stack in stacks), num)  # ty:ignore[invalid-argument-type]
                 for stacks, num in self.combined_stacks
-            ]  # ty:ignore[invalid-assignment]
+            ]
             object.__setattr__(self, "combined_stacks", _freeze(combined_stacks))
 
         if self.memory_stacks is not None:
-            memory_stacks: list[tuple[tuple[ProfileStack], float]] = [
+            memory_stacks = [
                 (tuple(ProfileStack(**stack) for stack in stacks), num)  # ty:ignore[invalid-argument-type]
                 for stacks, num in self.memory_stacks
-            ]  # ty:ignore[invalid-assignment]
+            ]
             object.__setattr__(self, "memory_stacks", _freeze(memory_stacks))
 
         if self.combined_stacks_timeline is not None:
