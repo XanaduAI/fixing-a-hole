@@ -298,7 +298,11 @@ def summarize(
 ) -> str:
     """Summarize a Scalene JSON profile."""
     ignore = [path for path in Config.ignore() if path != Config.output()]
-    file = find_path(filename, in_dir=Config.root(), exclude=[*ignore, ".venv", ".git"])
+    file = (
+        filepath
+        if (filepath := Path(filename).resolve()).is_absolute() and filepath.is_file()
+        else find_path(filename, in_dir=Config.root(), exclude=[*ignore, ".venv", ".git"])
+    )
     try:
         summary = ProfileSummary(file).summary(top_n, threshold)
     except TypeError:

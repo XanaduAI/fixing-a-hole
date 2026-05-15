@@ -30,7 +30,6 @@ from fixingahole.profiler.profile_summary import (
     _build_top_n_section,
     _render_tree_core,
     build_module_tree,
-    get_all_functions_in_tree,
 )
 from fixingahole.profiler.utils import date, memory_with_units
 
@@ -223,26 +222,10 @@ def render_stats_tree(
         mem_str = f" ({_format_stats_memory(func.avg_memory, func.std_memory)})" if func.has_memory_info else ""
         return runtime_str + mem_str
 
-    def aggregate_children(children: dict, thr: float) -> tuple[int, str, bool]:
-        total_avg = 0.0
-        total_std = 0.0
-        function_count = 0
-        has_memory = False
-        for file_funcs in get_all_functions_in_tree(children):
-            for f in file_funcs:
-                has_memory = has_memory or f.has_memory_info
-                if f.total_percentage >= thr or f.has_memory_info:
-                    total_avg += f.total_percentage
-                    total_std += f.std_user + f.std_system
-                    function_count += 1
-        skip = function_count == 0 and not has_memory
-        return function_count, _format_stats_duration(total_avg, total_std) + " avg", skip
-
     return _render_tree_core(
         tree_dict,
         format_node_dur,
         format_func_runtime,
-        aggregate_children,
         prefix=prefix,
         max_func_name_length=max_func_name_length,
         threshold=threshold_sec,

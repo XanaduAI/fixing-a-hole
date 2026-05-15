@@ -237,17 +237,12 @@ def _render_tree_core(
     tree_dict: dict[str, Any],
     format_node_dur: Callable[[list], str],
     format_func_runtime: Callable[[Any], str],
-    aggregate_children: Callable[[dict, float], tuple[int, str, bool]],
     *,
     prefix: str = "",
     max_func_name_length: int = 50,
     threshold: float = 0.0,
 ) -> list[str]:
-    """Shared rendering core for ``render_tree`` and ``render_stats_tree``.
-
-    ``aggregate_children`` returns ``(function_count, dur_str, skip)`` where
-    ``skip=True`` causes the whole subtree to be omitted from the output.
-    """
+    """Shared rendering core for ``render_tree`` and ``render_stats_tree``."""
     lines: list[str] = []
     items = list(tree_dict.items())
 
@@ -281,16 +276,20 @@ def _render_tree_core(
                 lines.append(f"{func_prefix}{func.name:.<{max(max_func_name_length - len(func_prefix), 2)}}{runtime_str}")
             lines.append(next_prefix)
         elif children:
-            function_count, dur, skip = aggregate_children(children, threshold)
-            if skip:
+            child_funcs = [
+                f
+                for file_funcs in get_all_functions_in_tree(children)
+                for f in file_funcs
+                if f.total_percentage >= threshold or f.has_memory_info
+            ]
+            if not child_funcs:
                 return lines
-            lines.append(f"{current_prefix}{name} ({function_count} func, {dur})")
+            lines.append(f"{current_prefix}{name} ({len(child_funcs)} func, {format_node_dur(child_funcs)})")
             lines.extend(
                 _render_tree_core(
                     children,
                     format_node_dur,
                     format_func_runtime,
-                    aggregate_children,
                     prefix=next_prefix,
                     max_func_name_length=max_func_name_length,
                     threshold=threshold,
@@ -325,29 +324,10 @@ def render_tree(
             else format_time(func.total_percentage * walltime / 100, walltime)
         ) + peak_mem
 
-    def aggregate_children(children: dict, thr: float) -> tuple[int, str, bool]:
-        total_runtime = 0.0
-        function_count = 0
-        has_memory = False
-        for file_funcs in get_all_functions_in_tree(children):
-            for f in file_funcs:
-                has_memory = has_memory or f.has_memory_info
-                if f.total_percentage >= thr or f.has_memory_info:
-                    total_runtime += f.total_percentage
-                    function_count += 1
-        skip = function_count == 0 and not has_memory
-        dur = (
-            f"{total_runtime:.2f}% total"
-            if Config.is_duration_relative()
-            else format_time(total_runtime * walltime / 100, walltime)
-        )
-        return function_count, dur, skip
-
     return _render_tree_core(
         tree_dict,
         format_node_dur,
         format_func_runtime,
-        aggregate_children,
         prefix=prefix,
         max_func_name_length=max_func_name_length,
         threshold=threshold,
