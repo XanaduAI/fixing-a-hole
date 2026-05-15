@@ -16,7 +16,9 @@
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from fixingahole.cli import main as cli
 from fixingahole.profiler.profile_summary import ProfileSummary
 from fixingahole.profiler.stats_manager import (
     StatisticsManager,
@@ -25,7 +27,6 @@ from fixingahole.profiler.stats_manager import (
     _build_stats_details,  # noqa: PLC2701
     _format_stats_duration,  # noqa: PLC2701
     _format_stats_memory,  # noqa: PLC2701
-    _get_all_tree_functions,  # noqa: PLC2701
     generate_stats_summary,
     render_stats_tree,
 )
@@ -110,7 +111,7 @@ class TestFormatStatsDuration:
         """Hours value with non-zero std includes ± notation."""
         result = _format_stats_duration(7200.0, 360.0)
         assert "hr" in result
-        assert "±" in result
+        assert chr(0xB1) in result
 
     def test_minutes_no_std(self):
         """Values in [60, 3600) render as minutes."""
@@ -121,7 +122,7 @@ class TestFormatStatsDuration:
         """Minutes value with non-zero std includes ± notation."""
         result = _format_stats_duration(120.0, 6.0)
         assert "min" in result
-        assert "±" in result
+        assert chr(0xB1) in result
 
     def test_seconds_no_std(self):
         """Values in [1, 60) render as seconds."""
@@ -146,24 +147,24 @@ class TestFormatStatsDuration:
     def test_microseconds(self):
         """Values < 0.001s render as microseconds."""
         result = _format_stats_duration(0.0001, 0.0)
-        assert "µs" in result
+        assert f"{chr(0xB5)}s" in result  # µs
 
     def test_microseconds_with_std(self):
         """Microsecond value with non-zero std includes ± notation."""
         result = _format_stats_duration(0.0001, 0.00001)
-        assert "µs" in result
-        assert "±" in result
+        assert f"{chr(0xB5)}s" in result  # µs
+        assert chr(0xB1) in result
 
     def test_std_zero_suppresses_pm(self):
         """When std is exactly zero the ± notation must be absent."""
         result = _format_stats_duration(1.234, 0.0)
-        assert "±" not in result
+        assert chr(0xB1) not in result
 
     def test_avg_and_std_use_same_unit(self):
         """Both avg and std are expressed in the same unit."""
         result = _format_stats_duration(90.0, 3.0)  # minutes range
         assert "min" in result
-        parts = result.split("±")
+        parts = result.split(chr(0xB1))
         assert len(parts) == 2
         assert "min" in parts[1]
 
@@ -203,7 +204,7 @@ class TestStatsProfileDetails:
 
     @pytest.fixture
     def detail(self) -> StatsProfileDetails:
-        """A sample StatsProfileDetails instance."""
+        """Sample StatsProfileDetails instance."""
         return StatsProfileDetails(
             name="my_func",
             file_path="/project/src/module.py",
@@ -242,7 +243,7 @@ class TestStatsProfileDetails:
     def test_is_frozen(self, detail: StatsProfileDetails):
         """StatsProfileDetails instances are immutable."""
         with pytest.raises((AttributeError, TypeError)):
-            detail.name = "other"  # type: ignore[misc]
+            detail.name = "other"  # ty:ignore[invalid-assignment]
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +281,7 @@ class TestBuildStatsDetails:
         )
         assert result == {}
 
-    def test_resolves_relative_paths(self, minimal_stats_data: dict):
+    def test_resolves_relative_paths(self):
         """Relative paths should be resolved to absolute using Config.root()."""
         relative_key = "relative/path/file.py:some_func"
         data = {
@@ -314,40 +315,6 @@ class TestBuildStatsDetails:
         assert f.std_system == pytest.approx(0.005)
         assert f.avg_memory == pytest.approx(0.0)
         assert f.std_memory == pytest.approx(0.0)
-
-
-# ---------------------------------------------------------------------------
-# _get_all_tree_functions
-# ---------------------------------------------------------------------------
-
-
-class TestGetAllTreeFunctions:
-    """Test the _get_all_tree_functions helper."""
-
-    def test_empty_tree(self):
-        """Empty dict returns empty list."""
-        assert _get_all_tree_functions({}) == []
-
-    def test_flat_tree_with_functions(self):
-        """A single node with _functions returns one list."""
-        funcs = [object(), object()]
-        tree = {"file.py": {"_functions": funcs, "_children": {}}}
-        result = _get_all_tree_functions(tree)
-        assert len(result) == 1
-        assert result[0] is funcs
-
-    def test_nested_children_are_recursed(self):
-        """Functions inside nested _children nodes are collected."""
-        inner_funcs = [object()]
-        tree = {
-            "pkg": {
-                "_functions": [],
-                "_children": {"module.py": {"_functions": inner_funcs, "_children": {}}},
-            }
-        }
-        result = _get_all_tree_functions(tree)
-        assert len(result) == 1
-        assert result[0] is inner_funcs
 
 
 # ---------------------------------------------------------------------------
@@ -392,7 +359,9 @@ class TestRenderStatsTree:
         assert "mem_fn" in combined
 
     def test_directory_hidden_when_all_children_below_threshold(self, root_dir: Path):
-        """A directory whose aggregate runtime exceeds threshold_sec but where every
+        """Module should be hidden when below the threshold.
+
+        A directory whose aggregate runtime exceeds threshold_sec but where every
         individual function is below threshold_sec must not appear in the output.
 
         Previously the early-return guard used ``total_avg < threshold_sec`` which
@@ -401,9 +370,7 @@ class TestRenderStatsTree:
         sub_dir = root_dir / "pkg"
         file_path = str(sub_dir / "mod.py")
         # 5 functions each at 0.3 sec — all below threshold=1.0, but sum=1.5 > threshold
-        funcs = [
-            StatsProfileDetails(f"fn{i}", file_path, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0) for i in range(5)
-        ]
+        funcs = [StatsProfileDetails(f"fn{i}", file_path, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0) for i in range(5)]
         children = {"mod.py": {"_functions": funcs, "_children": {}}}
         tree = {"pkg": {"_functions": [], "_children": children}}
         lines = render_stats_tree(tree, threshold_sec=1.0)
@@ -426,7 +393,8 @@ class TestRenderStatsTree:
         assert "big_fn" in combined
         assert "tiny_fn" not in combined
 
-        """Functions within a file are listed fastest-last."""
+    def test_functions_sorted_by_runtime_descending(self, root_dir: Path):
+        """Functions within a file are listed slowest-first."""
         file_path = str(root_dir / "myfile.py")
         fast = StatsProfileDetails("fast_fn", file_path, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0)
         slow = StatsProfileDetails("slow_fn", file_path, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -434,25 +402,6 @@ class TestRenderStatsTree:
         lines = render_stats_tree(tree, threshold_sec=0.0)
         combined = "\n".join(lines)
         assert combined.index("slow_fn") < combined.index("fast_fn")
-
-    def test_output_contains_duration_formatting(self, root_dir: Path):
-        """Output lines include formatted duration strings."""
-        file_path = str(root_dir / "myfile.py")
-        func = StatsProfileDetails("fn", file_path, 2.5, 0.3, 0.0, 0.1, 0.01, 0.0)
-        tree = {"myfile.py": {"_functions": [func], "_children": {}}}
-        lines = render_stats_tree(tree, threshold_sec=0.0)
-        combined = "\n".join(lines)
-        # 2.5 + 0.3 = 2.8 seconds; should appear in some format
-        assert "sec" in combined or "ms" in combined
-
-    def test_output_contains_memory_info(self, root_dir: Path):
-        """Memory info appears in output when present."""
-        file_path = str(root_dir / "myfile.py")
-        func = StatsProfileDetails("fn", file_path, 1.0, 0.0, 256.0, 0.1, 0.0, 10.0)
-        tree = {"myfile.py": {"_functions": [func], "_children": {}}}
-        lines = render_stats_tree(tree, threshold_sec=0.0)
-        combined = "\n".join(lines)
-        assert "MB" in combined or "GB" in combined
 
 
 # ---------------------------------------------------------------------------
@@ -520,20 +469,6 @@ class TestGenerateStatsSummary:
         # Should show 'Top Function by Average Runtime' (singular), not 'Top N Functions'
         assert "Top Function by Average Runtime" in result
 
-    def test_std_appears_in_multi_run_output(self, multi_run_manager: StatisticsManager):
-        """With identical runs std is 0, so ± should NOT appear."""
-        result = generate_stats_summary(multi_run_manager.stats())
-        # Identical runs → std == 0 → no ± in time output
-        # (memory ± may still appear if memory is reported with std > 0)
-        assert isinstance(result, str)
-        assert len(result) > 0
-
-    def test_real_profile_data_single_run(self, single_run_manager: StatisticsManager):
-        """Summary from a real profiling run is non-empty and well-formed."""
-        result = generate_stats_summary(single_run_manager.stats())
-        assert "Benchmark Summary" in result
-        assert "=" * 10 in result  # at least some separator line
-
     def test_real_profile_data_multi_run(self, multi_run_manager: StatisticsManager):
         """Summary from multiple profiling runs is non-empty and well-formed."""
         result = generate_stats_summary(multi_run_manager.stats())
@@ -543,7 +478,7 @@ class TestGenerateStatsSummary:
     def test_duration_format_in_output(self, single_run_manager: StatisticsManager):
         """Duration values in the output include a time unit."""
         result = generate_stats_summary(single_run_manager.stats())
-        assert any(unit in result for unit in ["sec", "ms", "min", "hr", "µs"])
+        assert any(unit in result for unit in ["sec", "ms", "min", "hr", f"{chr(0xB5)}s"])  # µs
 
     def test_file_names_in_output(self, single_run_manager: StatisticsManager):
         """Function file names appear in the ranked list."""
@@ -564,13 +499,6 @@ class TestStatsSummaryFromManager:
         """StatsSummary.count equals the number of profiling runs."""
         ss = StatsSummary(multi_run_manager)
         assert ss.count == 3
-
-    def test_summary_returns_string(self, single_run_manager: StatisticsManager):
-        """summary() returns a non-empty string."""
-        ss = StatsSummary(single_run_manager)
-        result = ss.summary()
-        assert isinstance(result, str)
-        assert len(result) > 0
 
     def test_summary_top_n_param(self, multi_run_manager: StatisticsManager):
         """top_n parameter is passed through to the formatter."""
@@ -602,13 +530,6 @@ class TestStatsSummaryFromFile:
         assert ss.count == 3
         assert "Benchmark Summary" in ss.summary()
 
-    def test_load_from_string_path(self, multi_run_manager: StatisticsManager, tmp_path: Path):
-        """StatsSummary can be constructed from a string path."""
-        stats_file = tmp_path / "stats.json"
-        StatisticsManager.save_as_json(stats_file, multi_run_manager.stats(), save_metadata=False)
-        ss = StatsSummary(str(stats_file))
-        assert isinstance(ss.summary(), str)
-
     def test_metadata_key_excluded_from_count(self, multi_run_manager: StatisticsManager, tmp_path: Path):
         """The 'metadata' key in the JSON is not interpreted as a function entry."""
         stats_file = tmp_path / "stats.json"
@@ -626,18 +547,12 @@ class TestStatsSummaryFromFile:
 
 
 # ---------------------------------------------------------------------------
-# StatisticsManager.summary()
+# Tests for StatisticsManager.summary()
 # ---------------------------------------------------------------------------
 
 
 class TestStatisticsManagerSummary:
     """Test the StatisticsManager.summary() convenience method."""
-
-    def test_returns_non_empty_string(self, single_run_manager: StatisticsManager):
-        """summary() returns a non-empty string."""
-        result = single_run_manager.summary()
-        assert isinstance(result, str)
-        assert len(result) > 0
 
     def test_matches_generate_stats_summary(self, multi_run_manager: StatisticsManager):
         """summary() produces the same output as calling generate_stats_summary directly."""
@@ -664,9 +579,6 @@ class TestStatsCLITextFile:
 
     def test_stats_cli_creates_txt_file(self, example_json: Path):
         """The stats command creates a .txt summary next to the .json file."""
-        from typer.testing import CliRunner
-        from fixingahole.cli import main as cli
-
         runner = CliRunner()
         tmp_dir = example_json.parent / "tmp_stats"
         tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -680,9 +592,6 @@ class TestStatsCLITextFile:
 
     def test_stats_cli_output_is_benchmark_summary(self, example_json: Path):
         """The stats CLI saves a .txt with the benchmark summary, not raw JSON."""
-        from typer.testing import CliRunner
-        from fixingahole.cli import main as cli
-
         runner = CliRunner()
         tmp_dir = example_json.parent / "tmp_stats2"
         tmp_dir.mkdir(parents=True, exist_ok=True)

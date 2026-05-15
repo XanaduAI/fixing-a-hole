@@ -18,7 +18,7 @@ and presents the data in a tree form for easier interpretation.
 """
 
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -73,6 +73,34 @@ class FunctionDataProtocol(Protocol):
         ...
 
 
+def _build_top_n_section(
+    funcs: list,
+    top_n: int,
+    width: int,
+    *,
+    section_label: str,
+    empty_message: str | None,
+    filter_fn: Callable[[Any], bool],
+    sort_key: Callable[[Any], float],
+    format_line: Callable[[int, Any], str],
+) -> list[str]:
+    """Build the header and function lines for a ranked summary section.
+
+    Returns an empty list when ``empty_message`` is ``None`` and there are no
+    qualifying functions (i.e., the section is silently omitted).
+    """
+    ranked = sorted([f for f in funcs if filter_fn(f)], key=sort_key, reverse=True)[:top_n]
+    n = len(ranked)
+    if n == 0:
+        return [empty_message, "-" * width] if empty_message is not None else []
+    lines = [
+        f"\nTop {f'{n} Functions' if n > 1 else 'Function'} by {section_label}:",
+        "-" * width,
+    ]
+    lines.extend(format_line(i, f) for i, f in enumerate(ranked, 1))
+    return lines
+
+
 def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: float = 0.1) -> str:
     """Generate a summary of the profiling results."""
     functions = profile_data.functions
@@ -106,51 +134,50 @@ def generate_summary(profile_data: ProfileData, top_n: int = 10, threshold: floa
     width = max_func_name_length + max_file_name_length + max(runtime_width, mem_width) + whitespace_width + max_lineno_length
     message: list[str] = ["\nProfile Summary", "=" * width]
 
-    # Top functions by total runtime percentage
-    top_functions: list[ProfileDetails] = sorted(functions, key=lambda f: f.total_percentage, reverse=True)[:top_n]
-    top_functions = [fn for fn in top_functions if fn.total_percentage >= threshold]
-    n: int = len(top_functions)
-    if n == 0:
-        message += [
-            "\nNo functions to summarize by Total Runtime",
-            "-" * width,
-        ]
-    else:
-        message += [
-            f"\nTop {f'{n} Functions' if n > 1 else 'Function'} by Total Runtime:",
-            "-" * width,
-        ]
-    for i, func in enumerate(top_functions, 1):
+    walltime = profile_data.walltime
+
+    def fmt_runtime_line(i: int, func: ProfileDetails) -> str:
         file_name = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
-        lineno = func.line_number
         runtime_info = (
             f"{func.total_percentage:>5.2f}%"
             if Config.is_duration_relative()
-            else format_time(func.total_percentage * profile_data.walltime / 100, profile_data.walltime)
+            else format_time(func.total_percentage * walltime / 100, walltime)
         )
-        message.append(
-            f"{i:2d}. {func.name:<{max_func_name_length}} {runtime_info:<{runtime_width}} ({file_name}:{lineno})",
-        )
+        return f"{i:2d}. {func.name:<{max_func_name_length}} {runtime_info:<{runtime_width}} ({file_name}:{func.line_number})"
 
-    # Add memory summary if available
+    message.extend(
+        _build_top_n_section(
+            functions,
+            top_n,
+            width,
+            section_label="Total Runtime",
+            empty_message="\nNo functions to summarize by Total Runtime",
+            filter_fn=lambda f: f.total_percentage >= threshold,
+            sort_key=lambda f: f.total_percentage,
+            format_line=fmt_runtime_line,
+        )
+    )
+
     if has_memory_info:
-        memory_functions: list[ProfileDetails] = sorted(functions, key=lambda f: f.peak_memory, reverse=True)[:top_n]
-        memory_functions: list[ProfileDetails] = [f for f in memory_functions if f.peak_memory]
-        n: int = len(memory_functions)
-        if memory_functions:
-            message += [
-                f"\nTop {f'{n} Functions' if n > 1 else 'Function'} by Memory Usage:",
-                "-" * width,
-            ]
-            for i, func in enumerate(memory_functions, 1):
-                file_name: str = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
-                lineno = func.line_number
-                message.append(
-                    f"{i:2d}. {func.name:<{max_func_name_length}} {func.peak_memory_info:>{mem_width}} ({file_name}:{lineno})",
-                )
 
-    message.append("\nFunctions by Module:")
-    message.append("-" * width)
+        def fmt_memory_line(i: int, func: ProfileDetails) -> str:
+            file_name = func.file_path.split("/")[-1] if "/" in func.file_path else func.file_path
+            return f"{i:2d}. {func.name:<{max_func_name_length}} {func.peak_memory_info:>{mem_width}} ({file_name}:{func.line_number})"  # noqa: E501
+
+        message.extend(
+            _build_top_n_section(
+                functions,
+                top_n,
+                width,
+                section_label="Memory Usage",
+                empty_message=None,
+                filter_fn=lambda f: f.peak_memory > 0,
+                sort_key=lambda f: f.peak_memory,
+                format_line=fmt_memory_line,
+            )
+        )
+
+    message.extend(("\nFunctions by Module:", "-" * width))
     module_tree, depth = build_module_tree(by_file, threshold=threshold)
     tree_width = max_func_name_length + (depth + 2) * 3  # depth + 2 because the minimum tree depth is 2.
     tree = render_tree(module_tree, profile_data.walltime, max_func_name_length=tree_width, threshold=threshold)
@@ -206,19 +233,25 @@ def get_all_functions_in_tree(tree_dict: dict[str, Any]) -> list:
     return all_functions
 
 
-def render_tree(
+def _render_tree_core(
     tree_dict: dict[str, Any],
-    walltime: float,
+    format_node_dur: Callable[[list], str],
+    format_func_runtime: Callable[[Any], str],
+    aggregate_children: Callable[[dict, float], tuple[int, str, bool]],
+    *,
     prefix: str = "",
     max_func_name_length: int = 50,
-    threshold: float = 0.1,
+    threshold: float = 0.0,
 ) -> list[str]:
-    """Render the module tree with proper indentation."""
-    lines = []
+    """Shared rendering core for ``render_tree`` and ``render_stats_tree``.
+
+    ``aggregate_children`` returns ``(function_count, dur_str, skip)`` where
+    ``skip=True`` causes the whole subtree to be omitted from the output.
+    """
+    lines: list[str] = []
     items = list(tree_dict.items())
 
     if len(items) > 1:
-        # Sort the tree from largest to smallest runtime fraction.
         items = sorted(
             items,
             key=lambda item: sum(f.total_percentage for f in item[1].get("_functions", []))
@@ -230,62 +263,34 @@ def render_tree(
 
     ang, tee, bar, blk = "└─ ", "├─ ", "│  ", "   "
     for i, (name, data) in enumerate(items):
-        is_last_item = i == len(items) - 1
-        current_prefix = prefix + (ang if is_last_item else tee)
-        next_prefix = prefix + (blk if is_last_item else bar)
+        is_last = i == len(items) - 1
+        current_prefix = prefix + (ang if is_last else tee)
+        next_prefix = prefix + (blk if is_last else bar)
 
-        functions: list[ProfileDetails] = sorted(data.get("_functions", []), key=lambda f: f.total_percentage, reverse=True)
+        functions = sorted(data.get("_functions", []), key=lambda f: f.total_percentage, reverse=True)
         functions = [f for f in functions if f.total_percentage >= threshold or f.has_memory_info]
         children: dict[str, Any] = data.get("_children", {})
 
         if functions:
-            total_runtime = sum(f.total_percentage for f in functions)
-            dur = (
-                f"{total_runtime:.2f}% total"
-                if Config.is_duration_relative()
-                else format_time(total_runtime * walltime / 100, walltime)
-            )
-            file_display = f"{name} ({len(functions)} func, {dur})"
-            lines.append(f"{current_prefix}{file_display}")
-
-            funcs = [
-                fn
-                for fn in sorted(functions, key=lambda f: f.total_percentage, reverse=True)
-                if fn.total_percentage >= threshold or fn.has_memory_info
-            ]
-            for j, func in enumerate(funcs):
-                func_is_last = j == len(funcs) - 1
+            dur = format_node_dur(functions)
+            lines.append(f"{current_prefix}{name} ({len(functions)} func, {dur})")
+            for j, func in enumerate(functions):
+                func_is_last = j == len(functions) - 1
                 func_prefix = next_prefix + (ang if func_is_last else tee)
-                peak_mem = f" ({func.peak_memory_info})" if func.has_memory_info else ""
-                runtime_info = (
-                    f"{func.total_percentage:.>5.2f}%"
-                    if Config.is_duration_relative()
-                    else format_time(func.total_percentage * walltime / 100, walltime)
-                ) + f"{peak_mem}"
-                lines.append(f"{func_prefix}{func.name:.<{max(max_func_name_length - len(func_prefix), 2)}}{runtime_info}")
+                runtime_str = format_func_runtime(func)
+                lines.append(f"{func_prefix}{func.name:.<{max(max_func_name_length - len(func_prefix), 2)}}{runtime_str}")
             lines.append(next_prefix)
         elif children:
-            total_runtime = 0
-            function_count = 0
-            has_memory_info = False
-            for file_funcs in get_all_functions_in_tree(children):
-                for f in file_funcs:
-                    total_runtime += f.total_percentage
-                    has_memory_info: bool = has_memory_info or f.has_memory_info
-                    function_count += 1 if f.total_percentage >= threshold or f.has_memory_info else 0
-            if total_runtime < threshold and not has_memory_info:
+            function_count, dur, skip = aggregate_children(children, threshold)
+            if skip:
                 return lines
-            dur = (
-                f"{total_runtime:.2f}% total"
-                if Config.is_duration_relative()
-                else format_time(total_runtime * walltime / 100, walltime)
-            )
-            dir_display = f"{name} ({function_count} func, {dur})"
-            lines.append(f"{current_prefix}{dir_display}")
+            lines.append(f"{current_prefix}{name} ({function_count} func, {dur})")
             lines.extend(
-                render_tree(
+                _render_tree_core(
                     children,
-                    walltime=walltime,
+                    format_node_dur,
+                    format_func_runtime,
+                    aggregate_children,
                     prefix=next_prefix,
                     max_func_name_length=max_func_name_length,
                     threshold=threshold,
@@ -293,6 +298,60 @@ def render_tree(
             )
 
     return lines
+
+
+def render_tree(
+    tree_dict: dict[str, Any],
+    walltime: float,
+    prefix: str = "",
+    max_func_name_length: int = 50,
+    threshold: float = 0.1,
+) -> list[str]:
+    """Render the module tree with proper indentation."""
+
+    def format_node_dur(functions: list) -> str:
+        total_runtime = sum(f.total_percentage for f in functions)
+        return (
+            f"{total_runtime:.2f}% total"
+            if Config.is_duration_relative()
+            else format_time(total_runtime * walltime / 100, walltime)
+        )
+
+    def format_func_runtime(func: FunctionDataProtocol) -> str:
+        peak_mem = f" ({func.peak_memory_info})" if func.has_memory_info else ""
+        return (
+            f"{func.total_percentage:.>5.2f}%"
+            if Config.is_duration_relative()
+            else format_time(func.total_percentage * walltime / 100, walltime)
+        ) + peak_mem
+
+    def aggregate_children(children: dict, thr: float) -> tuple[int, str, bool]:
+        total_runtime = 0.0
+        function_count = 0
+        has_memory = False
+        for file_funcs in get_all_functions_in_tree(children):
+            for f in file_funcs:
+                has_memory = has_memory or f.has_memory_info
+                if f.total_percentage >= thr or f.has_memory_info:
+                    total_runtime += f.total_percentage
+                    function_count += 1
+        skip = function_count == 0 and not has_memory
+        dur = (
+            f"{total_runtime:.2f}% total"
+            if Config.is_duration_relative()
+            else format_time(total_runtime * walltime / 100, walltime)
+        )
+        return function_count, dur, skip
+
+    return _render_tree_core(
+        tree_dict,
+        format_node_dur,
+        format_func_runtime,
+        aggregate_children,
+        prefix=prefix,
+        max_func_name_length=max_func_name_length,
+        threshold=threshold,
+    )
 
 
 class ProfileSummary:
