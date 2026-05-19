@@ -30,9 +30,9 @@ runner = CliRunner()
 class TestProfilerSummarize:
     """Test the summarize CLI command."""
 
-    def test_summarize_cli(self, example_json: Path):
-        """Test summarize CLI on a valid JSON profile file."""
-        result = runner.invoke(cli.app, ["summarize", str(example_json)])
+    def test_summarize_cli(self, example_json_both: Path):
+        """Test summarize CLI on a valid JSON profile file (both old and new format)."""
+        result = runner.invoke(cli.app, ["summarize", str(example_json_both)])
         assert result.exit_code == 0, print_error(result)
 
     @patch("fixingahole.profiler.utils.Colour.error")
@@ -50,17 +50,17 @@ class TestProfilerSummarize:
         ]
         mock_colour_error.assert_called_once_with(*expected_output)
 
-    def test_summarize_cli_options(self, example_json: Path):
-        """Test summarize CLI with -n and -t options."""
+    def test_summarize_cli_options(self, example_json_both: Path):
+        """Test summarize CLI with -n and -t options (both old and new format)."""
         # Use -n 1 to show only top function
-        result = runner.invoke(cli.app, ["summarize", str(example_json), "-n", "1"])
+        result = runner.invoke(cli.app, ["summarize", str(example_json_both), "-n", "1"])
         assert result.exit_code == 0, print_error(result)
         output = Colour.remove_ansi(result.stdout)
         # Should only show one function in the top list
         assert "Top Function by Total Runtime:" in output
 
         # Use -t 100 to filter out all functions (threshold too high)
-        result = runner.invoke(cli.app, ["summarize", str(example_json), "-t", "100"])
+        result = runner.invoke(cli.app, ["summarize", str(example_json_both), "-t", "100"])
         assert result.exit_code == 0, print_error(result)
         output = Colour.remove_ansi(result.stdout)
         assert "No functions to summarize by Total Runtime" in output
@@ -69,26 +69,27 @@ class TestProfilerSummarize:
 class TestStats:
     """Test the stats CLI command."""
 
-    def test_stats_cli(self, example_json: Path):
-        """Test stats CLI on a valid JSON profile file."""
-        tmp_dir = example_json.parent / "tmp"
+    def test_stats_cli(self, example_json_both: Path):
+        """Test stats CLI on a valid JSON profile file (both old and new format)."""
+        tmp_dir = example_json_both.parent / "tmp"
         tmp_dir.mkdir(parents=True, exist_ok=True)
-        example_json = example_json.rename(tmp_dir / example_json.name)
-        (tmp_dir / "dup_data.json").write_bytes(example_json.read_bytes())
+        example_json_both = example_json_both.rename(tmp_dir / example_json_both.name)
+        (tmp_dir / "dup_data.json").write_bytes(example_json_both.read_bytes())
         result = runner.invoke(cli.app, ["stats", str(tmp_dir), "--no-metadata"])
         assert result.exit_code == 0, print_error(result)
 
+    @pytest.mark.usefixtures("tmp_path")
     @patch("fixingahole.profiler.utils.Colour.error")
-    def test_stats_cli_missing_file(self, mock_colour_error: Mock, tmp_path: Path):
+    def test_stats_cli_missing_file(self, mock_colour_error: Mock):
         """Test stats CLI with a missing file."""
-        missing_dir = "tests/scripts/data/does_not_exist"
+        missing_dir = Path("tests/scripts/data/does_not_exist")
         result = runner.invoke(cli.app, ["stats", str(missing_dir)])
         # Should exit with nonzero and print error
         assert result.exit_code == 1, "Should be error code 1."
         expected_output: list[str] = [
             "No %s in %s with name: %s were found.",
             "folders",
-            f"[magenta]{tmp_path.name}[/magenta]",
+            f"[magenta]{missing_dir.parent.name}[/magenta]",
             f"[green]{missing_dir}[/green]",
         ]
         mock_colour_error.assert_called_once_with(*expected_output)
@@ -108,13 +109,14 @@ class TestProfilerRunProfiler:
         result = runner.invoke(cli.app, ["profile", str(mock_file), "--repeat", str(n_runs), "-l", "info"])
         assert result.exit_code == 0, print_error(result)
         output_files: list[Path] = sorted(file for file in (root_dir / "performance").rglob("*") if file.is_file())
-        assert len(output_files) == (3 + 3 * n_runs)
+        assert len(output_files) == (4 + 3 * n_runs)
         assert len([f for f in output_files if f.suffix == ".py"]) == 1
         assert len(logfile := [f for f in output_files if f.suffix == ".log"]) == 1  # one shared log file.
         # one each warning, error, and critical with three info logs per run.
         assert len(logfile.pop().read_text().splitlines()) == n_runs * 6
         assert len([f for f in output_files if f.suffix == ".json"]) == n_runs + 1  # one JSON per run, and one stats file.
-        assert len([f for f in output_files if f.suffix == ".txt"]) == n_runs * 2  # one results and one summary per run.
+        txt_files = [f for f in output_files if f.suffix == ".txt"]
+        assert len(txt_files) == n_runs * 2 + 1  # results + summary per run, plus stats summary.
 
     def test_profile_directory(self, mock_file: Path):
         """Test that the CLI fails to profile a directory."""
@@ -122,7 +124,7 @@ class TestProfilerRunProfiler:
         tmp_dir.mkdir(parents=True, exist_ok=True)
         result = runner.invoke(cli.app, ["profile", str(tmp_dir.relative_to(mock_file.parent))])
         assert result.exit_code == 1, print_error(result)
-        assert "Error: cannot profile a directory." in Colour.remove_ansi(result.stdout)
+        assert "Error: cannot profile a directory." in Colour.remove_ansi(result.stderr)
 
     def test_profiler_cli_call_relative_path(self, mock_file: Path, root_dir: Path):
         """Test how the CLI invokes the profiler."""

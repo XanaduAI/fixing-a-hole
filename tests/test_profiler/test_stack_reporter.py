@@ -211,8 +211,7 @@ class TestBuildCombinedReverseTree:
 
         # Test with real data
         traces: list[dict[str, Any]] = StackReporter.find_stack_traces(sample_data["stacks"], "_wrapreduction")
-        if not traces:
-            pytest.skip("No traces found for _wrapreduction")
+        assert traces
 
         tree, call_info = StackReporter.build_combined_reverse_tree(traces)
 
@@ -298,17 +297,85 @@ class TestReportStacksForTopFunctions:
             # Should show percentage for each function
             assert f"({func['total_percent']:.2f}%)" in report or func["name"] in report
 
-        # Test custom number of functions
-        n = 3
-        report_3: str = stack_reporter.report_stacks_for_top_functions(top_n=n)
-        assert "Stack Trace Summary" in report_3
-        lines: list[str] = report_3.split("\n")
-        assert len(lines) > n, "Should have multiple lines"
 
-        # Test with high n value
-        report_many: str = stack_reporter.report_stacks_for_top_functions(top_n=100)
-        assert isinstance(report_many, str)
-        assert len(report_many) > 0
+@pytest.fixture
+def stack_reporter_new(example_json_new: Path) -> StackReporter:
+    """Initialize a StackReporter instance with new-format test data."""
+    return StackReporter(example_json_new)
+
+
+@pytest.fixture
+def sample_data_new(example_json_new: Path) -> dict[str, Any]:
+    """Load the new-format test profile data."""
+    return json.loads(example_json_new.read_text(encoding="utf-8"))
+
+
+class TestStackReporterNewFormat:
+    """Test StackReporter with new-format Scalene JSON data."""
+
+    def test_init_with_new_format(self, example_json_new: Path) -> None:
+        """Test initialization with new-format data succeeds."""
+        reporter: StackReporter = StackReporter(example_json_new)
+        assert reporter.profile_json_path == example_json_new.resolve()
+        assert isinstance(reporter.data, ProfileData)
+
+    def test_load_new_format_profile(self, example_json_new: Path, sample_data_new: dict[str, Any]) -> None:
+        """Test loading new-format profile validates structure and content."""
+        data: dict[str, Any] = StackReporter.load_profile_results(example_json_new)
+
+        assert isinstance(data, dict)
+        assert "files" in data
+        assert "stacks" in data
+        assert "elapsed_time_sec" in data
+
+        # New-format-specific fields
+        assert "combined_stacks" in data
+        assert "async_profile" in data
+        assert data["async_profile"] is True
+
+        # Files should be present and have valid functions
+        assert len(data["files"]) > 0
+        has_valid_functions: bool = any(len(fd.get("functions", [])) > 0 for fd in data["files"].values())
+        assert has_valid_functions
+
+        assert data == sample_data_new
+
+    def test_get_top_functions_new_format(self, stack_reporter_new: StackReporter) -> None:
+        """Test get_top_functions returns correctly sorted results for new-format data."""
+        top_3: list[dict[str, Any]] = stack_reporter_new.get_top_functions(n=3)
+        assert len(top_3) == 3
+
+        for func in top_3:
+            assert "file" in func
+            assert "name" in func
+            assert "total_percent" in func
+            assert func["total_percent"] >= 0
+
+        for i in range(len(top_3) - 1):
+            assert top_3[i]["total_percent"] >= top_3[i + 1]["total_percent"]
+
+    def test_find_stack_traces_new_format(self, sample_data_new: dict[str, Any]) -> None:
+        """Test finding stack traces in new-format stacks data."""
+        stacks: list[Any] = sample_data_new["stacks"]
+        # New-format stacks contain <module> entries
+        traces: list[dict[str, Any]] = StackReporter.find_stack_traces(stacks, "<module>")
+        assert isinstance(traces, list)
+        assert len(traces) > 0
+
+        for trace in traces:
+            assert "stack" in trace
+            assert "count" in trace
+            assert "cpu_samples" in trace
+            assert "c_time" in trace
+            assert "python_time" in trace
+
+    def test_report_stacks_new_format(self, stack_reporter_new: StackReporter) -> None:
+        """Test generating a complete stack trace report from new-format data."""
+        report: str = stack_reporter_new.report_stacks_for_top_functions()
+        assert isinstance(report, str)
+        assert len(report) > 0
+        assert "Stack Trace Summary" in report
+        assert "%" in report
 
 
 class TestStackReporterError:

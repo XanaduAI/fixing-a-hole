@@ -13,7 +13,6 @@
 # limitations under the License.
 """Command-line entrypoints integrated Scalene profiler Fixing-a-Hole."""
 
-import json
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -22,7 +21,7 @@ import typer
 from colours import Colour
 from typer import Exit
 
-from fixingahole import Config, LogLevel, PlottingLibrary, Profiler, ProfileSummary, StatisticsManager
+from fixingahole import Config, LogLevel, PlottingLibrary, Profiler, ProfileSummary, StatisticsManager, StatsSummary
 from fixingahole.config import DurationOption
 from fixingahole.profiler.utils import FindPathException, find_path
 
@@ -33,7 +32,7 @@ app = typer.Typer(
 ModuleType = type(typer)
 
 
-def profile(  # noqa: PLR0913
+def profile(
     *,
     filename: Annotated[
         str,
@@ -251,6 +250,9 @@ def profile(  # noqa: PLR0913
     if stats.count > 1:
         stats_file = profiler.output_file.with_name(output_file).with_suffix(".json")
         stats.save_as_json(stats_file, stats.stats(), sort=sort, save_metadata=metadata)
+        summary_text = stats.summary()
+        Colour.info(summary_text)
+        stats_file.with_suffix(".txt").write_text(summary_text, encoding="utf-8")
 
 
 # Register the profile function as a command in this CLI
@@ -295,8 +297,16 @@ def summarize(
     ] = 0.1,
 ) -> str:
     """Summarize a Scalene JSON profile."""
-    file = find_path(filename, in_dir=Config.root(), exclude=[*Config.ignore(), ".venv", ".git"])
-    summary = ProfileSummary(file).summary(top_n, threshold)
+    ignore = [path for path in Config.ignore() if path != Config.output()]
+    file = (
+        filepath
+        if (filepath := Path(filename).resolve()).is_absolute() and filepath.is_file()
+        else find_path(filename, in_dir=Config.root(), exclude=[*ignore, ".venv", ".git"])
+    )
+    try:
+        summary = ProfileSummary(file).summary(top_n, threshold)
+    except TypeError:
+        summary = StatsSummary(file).summary(top_n, threshold)
     Colour.info(summary)
     return summary
 
@@ -353,7 +363,7 @@ def stats(
     ignore = [path for path in Config.ignore() if path != Config.output()]
     directory, files = find_path(
         folder,
-        in_dir=Config.root(),
+        in_dir=Path(folder).resolve().parent,
         exclude=[*ignore, ".venv", ".git"],
         return_suffix=".json",
         subfolder_only=subfolder_only,
@@ -368,8 +378,10 @@ def stats(
             )
 
     stats_file = (directory / output_file).with_suffix(".json")
-    saved_data = stats.save_as_json(stats_file, stats.stats(), save_metadata=metadata, sort=sort)
-    Colour.info(json.dumps(saved_data, indent=2))
+    stats.save_as_json(stats_file, stats.stats(), save_metadata=metadata, sort=sort)
+    summary_text = stats.summary()
+    Colour.info(summary_text)
+    stats_file.with_suffix(".txt").write_text(summary_text, encoding="utf-8")
     return stats
 
 

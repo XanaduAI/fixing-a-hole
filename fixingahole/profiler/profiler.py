@@ -167,7 +167,7 @@ class Profiler:
         _profile_file: Path
         _output_file: Path
 
-    def __init__(  # noqa: PLR0913, PLR0915
+    def __init__(  # noqa: PLR0915
         self,
         path_or_config: Path | ProfilerConfig,
         /,

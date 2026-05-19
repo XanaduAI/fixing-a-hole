@@ -80,11 +80,26 @@ def mock_dir(root_dir: Path) -> Path:
 
 @pytest.fixture
 def example_json(root_dir: Path) -> Path:
-    """Return path to the advanced profile results JSON file."""
-    example_json_file: Path = Path(__file__).parent / "scripts" / "data" / "advanced_profile_results.json"
+    """Return path to the old-format advanced profile results JSON file."""
+    example_json_file: Path = Path(__file__).parent / "scripts" / "data" / "advanced_profile_results-old.json"
     file_path: Path = root_dir / "example.json"
     file_path.write_bytes(example_json_file.read_bytes())
     return file_path
+
+
+@pytest.fixture
+def example_json_new(root_dir: Path) -> Path:
+    """Return path to the new-format advanced profile results JSON file."""
+    example_json_file: Path = Path(__file__).parent / "scripts" / "data" / "advanced_profile_results.json"
+    file_path: Path = root_dir / "example_new.json"
+    file_path.write_bytes(example_json_file.read_bytes())
+    return file_path
+
+
+@pytest.fixture(params=["old", "new"])
+def example_json_both(request: pytest.FixtureRequest, example_json: Path, example_json_new: Path) -> Path:
+    """Return either the old or new format example JSON, parametrized over both."""
+    return example_json if request.param == "old" else example_json_new
 
 
 def print_error(res: Result) -> None:
