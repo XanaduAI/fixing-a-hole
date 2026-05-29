@@ -179,7 +179,9 @@ class Profiler:
         log_level: LogLevel = LogLevel.NONE,
         no_plots: list[PlottingLibrary] | None = None,
         trace: bool = True,
+        profile_async: bool = False,
         live_update: float | str = float("inf"),
+        profile_only: list[str] | None = None,
         ignore_dirs: list[Path] | None = None,
         output_dir: Path | None = None,
         **_: dict[str, Any],
@@ -205,7 +207,9 @@ class Profiler:
         self._output_name: str = "profile_results"
         self._precision_limit: int = 10
         self.trace: bool = trace
+        self.profile_async: bool = profile_async
         self.live_update: float = float(live_update)
+        self.profile_only: list[str] = profile_only if profile_only is not None else []
         self.ignored_folders: list[Path] = ignore_dirs if ignore_dirs is not None else []
         self.run_count: int = 0
 
@@ -466,8 +470,10 @@ class Profiler:
         sampling_detail = self.get_memory_precision()
         cmd = [
             f"{sys.executable} -m scalene run",
-            "--stacks" if self.trace else "",
+            "--stacks" if self.trace else "--no-stacks",
+            " --async" if self.profile_async else " --no-async",
             "--profile-all" if self.detailed else "",
+            f"--profile-only={','.join(self.profile_only)}" if len(self.profile_only) > 1 else "",
             self.excluded_folders,
             f"--memory {sampling_detail}" if not self.cpu_only else "--cpu-only",
             f"--program-path {Config.root()}",

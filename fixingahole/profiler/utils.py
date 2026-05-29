@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 for name in set(SPINNERS):
     if "toggle" in name:
         SPINNERS.pop(name, None)
-# Add a custom XanaduAI spinner.
+# Add some custom XanaduAI spinners.
 SPINNERS["xanaduai"] = {
     "interval": 120,
     "frames": [
@@ -53,6 +53,21 @@ SPINNERS["xanaduai"] = {
         "|   XanaduAI |",
         "|  XanaduAI  |",
         "| XanaduAI   |",
+    ],
+}
+SPINNERS["xanaduai_ticker"] = {
+    "interval": 100,
+    "frames": [
+        "|XNDU      |",
+        "| XNDU     |",
+        "|  XNDU    |",
+        "|   XNDU   |",
+        "|    XNDU  |",
+        "|     XNDU |",
+        "|      XNDU|",
+        "|U      XND|",
+        "|DU      XN|",
+        "|NDU      X|",
     ],
 }
 

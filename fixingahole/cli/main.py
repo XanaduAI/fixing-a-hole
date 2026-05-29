@@ -85,6 +85,16 @@ def profile(
             rich_help_panel="Profiling",
         ),
     ] = True,
+    profile_async: Annotated[
+        bool,
+        typer.Option(
+            "--async/--no-async",
+            "-a/-na",
+            help="Capture the stack traces for the most expensive function calls.",
+            show_default=True,
+            rich_help_panel="Profiling",
+        ),
+    ] = False,
     log_level: Annotated[
         LogLevel,
         typer.Option(
@@ -116,6 +126,15 @@ def profile(
             rich_help_panel="Profiling",
         ),
     ] = float("inf"),
+    profile_only: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--profile-only",
+            help="Only profile files containing these strings",
+            show_default=False,
+            rich_help_panel="Profiling",
+        ),
+    ] = None,
     ignore: Annotated[
         list[str] | None,
         typer.Option(
@@ -226,7 +245,9 @@ def profile(
         log_level=log_level,
         no_plots=no_plots,
         trace=trace,
+        profile_async=profile_async,
         live_update=live,
+        profile_only=profile_only,
         ignore_dirs=ignore_dirs,
         output_dir=output_dir,
     )
