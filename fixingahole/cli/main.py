@@ -23,13 +23,18 @@ from typer import Exit
 
 from fixingahole import Config, LogLevel, PlottingLibrary, Profiler, ProfileSummary, StatisticsManager, StatsSummary
 from fixingahole.config import DurationOption
-from fixingahole.profiler.utils import FindPathException, find_path
+from fixingahole.profiler.utils import FindPathException, find_path, get_scalene_help
 
-app = typer.Typer(
-    rich_markup_mode="markdown",
-    epilog=":copyright: Xanadu Quantum Technologies",
-)
+app = typer.Typer(epilog="\u00a9 Xanadu Quantum Technologies")
 ModuleType = type(typer)
+
+# Get the Scalene RUN flags and help text.
+n = "\n\n\n"
+basic_help, basic_flags = get_scalene_help(["run", "--help"], append=n)
+adv_help, adv_flags = get_scalene_help(["run", "--help-advanced"], append=n)
+scalene_flags = basic_flags | adv_flags
+scalene_flags.discard("--help")
+scalene_flags.discard("--help-advanced")
 
 
 def profile(
@@ -156,12 +161,12 @@ def profile(
         ),
     ] = None,
     duration: Annotated[
-        DurationOption,
+        DurationOption | None,
         typer.Option(
             help="Temporarily set whether the summary shows duration times as 'absolute' or 'relative' values.",
             hidden=True,
         ),
-    ] = DurationOption.relative,
+    ] = None,
     repeat: Annotated[
         int,
         typer.Option(
@@ -209,7 +214,7 @@ def profile(
             output_dir if output_dir is not None else Config.output(),
         )
         Colour.set_log_level("warning")
-    Config.update_duration(duration.value)
+    Config.update_duration(duration.value if duration is not None else Config.settings().duration.value)
 
     # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
@@ -281,14 +286,14 @@ app.command(
     no_args_is_help=True,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
     rich_help_panel="Utilities",
-    epilog=":copyright: Xanadu Quantum Technologies",
+    epilog=f"{basic_help}{adv_help}\u00a9 Xanadu Quantum Technologies",
 )(profile)
 
 
 @app.command(
     no_args_is_help=True,
     rich_help_panel="Utilities",
-    epilog=":copyright: Xanadu Quantum Technologies",
+    epilog="\u00a9 Xanadu Quantum Technologies",
 )
 def summarize(
     filename: Annotated[
@@ -335,7 +340,7 @@ def summarize(
 @app.command(
     no_args_is_help=True,
     rich_help_panel="Utilities",
-    epilog=":copyright: Xanadu Quantum Technologies",
+    epilog="\u00a9 Xanadu Quantum Technologies",
 )
 def stats(
     folder: Annotated[
