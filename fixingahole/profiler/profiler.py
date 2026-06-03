@@ -25,13 +25,14 @@ import time
 from collections import deque
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, TextIO, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, TextIO, runtime_checkable
 
 from colours import Colour
 from sympy import nextprime
 from typer import Exit
 
 from fixingahole import Config
+from fixingahole.profiler.scalene_flags import scalene_kwargs_to_flags
 from fixingahole.profiler.utils import FileWatcher, LogLevel, PlottingLibrary, Spinner, date, memory_with_units
 
 if TYPE_CHECKING:
@@ -178,13 +179,10 @@ class Profiler:
         detailed: bool = False,
         log_level: LogLevel = LogLevel.NONE,
         no_plots: list[PlottingLibrary] | None = None,
-        trace: bool = True,
-        profile_async: bool = False,
         live_update: float | str = float("inf"),
-        profile_only: list[str] | None = None,
         ignore_dirs: list[Path] | None = None,
         output_dir: Path | None = None,
-        **_: dict[str, Any],
+        **scalene_kwargs: dict,
     ) -> None:
         self.cpu_only = cpu_only
         self.precision = int(precision)
@@ -206,12 +204,10 @@ class Profiler:
         self._output_file = None  # type:ignore[ty:invalid-assignment]
         self._output_name: str = "profile_results"
         self._precision_limit: int = 10
-        self.trace: bool = trace
-        self.profile_async: bool = profile_async
         self.live_update: float = float(live_update)
-        self.profile_only: list[str] = profile_only if profile_only is not None else []
         self.ignored_folders: list[Path] = ignore_dirs if ignore_dirs is not None else []
         self.run_count: int = 0
+        self.scalene_kwargs = scalene_kwargs
 
         # Run the user defined setup config.
         if isinstance(path_or_config, ProfilerConfig):
@@ -470,10 +466,7 @@ class Profiler:
         sampling_detail = self.get_memory_precision()
         cmd = [
             f"{sys.executable} -m scalene run",
-            "--stacks" if self.trace else "--no-stacks",
-            " --async" if self.profile_async else " --no-async",
             "--profile-all" if self.detailed else "",
-            f"--profile-only={','.join(self.profile_only)}" if len(self.profile_only) > 1 else "",
             self.excluded_folders,
             f"--memory {sampling_detail}" if not self.cpu_only else "--cpu-only",
             f"--program-path {Config.root()}",
@@ -481,6 +474,7 @@ class Profiler:
             f"--outfile {self.output_json}",
         ]
         cmd.append(str(self.profile_file))
+        cmd.extend(scalene_kwargs_to_flags(self.scalene_kwargs))
         if self.script_args != []:
             cmd.append("---")
             cmd.extend(self.script_args)
@@ -562,7 +556,8 @@ class Profiler:
         logs_colored = f"\nCheck logs {Colour.purple(self.log_path)}{Colour.ORANGE(warning_str)}\n" if log_info else ""
 
         stack_report = ""
-        if self.trace:
+        show_stacks = self.scalene_kwargs.get("stacks", False)
+        if show_stacks:
             reporter = StackReporter(self.output_json)
             stack_report = reporter.report_stacks_for_top_functions(top_n=5)
 
@@ -570,7 +565,7 @@ class Profiler:
         self.output_summary.write_text(results, encoding="utf-8")
 
         summary = f"{finished}{usage.report}{logs_colored}{profile_summary}"
-        desc: str = "the stack traces of top function calls." if self.trace else "a copy of this summary."
+        desc: str = "the stack traces of top function calls." if show_stacks else "a copy of this summary."
         summary += f"\nSee {Colour.purple(self.path_to_summary)} for {desc}\n"
         return summary, profile_data
 

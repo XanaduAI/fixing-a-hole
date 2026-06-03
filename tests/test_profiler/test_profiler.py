@@ -189,7 +189,6 @@ class TestProfilerInit:
             detailed=True,
             log_level=LogLevel.DEBUG,
             no_plots=[PlottingLibrary.matplotlib, PlottingLibrary.plotly],
-            trace=False,
             output_dir=root_dir / "performance",
         )
 
@@ -200,7 +199,6 @@ class TestProfilerInit:
         assert profiler.detailed is True
         assert profiler.log_level == LogLevel.DEBUG
         assert profiler.no_plots == [PlottingLibrary.matplotlib, PlottingLibrary.plotly]
-        assert profiler.trace is False
 
     def test_init_handles_path_with_spaces(self, tmp_path: Path):
         """Test profiler initialization handles file names with spaces."""

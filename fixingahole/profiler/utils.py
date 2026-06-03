@@ -16,10 +16,6 @@
 import datetime
 import importlib.metadata
 import logging
-import os
-import re
-import subprocess
-import sys
 import warnings
 from collections.abc import Callable
 from enum import Enum
@@ -30,9 +26,7 @@ from typing import TYPE_CHECKING, overload
 
 from colours import Colour
 from rich._spinners import SPINNERS  # noqa: PLC2701
-from rich.console import Console
 from rich.live import Live
-from rich.markdown import Markdown
 from rich.spinner import Spinner as rich_Spinner
 from typer import Exit
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
@@ -348,37 +342,3 @@ class FileWatcher:
     ) -> None:
         """Stop the file watcher context."""
         self.stop()
-
-
-def get_scalene_help(cmd: list[str] | None = None, *, append: str = "") -> tuple[str, set[str]]:
-    """Render Scalene help commands."""
-    cmd = cmd if cmd is not None else ["run", "--help"]
-    res = subprocess.run(
-        [f"{sys.executable}", "-m", "scalene", *cmd],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=os.environ | {"LINES": "320", "COLUMNS": "160"},
-    )
-    scalene_help = ""
-    flags: set[str] = set()
-    if res.returncode == 0:
-        lines = res.stdout.splitlines()
-        rm: list[int] = []
-        for i, line in enumerate(lines):
-            if line.strip().startswith(("%", "examples", "usage")):
-                rm.append(i)
-            elif all(c == " " for c in line[:4]):
-                rm.append(i)
-                lines[i - 1] += "\t" + line.strip()
-        for i in sorted(rm, reverse=True):
-            del lines[i]
-
-        scalene_help = "\n\n".join(lines)
-        pattern = r"--[a-z]+(?:-[a-z]+)*"
-        flags = set(re.findall(pattern, scalene_help))
-        console = Console(highlight=False)
-        with console.capture() as capture:
-            console.print(Markdown(scalene_help))
-        scalene_help = capture.get()
-    return (scalene_help + append, flags)

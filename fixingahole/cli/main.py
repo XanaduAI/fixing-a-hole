@@ -23,18 +23,11 @@ from typer import Exit
 
 from fixingahole import Config, LogLevel, PlottingLibrary, Profiler, ProfileSummary, StatisticsManager, StatsSummary
 from fixingahole.config import DurationOption
-from fixingahole.profiler.utils import FindPathException, find_path, get_scalene_help
+from fixingahole.profiler.scalene_flags import get_scalene_help, scalene_flags_to_kwargs
+from fixingahole.profiler.utils import FindPathException, find_path
 
 app = typer.Typer(epilog="\u00a9 Xanadu Quantum Technologies")
 ModuleType = type(typer)
-
-# Get the Scalene RUN flags and help text.
-n = "\n\n\n"
-basic_help, basic_flags = get_scalene_help(["run", "--help"], append=n)
-adv_help, adv_flags = get_scalene_help(["run", "--help-advanced"], append=n)
-scalene_flags = basic_flags | adv_flags
-scalene_flags.discard("--help")
-scalene_flags.discard("--help-advanced")
 
 
 def profile(
@@ -80,26 +73,6 @@ def profile(
             rich_help_panel="Profiling",
         ),
     ] = 0,
-    trace: Annotated[
-        bool,
-        typer.Option(
-            "--trace/--no-trace",
-            "-t/-nt",
-            help="Capture the stack traces for the most expensive function calls.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = True,
-    profile_async: Annotated[
-        bool,
-        typer.Option(
-            "--async/--no-async",
-            "-a/-na",
-            help="Capture the stack traces for the most expensive function calls.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = False,
     log_level: Annotated[
         LogLevel,
         typer.Option(
@@ -131,15 +104,6 @@ def profile(
             rich_help_panel="Profiling",
         ),
     ] = float("inf"),
-    profile_only: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--profile-only",
-            help="Only profile files containing these strings",
-            show_default=False,
-            rich_help_panel="Profiling",
-        ),
-    ] = None,
     ignore: Annotated[
         list[str] | None,
         typer.Option(
@@ -215,6 +179,7 @@ def profile(
         )
         Colour.set_log_level("warning")
     Config.update_duration(duration.value if duration is not None else Config.settings().duration.value)
+    scalene_kwargs = scalene_flags_to_kwargs(python_script_args.args)
 
     # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
@@ -249,12 +214,10 @@ def profile(
         detailed=detailed,
         log_level=log_level,
         no_plots=no_plots,
-        trace=trace,
-        profile_async=profile_async,
         live_update=live,
-        profile_only=profile_only,
         ignore_dirs=ignore_dirs,
         output_dir=output_dir,
+        **scalene_kwargs,
     )
 
     cli_args = sys.argv
@@ -282,6 +245,8 @@ def profile(
 
 
 # Register the profile function as a command in this CLI
+basic_help = get_scalene_help(["run", "--help"], append="\n\n\n")
+adv_help = get_scalene_help(["run", "--help-advanced"], append="\n\n\n")
 app.command(
     no_args_is_help=True,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
