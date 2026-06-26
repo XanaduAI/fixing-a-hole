@@ -16,6 +16,7 @@
 import datetime
 import importlib.metadata
 import logging
+import threading
 import warnings
 from collections.abc import Callable
 from enum import Enum
@@ -28,6 +29,7 @@ from colours import Colour
 from rich._spinners import SPINNERS  # noqa: PLC2701
 from rich.live import Live
 from rich.spinner import Spinner as rich_Spinner
+from sympy import nextprime
 from typer import Exit
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
@@ -149,6 +151,24 @@ def memory_with_units(memory: float, unit: str = "MB", digits: int = 0) -> str:
         if memory_bytes >= byte_prefix[prefix]:
             return f"{memory_bytes / byte_prefix[prefix]:>3.{digits}f} {prefix}"
     return f"{memory_bytes:.{digits}f} bytes"
+
+
+def precision_to_allocation_window(precision: float) -> int:
+    """Convert a 'precision level' into a Scalene ``--allocation-sampling-window`` size in bytes.
+
+    A positive *precision* increases sampling resolution (smaller window, slower profiling).
+    A negative *precision* decreases sampling resolution (larger window, faster profiling).
+
+    Args:
+        precision: Sampling precision level, clamped to ``[-precision_limit, precision_limit]``.
+
+    Returns:
+        A prime number near ``10 MB / 2 ** precision`` to pass as
+        ``--allocation-sampling-window`` in bytes.
+
+    """
+    base_threshold = 10485767  # ~ 10 MB
+    return nextprime(int(base_threshold / 2**precision))
 
 
 class FindPathException(Exit):
@@ -313,10 +333,16 @@ class FileWatcher:
             def __init__(self, target_path: str, callback: Callable):
                 self.target_path = target_path
                 self.callback = callback
+                self._debounce_timer: threading.Timer | None = None
+                self._debounce_delay: float = 0.1
 
             def on_modified(self, event: FileSystemEvent) -> None:
                 if not event.is_directory and event.src_path == self.target_path:
-                    self.callback()
+                    if self._debounce_timer is not None:
+                        self._debounce_timer.cancel()
+                    self._debounce_timer = threading.Timer(self._debounce_delay, self.callback)
+                    self._debounce_timer.daemon = True
+                    self._debounce_timer.start()
 
         handler = FileChangeHandler(str(self.file_path), self.callback)
         self.observer = Observer()

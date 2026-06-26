@@ -28,11 +28,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, TextIO, runtime_checkable
 
 from colours import Colour
-from sympy import nextprime
 from typer import Exit
 
 from fixingahole import Config
-from fixingahole.profiler.scalene_flags import scalene_kwargs_to_flags
+from fixingahole.profiler.scalene_flags import scalene_flags_to_kwargs, scalene_kwargs_to_flags
 from fixingahole.profiler.utils import FileWatcher, LogLevel, PlottingLibrary, Spinner, date, memory_with_units
 
 if TYPE_CHECKING:
@@ -150,10 +149,8 @@ class Profiler:
         output_summary (Path): Summary text file with condensed profiling insights.
         log_file (Path): Log file capturing stdout/stderr during profiling.
         cpu_only (bool): If True, profile CPU only (no memory profiling).
-        precision (int): Memory allocation sampling precision (-10 to 10).
         detailed (bool): If True, profile all modules including libraries.
         log_level (LogLevel): Logging verbosity during profiling.
-        trace (bool): If True, capture stack traces for function calls.
         live_update (float): Interval in seconds for live output updates (inf = disabled).
         ignored_folders (list[Path]): Directories to exclude from profiling.
         run_count (int): Number of times run_profiler() has been called on this instance.
@@ -168,31 +165,34 @@ class Profiler:
         _profile_file: Path
         _output_file: Path
 
-    def __init__(  # noqa: PLR0915
+    def __init__(
         self,
         path_or_config: Path | ProfilerConfig,
         /,
         *,
         python_script_args: list[str] | None = None,
-        cpu_only: bool = True,
-        precision: int | str = 0,
-        detailed: bool = False,
         log_level: LogLevel = LogLevel.NONE,
         no_plots: list[PlottingLibrary] | None = None,
-        live_update: float | str = float("inf"),
         ignore_dirs: list[Path] | None = None,
         output_dir: Path | None = None,
-        **scalene_kwargs: dict,
+        **scalene_kwargs: bool | float | str | list[str],
     ) -> None:
-        self.cpu_only = cpu_only
-        self.precision = int(precision)
+        # Validate that the Scalene flags are all valid.
+        scalene_kwargs = scalene_flags_to_kwargs(scalene_kwargs_to_flags(scalene_kwargs))
+        # Extract Scalene flags needed for internal logic and remove them from the
+        # pass-through kwargs so they are not double-added when building the command.
+        has_memory = bool(scalene_kwargs.pop("memory", False))
+        has_cpu_only = bool(scalene_kwargs.pop("cpu_only", False))
+        self.cpu_only: bool = has_cpu_only or not has_memory
+        self.detailed: bool = bool(scalene_kwargs.pop("profile_all", False))
+        self.live_update: float = float(scalene_kwargs.get("profile_interval", float("inf")))
+
         self.platform = HOST
 
         #  Assert correct python environment.
         self.assert_platform_os()
 
         self.script_args: list[str] = python_script_args if python_script_args is not None else []
-        self.detailed: bool = detailed
         self.log_level: LogLevel = log_level
         self.no_plots: list[PlottingLibrary] = (
             [PlottingLibrary(no_plots)] if isinstance(no_plots, str) else (no_plots if no_plots is not None else [])
@@ -203,8 +203,6 @@ class Profiler:
         self._profile_file = None  # type:ignore[ty:invalid-assignment]
         self._output_file = None  # type:ignore[ty:invalid-assignment]
         self._output_name: str = "profile_results"
-        self._precision_limit: int = 10
-        self.live_update: float = float(live_update)
         self.ignored_folders: list[Path] = ignore_dirs if ignore_dirs is not None else []
         self.run_count: int = 0
         self.scalene_kwargs = scalene_kwargs
@@ -254,10 +252,8 @@ class Profiler:
     def assert_platform_os(self) -> None:
         """Explain that memory profiling is not available on Windows."""
         if not self.cpu_only and HOST is Platform.Windows:
-            Colour.error("Memory profiling is not available on Windows\nUsing --cpu")
+            Colour.error("Memory profiling is not available on Windows\nUsing --cpu-only")
             self.cpu_only = True
-        if self.cpu_only and self.precision != 0:
-            Colour.warning("--precision option is not used with --cpu")
 
     @property
     def in_place(self) -> bool:
@@ -345,16 +341,6 @@ class Profiler:
         """A relative path (from the repo root) of the logs caught during profiling."""
         return Config.relative_to_cwd(self.log_file)
 
-    @property
-    def precision_limit(self) -> int:
-        """The precision limit on the memory allocation threshold."""
-        return self._precision_limit
-
-    @precision_limit.setter
-    def precision_limit(self, value: int) -> None:
-        """Precision limit on the memory allocation threshold."""
-        self._precision_limit = abs(int(value))
-
     @staticmethod
     def convert_ipynb_to_py(file_contents: str) -> str:
         """Convert an ipynb to a python script."""
@@ -369,19 +355,6 @@ class Profiler:
             Colour.error(msg)
             raise ProfilerException(msg)
         return executable
-
-    def get_memory_precision(self) -> str:
-        """Given an integer, return the memory allocation size to monitor for."""
-        verbosity = (
-            max(-self.precision_limit, self.precision) if self.precision < 0 else min(self.precision_limit, self.precision)
-        )
-        if verbosity != self.precision:
-            Colour.warning(
-                f"Warning: -{self.precision_limit} <= precision <= {self.precision_limit}",
-            )
-        memory_threshold = 10485767  # ~ 10 MB
-        memory_threshold = nextprime(int(memory_threshold / 2**verbosity))
-        return f"--allocation-sampling-window={memory_threshold}"
 
     def prepare_code_for_profiling(self) -> None:
         """Make a copy of the code being profiled.
@@ -463,14 +436,12 @@ class Profiler:
     @property
     def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
-        sampling_detail = self.get_memory_precision()
         cmd = [
             f"{sys.executable} -m scalene run",
             "--profile-all" if self.detailed else "",
             self.excluded_folders,
-            f"--memory {sampling_detail}" if not self.cpu_only else "--cpu-only",
+            "--memory" if not self.cpu_only else "--cpu-only",
             f"--program-path {Config.root()}",
-            f"--profile-interval {self.live_update}" if 0 < self.live_update < float("inf") else "",
             f"--outfile {self.output_json}",
         ]
         cmd.append(str(self.profile_file))
@@ -495,8 +466,14 @@ class Profiler:
         def _forward_stderr(pipe: TextIO) -> None:
             """Forward stderr to the terminal, suppressing Scalene's own status lines."""
             suppress = ("Scalene: profile saved", "  To view in browser:", "  To view in terminal:")
+            prev_suppressed = False
             for line in pipe:
-                if not line.startswith(suppress):
+                if line.startswith(suppress):
+                    prev_suppressed = True
+                elif line == "\n" and prev_suppressed:
+                    prev_suppressed = False
+                else:
+                    prev_suppressed = False
                     stderr_tail.append(line)
                     sys.stderr.write(line)
                     sys.stderr.flush()

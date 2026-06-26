@@ -95,21 +95,21 @@ select = [
     "YTT",
 ]
 ignore = [
+    "C901",
     "COM812",
     "D107",
     "D203",
     "D213",
     "FURB140",
+    "PLR0912",
     "PLR0913",
+    "PLR0914",
+    "PLR0915",
     "RUF003",
     "S404",
     "S311",
     "S603",
 ]
-
-[tool.ruff.lint.pylint]
-max-locals = 25
-max-public-methods = 25
 
 [tool.ruff.lint.flake8-annotations]
 mypy-init-return = true

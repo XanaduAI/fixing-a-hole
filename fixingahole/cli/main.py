@@ -40,39 +40,7 @@ def profile(
             rich_help_panel="Profiling",
         ),
     ],
-    python_script_args: typer.Context,
-    cpu_only: Annotated[
-        bool,
-        typer.Option(
-            "--cpu/--memory",
-            "-c/-m",
-            help="Profile only the CPU runtime or both CPU and memory usage of the script or notebook.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = True,
-    detailed: Annotated[
-        bool,
-        typer.Option(
-            "--detailed",
-            "-d",
-            help="Also profile how external libraries and modules are used.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = False,
-    precision: Annotated[
-        int,
-        typer.Option(
-            "--precision",
-            "-p",
-            help="Level of memory sampling precision. -10 is fastest, least precise; 10 is slowest, most precise.",
-            show_default="0",
-            min=-10,
-            max=10,
-            rich_help_panel="Profiling",
-        ),
-    ] = 0,
+    ctx: typer.Context,
     log_level: Annotated[
         LogLevel,
         typer.Option(
@@ -95,15 +63,6 @@ def profile(
             rich_help_panel="Preprocessing",
         ),
     ] = None,
-    live: Annotated[
-        float,
-        typer.Option(
-            help="Update the profile output every so many seconds as the profiling happens.",
-            show_default=True,
-            min=1,
-            rich_help_panel="Profiling",
-        ),
-    ] = float("inf"),
     ignore: Annotated[
         list[str] | None,
         typer.Option(
@@ -179,7 +138,13 @@ def profile(
         )
         Colour.set_log_level("warning")
     Config.update_duration(duration.value if duration is not None else Config.settings().duration.value)
-    scalene_kwargs = scalene_flags_to_kwargs(python_script_args.args)
+    all_args = ctx.args
+    if "---" in all_args:
+        sep = all_args.index("---")
+        scalene_args, script_args = all_args[:sep], all_args[sep + 1 :]
+    else:
+        scalene_args, script_args = all_args, []
+    scalene_kwargs = scalene_flags_to_kwargs(scalene_args)
 
     # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
@@ -208,13 +173,9 @@ def profile(
 
     profiler = Profiler(
         python_file,
-        python_script_args=python_script_args.args,
-        cpu_only=cpu_only,
-        precision=precision,
-        detailed=detailed,
+        python_script_args=script_args,
         log_level=log_level,
         no_plots=no_plots,
-        live_update=live,
         ignore_dirs=ignore_dirs,
         output_dir=output_dir,
         **scalene_kwargs,

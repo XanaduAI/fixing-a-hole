@@ -27,8 +27,6 @@ from scalene.scalene_parseargs import ScaleneParseArgs
 
 RESERVED = {
     "outfile",
-    "profile_interval",
-    "allocation_sampling_window",
     "program_path",
     "config_file",
     "unused_args",
@@ -140,6 +138,7 @@ def scalene_kwargs_to_flags(kwargs: dict) -> list[str]:
 def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:
     """Convert a Click.Context.args (list[str]) into Scalene kwargs."""
     result: dict = {}
+    unknown: list[str] = []
     args = [part for a in ctx_args for part in (a.split("=") if "=" in a else [a])]
     i = 0
     while i < len(args):
@@ -173,5 +172,13 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:
             else:
                 i += 1
         else:
+            unknown.append(token)
             i += 1
+    if unknown:
+        flags = "\n ".join([Colour.green(f"--{f.replace('_', '-')}") for f in sorted(_ALIASES)])
+        s = "s" if len(unknown) > 1 else ""
+        msg = f"Unknown flag{s}: {[Colour.orange(u) for u in unknown]}. Was a script argument placed before the `---`?"
+        msg += f"\n{Colour.GREEN('Valid Scalene flags:')}\n {flags}"
+        Colour.error(msg)
+        raise sys.exit(1)
     return result

@@ -149,13 +149,10 @@ class TestProfilerInit:
 
     def test_init_with_file_path(self, mock_file: Path):
         """Test profiler initialization with a file path."""
-        precision_limit = 10
         profiler = Profiler(mock_file)
 
         assert profiler.cpu_only is True
         assert profiler.script_args == []
-        assert profiler.precision == 0
-        assert profiler.precision_limit == precision_limit
         assert profiler.detailed is False
         assert profiler.log_level == LogLevel.NONE
         assert profiler.no_plots == []
@@ -179,14 +176,10 @@ class TestProfilerInit:
 
     def test_init_with_all_options(self, mock_file: Path, root_dir: Path):
         """Test profiler initialization with all options set."""
-        precision_value = 3
-        precision_limit = 10
         profiler = Profiler(
             mock_file,
             python_script_args=["arg1", "arg2"],
-            cpu_only=True,
-            precision=precision_value,
-            detailed=True,
+            profile_all=True,
             log_level=LogLevel.DEBUG,
             no_plots=[PlottingLibrary.matplotlib, PlottingLibrary.plotly],
             output_dir=root_dir / "performance",
@@ -194,8 +187,6 @@ class TestProfilerInit:
 
         assert profiler.cpu_only is True
         assert profiler.script_args == ["arg1", "arg2"]
-        assert profiler.precision == precision_value
-        assert profiler.precision_limit == precision_limit
         assert profiler.detailed is True
         assert profiler.log_level == LogLevel.DEBUG
         assert profiler.no_plots == [PlottingLibrary.matplotlib, PlottingLibrary.plotly]
@@ -207,13 +198,6 @@ class TestProfilerInit:
         profiler = Profiler(test_file)
 
         assert profiler.filestem == "test_script_with_spaces"
-
-    def test_init_precision_conversion(self, mock_file: Path):
-        """Test that precision parameter is properly converted to int."""
-        value = 5
-        profiler = Profiler(mock_file, precision=str(value))
-        assert profiler.precision == value
-        assert isinstance(profiler.precision, int)
 
     def test_init_custom_output_dir(self, mock_file: Path, root_dir: Path, non_local_dir: Path):
         """Test profiler initialization with in_place=True and custom output_dir."""
@@ -260,7 +244,7 @@ class TestProfilerProperties:
 
     def test_excluded_folders_property(self, mock_file: Path):
         """Test the excluded_folders property."""
-        profiler = Profiler(mock_file, detailed=True)
+        profiler = Profiler(mock_file, profile_all=True)
         excluded = profiler.excluded_folders
         # Should contain the system python directory exclude flag
         if sys.executable:
@@ -389,72 +373,6 @@ class TestProfilerIPythonNotebookConversion:
         with pytest.raises(ProfilerException) as exc_info:
             Profiler.convert_ipynb_to_py(json.dumps(notebook_content))
         assert exc_info.value.exit_code == 1
-
-
-class TestProfilerMemoryPrecision:
-    """Test the get_memory_precision method."""
-
-    DEFAULT_THRESHOLD = 10485767
-
-    def test_get_memory_precision_default(self, mock_file: Path):
-        """Test memory precision with default value."""
-        profiler = Profiler(mock_file, precision=0)
-        result = profiler.get_memory_precision()
-        assert result.startswith("--allocation-sampling-window=")
-        # Should contain a prime number around 10MB
-        threshold = int(result.split("=")[1])
-        low, high = 10000000, 11000000
-        assert low <= threshold <= high  # Around 10MB range
-
-    def test_get_memory_precision_high_verbosity(self, mock_file: Path):
-        """Test memory precision with high verbosity (small threshold)."""
-        profiler = Profiler(mock_file, precision=3)
-        result = profiler.get_memory_precision()
-        assert result.startswith("--allocation-sampling-window=")
-        # Should be smaller than default (10MB / 2^3 = ~1.25MB)
-        threshold = int(result.split("=")[1])
-        low = 1e6
-        assert low < threshold < self.DEFAULT_THRESHOLD
-
-    def test_get_memory_precision_low_verbosity(self, mock_file: Path):
-        """Test memory precision with low verbosity (large threshold)."""
-        profiler = Profiler(mock_file, precision=-3)
-
-        result = profiler.get_memory_precision()
-
-        assert result.startswith("--allocation-sampling-window=")
-        # Should be larger than default (10MB * 2^3 = ~80MB)
-        threshold = int(result.split("=")[1])
-        high = 9e7
-        assert high > threshold > self.DEFAULT_THRESHOLD
-
-    def test_get_memory_precision_clamp_values(self, mock_file: Path):
-        """Test that precision values are clamped to a range."""
-        with patch("fixingahole.profiler.utils.Colour.warning") as mock_color_warning:
-            for test_val in [-25, 25]:
-                mock_color_warning.reset_mock()
-                profiler = Profiler(mock_file, precision=test_val)
-                profiler.get_memory_precision()
-                limit = profiler.precision_limit
-                warning = f"Warning: -{limit} <= precision <= {limit}"
-                mock_color_warning.assert_called_with(warning)
-
-    def test_adjusted_memory_precision_clamp_values(self, mock_file: Path):
-        """Test that precision values are clamped to a range."""
-        for test_val in [-25, 25]:
-            profiler = Profiler(mock_file, precision=test_val)
-            profiler.precision_limit = test_val * 2
-            result = profiler.get_memory_precision()
-            threshold = int(result.split("=")[1])
-            default = 10485767
-            assert (default / 2 ** abs(test_val)) < threshold < (default * 2 ** (abs(test_val) + 1))
-
-    def test_get_memory_precision_valid_range_no_warning(self, mock_file: Path):
-        """Test that valid precision values don't trigger warnings."""
-        with patch("fixingahole.profiler.utils.Colour.info") as mock_color_log:
-            profiler = Profiler(mock_file, precision=3)
-            profiler.get_memory_precision()
-            mock_color_log.assert_not_called()
 
 
 class TestProfilerCodePreparation:
