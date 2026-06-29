@@ -376,7 +376,7 @@ class TestProfilerIPythonNotebookConversion:
 
 
 class TestProfilerCodePreparation:
-    """Test the prepare_code_for_profiling method."""
+    """Test the _init_prepare_code_for_profiling method."""
 
     def test_prepare_code_for_profiling_basic(self, tmp_path: Path):
         """Test basic code preparation for profiling."""
@@ -385,7 +385,7 @@ class TestProfilerCodePreparation:
         test_file.write_text(test_code)
 
         profiler = Profiler(test_file, log_level=LogLevel.INFO)
-        profiler.prepare_code_for_profiling()
+        profiler._init_prepare_code_for_profiling()  # noqa: SLF001
 
         # Check that the profile file was created and contains expected content
         profile_content = profiler.profile_file.read_text()
@@ -407,8 +407,8 @@ class TestProfilerCodePreparation:
         test_file.write_text(test_code)
 
         # Passing a string is technically allowed, even if the type checker doesn't like it.
-        profiler = Profiler(test_file, no_plots="matplotlib")  # type:ignore[ty:invalid-argument-type]
-        profiler.prepare_code_for_profiling()
+        profiler = Profiler(test_file, no_plots="matplotlib")  # ty:ignore[invalid-argument-type]
+        profiler._init_prepare_code_for_profiling()  # noqa: SLF001
         profile_content = profiler.profile_file.read_text()
 
         # Should contain plot mocking for `matplotlib`
@@ -431,7 +431,7 @@ class TestProfilerCodePreparation:
         test_file.write_text(json.dumps(notebook_content))
 
         profiler = Profiler(test_file)
-        profiler.prepare_code_for_profiling()
+        profiler._init_prepare_code_for_profiling()  # noqa: SLF001
         profile_content = profiler.profile_file.read_text()
 
         # Should contain converted notebook content
@@ -442,7 +442,7 @@ class TestProfilerCodePreparation:
         """Test code preparation with a log level of NONE."""
         profiler = Profiler(mock_file, log_level=LogLevel.NONE)
 
-        profiler.prepare_code_for_profiling()
+        profiler._init_prepare_code_for_profiling()  # noqa: SLF001
         profile_content = profiler.profile_file.read_text()
 
         # Should not contain warning capture because log level is NONE.
@@ -454,7 +454,7 @@ class TestProfilerCodePreparation:
         test_file.write_text("print('hello world')")
 
         profiler = Profiler(test_file, log_level=LogLevel.ERROR)
-        profiler.prepare_code_for_profiling()
+        profiler._init_prepare_code_for_profiling()  # noqa: SLF001
         profile_content = profiler.profile_file.read_text()
 
         # Should NOT contain warning capture
@@ -536,7 +536,7 @@ class TestProfilerConfig:
         assert not isinstance(a_func, ProfilerConfig)
 
         # Add a callable property that takes "profiler" as an argument.
-        a_func.setup = a_func  # type:ignore[ty:unresolved-attribute]
+        a_func.setup = a_func  # ty:ignore[unresolved-attribute]
 
         # Verify it's recognized as a ProfilerConfig
         assert isinstance(a_func, ProfilerConfig)
@@ -568,10 +568,10 @@ class TestProfilerConfig:
             """Also does nothing."""
 
         with pytest.raises(TypeError):
-            Profiler(NullConfig())  # type:ignore[ty:invalid-argument-type]
+            Profiler(NullConfig())  # ty:ignore[invalid-argument-type]
 
         with pytest.raises(TypeError):
-            Profiler(lambda: "")  # type:ignore[ty:invalid-argument-type]
+            Profiler(lambda: "")  # ty:ignore[invalid-argument-type]
 
         with pytest.raises(TypeError):
-            Profiler(setup)  # type:ignore[ty:invalid-argument-type]
+            Profiler(setup)  # ty:ignore[invalid-argument-type]

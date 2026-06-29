@@ -23,7 +23,7 @@ from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
 from types import TracebackType
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING, Self, overload
 
 from colours import Colour
 from rich._spinners import SPINNERS  # noqa: PLC2701
@@ -94,7 +94,7 @@ class LogLevel(Enum):
 
     @property
     def level(self) -> int:
-        """Return the numeric logging level corresponding to this log level.
+        """The numeric logging level corresponding to this log level.
 
         LogLevel.NONE is a sentinel meaning "do not capture output".
         It has no stdlib equivalent but is considered to be level 100.
@@ -160,7 +160,7 @@ def precision_to_allocation_window(precision: float) -> int:
     A negative *precision* decreases sampling resolution (larger window, faster profiling).
 
     Args:
-        precision: Sampling precision level, clamped to ``[-precision_limit, precision_limit]``.
+        precision: Sampling precision level.
 
     Returns:
         A prime number near ``10 MB / 2 ** precision`` to pass as
@@ -355,7 +355,7 @@ class FileWatcher:
             self.observer.stop()
             self.observer.join(timeout=1.0)
 
-    def __enter__(self) -> "FileWatcher":
+    def __enter__(self) -> Self:
         """Start the file watcher context."""
         self.start()
         return self

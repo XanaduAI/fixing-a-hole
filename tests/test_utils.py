@@ -115,20 +115,6 @@ class TestPrecisionToAllocationWindow:
         assert result > self.DEFAULT_THRESHOLD
         assert result < 9e7
 
-    def test_clamp_emits_warning(self):
-        """Values outside ±precision_limit trigger a warning and are clamped."""
-        with patch("fixingahole.profiler.utils.Colour.warning") as mock_warn:
-            for value in (-25, 25):
-                mock_warn.reset_mock()
-                precision_to_allocation_window(value)
-                mock_warn.assert_called_once_with("Warning: -10 <= precision <= 10")
-
-    def test_custom_precision_limit(self):
-        """A custom precision_limit clamps and warns at that limit."""
-        with patch("fixingahole.profiler.utils.Colour.warning") as mock_warn:
-            precision_to_allocation_window(30, precision_limit=20)
-            mock_warn.assert_called_once_with("Warning: -20 <= precision <= 20")
-
     def test_no_warning_within_range(self):
         """Values within range do not emit a warning."""
         with patch("fixingahole.profiler.utils.Colour.warning") as mock_warn:

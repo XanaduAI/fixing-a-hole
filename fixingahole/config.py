@@ -20,7 +20,7 @@ from contextlib import suppress
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from colours import Colour
 
@@ -254,7 +254,7 @@ class Config:
 
     _settings: Settings = Settings.defaults()
 
-    def __new__(cls) -> "Config":
+    def __new__(cls) -> Self:
         """Prevent instantiation — :class:`Config` is a class-only namespace."""
         msg = f"{cls.__name__} cannot be instantiated."
         raise TypeError(msg)

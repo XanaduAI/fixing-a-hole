@@ -17,7 +17,9 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import click
 import typer
+import typer.core
 from colours import Colour
 from typer import Exit
 
@@ -28,6 +30,15 @@ from fixingahole.profiler.utils import FindPathException, find_path
 
 app = typer.Typer(epilog="\u00a9 Xanadu Quantum Technologies")
 ModuleType = type(typer)
+
+
+class _LazyEpilogCommand(typer.core.TyperCommand):
+    """TyperCommand that defers expensive epilog construction until ``--help`` is rendered."""
+
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        if callable(self.epilog):
+            self.epilog = self.epilog()
+        super().format_help(ctx, formatter)
 
 
 def profile(
@@ -149,13 +160,12 @@ def profile(
     # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
     full_path = (Config.root() / filename).resolve()
-    if full_path.exists() and not full_path.is_dir():
-        python_file = full_path
-    else:
-        python_file: Path = find_path(filename, Config.root(), exclude=[*Config.ignore(), ".venv", ".git"])
-        if python_file.is_dir():
-            Colour.error("Error: cannot profile a directory.")
-            raise Exit(code=1)
+    python_file = (
+        full_path if full_path.is_file() else find_path(filename, Config.root(), exclude=[*Config.ignore(), ".venv", ".git"])
+    )
+    if python_file.is_dir():
+        Colour.error("Error: cannot profile a directory.")
+        raise Exit(code=1)
 
     ignore_dirs: list = []
     if ignore is not None:
@@ -205,14 +215,22 @@ def profile(
         stats_file.with_suffix(".txt").write_text(summary_text, encoding="utf-8")
 
 
-# Register the profile function as a command in this CLI
-basic_help = get_scalene_help(["run", "--help"], append="\n\n\n")
-adv_help = get_scalene_help(["run", "--help-advanced"], append="\n\n\n")
+# Register the profile function as a command in this CLI.
+# The epilog embeds Scalene's own --help output; compute it lazily so that
+# importing this module (e.g. for tab-completion or --version) does not pay
+# the cost of two subprocess invocations.
+def _build_profile_epilog() -> str:
+    basic_help = get_scalene_help(["run", "--help"], append="\n\n\n")
+    adv_help = get_scalene_help(["run", "--help-advanced"], append="\n\n\n")
+    return f"{basic_help}{adv_help}\u00a9 Xanadu Quantum Technologies"
+
+
 app.command(
     no_args_is_help=True,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
     rich_help_panel="Utilities",
-    epilog=f"{basic_help}{adv_help}\u00a9 Xanadu Quantum Technologies",
+    epilog=_build_profile_epilog,
+    cls=_LazyEpilogCommand,
 )(profile)
 
 

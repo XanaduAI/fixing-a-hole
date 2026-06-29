@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Convert Profiler kwargs / typer.Context into `scalene run` tokens."""
+"""Convert Profiler kwargs / CLI tokens into ``scalene run`` flags and back."""
 
 import argparse
 import os
@@ -161,13 +161,14 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:
                     except ValueError:
                         continue
                 val = [v.strip() for v in val.split(",")] if isinstance(val, str) and "," in val else val
-                if key not in result:
-                    result[key] = val
-                else:
-                    result[key] = [
+                result[key] = (
+                    val
+                    if key not in result
+                    else [
                         *(result[key] if isinstance(result[key], list) else (result[key],)),
                         *(val if isinstance(val, list) else (val,)),
                     ]
+                )
                 i += 2
             else:
                 i += 1
@@ -180,5 +181,5 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:
         msg = f"Unknown flag{s}: {[Colour.orange(u) for u in unknown]}. Was a script argument placed before the `---`?"
         msg += f"\n{Colour.GREEN('Valid Scalene flags:')}\n {flags}"
         Colour.error(msg)
-        raise sys.exit(1)
+        sys.exit(1)
     return result
