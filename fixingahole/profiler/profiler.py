@@ -157,9 +157,7 @@ class Profiler:
         output_summary (Path): Summary text file with condensed profiling insights.
         log_file (Path): Log file capturing stdout/stderr during profiling.
         cpu_only (bool): If True, profile CPU only (no memory profiling).
-        detailed (bool): If True, profile all modules including libraries.
         log_level (LogLevel): Logging verbosity during profiling.
-        live_update (float): Live-update interval in seconds derived from ``--profile-interval`` (``inf`` = disabled).
         scalene_kwargs (dict): Pass-through Scalene flags forwarded verbatim to the ``scalene run`` command.
         ignored_folders (list[Path]): Directories to exclude from profiling.
         run_count (int): Number of times run_profiler() has been called on this instance.
@@ -187,7 +185,9 @@ class Profiler:
         precision: float | None = None,
         **scalene_kwargs: bool | float | str | list[str],
     ) -> None:
+        self.platform = HOST
         self._init_scalene_kwargs(scalene_kwargs, precision)
+        self.assert_platform_os()
         self._init_attrs(python_script_args, log_level, no_plots, ignore_dirs)
         self._resolve_python_file(path_or_config)
         self._init_output_paths(output_dir)
@@ -198,18 +198,14 @@ class Profiler:
         scalene_kwargs: dict[str, bool | float | str | list[str]],
         precision: float | None,
     ) -> None:
-        """Validate Scalene flags, extract internal-logic keys, and apply precision."""
+        """Validate Scalene flags and apply precision."""
         scalene_kwargs = scalene_flags_to_kwargs(scalene_kwargs_to_flags(scalene_kwargs))
         # Extract Scalene flags needed for internal logic and remove them from the
         # pass-through kwargs so they are not double-added when building the command.
         self.cpu_only: bool = bool(scalene_kwargs.pop("cpu_only", False)) or not bool(scalene_kwargs.pop("memory", False))
-        self.detailed: bool = bool(scalene_kwargs.pop("profile_all", False))
-        self.live_update: float = float(scalene_kwargs.get("profile_interval", float("inf")))
         # Translate precision to --allocation-sampling-window, if unset.
         if precision is not None and not self.cpu_only:
             scalene_kwargs.setdefault("allocation_sampling_window", precision_to_allocation_window(precision))
-        self.platform = HOST
-        self.assert_platform_os()
         self.scalene_kwargs = scalene_kwargs
 
     def _init_attrs(
@@ -335,14 +331,14 @@ class Profiler:
         return not (self.no_plots or self.python_file.suffix != ".py" or self.log_level.capture_output())
 
     @property
-    def excluded_folders(self) -> str:
+    def excluded_folders(self) -> list[str]:
         """Scalene flag to exclude system python directory when profiling all modules."""
         exclude_dir: list[Path] = [
             Path(os.getenv("APPDATA") or sys.prefix) if HOST is Platform.Windows else Path(sys.executable).resolve().parents[1]
         ]
         exclude_dir.extend([folder for folder in Config.ignore() if folder != Config.output()])
         exclude_dir.extend(self.ignored_folders)  # allow users to ignore the OUTPUT_DIR if they want to.
-        return f"--profile-exclude {','.join(map(str, exclude_dir))}"
+        return ["--profile-exclude", ",".join(map(str, exclude_dir))]
 
     @property
     def profile_file(self) -> Path:
@@ -454,21 +450,33 @@ class Profiler:
     @property
     def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
+        scalene_flags = dict(self.scalene_kwargs)
+        # Merge any user-supplied --profile-exclude paths with the internally excluded folders
+        # so that Scalene receives a single, deduplicated --profile-exclude flag.
+        exclude_flag, exclude_csv = self.excluded_folders
+        user_exclude = scalene_flags.pop("profile_exclude", None)
+        if user_exclude is not None:
+            user_paths = user_exclude if isinstance(user_exclude, list) else [str(user_exclude)]
+            exclude_csv = ",".join([exclude_csv, *user_paths])
         cmd = [
-            f"{sys.executable} -m scalene run",
-            "--profile-all" if self.detailed else "",
-            self.excluded_folders,
+            sys.executable,
+            "-m",
+            "scalene",
+            "run",
+            exclude_flag,
+            exclude_csv,
             "--memory" if not self.cpu_only else "--cpu-only",
-            f"--program-path {Config.root()}",
-            f"--outfile {self.output_json}",
+            "--program-path",
+            str(Config.root()),
+            "--outfile",
+            str(self.output_json),
+            str(self.profile_file),
+            *scalene_kwargs_to_flags(scalene_flags),
         ]
-        cmd.append(str(self.profile_file))
-        cmd.extend(scalene_kwargs_to_flags(self.scalene_kwargs))
-        if self.script_args != []:
+        if self.script_args:
             cmd.append("---")
             cmd.extend(self.script_args)
-        cmd_str = " ".join([ln.strip() for ln in cmd if ln]).strip()
-        return cmd_str.split()
+        return cmd
 
     def _run_scalene(self, usage: ResourceUsage) -> None:
         """Launch the Scalene subprocess, forwarding stderr while suppressing Scalene's own status lines."""
@@ -571,7 +579,7 @@ class Profiler:
             # Profile the code.
             watcher = (
                 FileWatcher(file_path=self.output_json, on_change_callback=self.json_to_tables)
-                if 0 < self.live_update < float("inf")
+                if 0 < float(self.scalene_kwargs.get("profile_interval", float("inf"))) < float("inf")
                 else contextlib.nullcontext()
             )
             with Spinner(), watcher, ResourceUsage() as usage:

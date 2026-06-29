@@ -153,7 +153,6 @@ class TestProfilerInit:
 
         assert profiler.cpu_only is True
         assert profiler.script_args == []
-        assert profiler.detailed is False
         assert profiler.log_level == LogLevel.NONE
         assert profiler.no_plots == []
         assert profiler.filestem == basic_name()
@@ -187,7 +186,6 @@ class TestProfilerInit:
 
         assert profiler.cpu_only is True
         assert profiler.script_args == ["arg1", "arg2"]
-        assert profiler.detailed is True
         assert profiler.log_level == LogLevel.DEBUG
         assert profiler.no_plots == [PlottingLibrary.matplotlib, PlottingLibrary.plotly]
 
