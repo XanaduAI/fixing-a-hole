@@ -573,3 +573,27 @@ class TestProfilerConfig:
 
         with pytest.raises(TypeError):
             Profiler(setup)  # ty:ignore[invalid-argument-type]
+
+
+class TestScaleneRunCmd:
+    """Targeted tests for _scalene_run_cmd construction (Bug 1 regression)."""
+
+    def test_cpu_only_flag_not_duplicated_in_run_cmd(self, mock_file: Path):
+        """Passing --cpu-only should not emit --cpu-only twice in the command."""
+        profiler = Profiler(mock_file, cpu_only=True)
+        cmd = profiler._scalene_run_cmd  # noqa: SLF001
+        assert cmd.count("--cpu-only") == 1
+
+    def test_memory_flag_not_duplicated_in_run_cmd(self, mock_file: Path):
+        """Passing --memory should not emit --memory twice in the command."""
+        profiler = Profiler(mock_file, memory=True)
+        cmd = profiler._scalene_run_cmd  # noqa: SLF001
+        assert cmd.count("--memory") == 1
+
+    def test_cpu_only_and_memory_together_cpu_wins(self, mock_file: Path):
+        """When both --cpu-only and --memory are passed, --cpu-only wins and --memory is absent."""
+        profiler = Profiler(mock_file, cpu_only=True, memory=True)
+        cmd = profiler._scalene_run_cmd  # noqa: SLF001
+        assert "--cpu-only" in cmd
+        assert "--memory" not in cmd
+        assert cmd.count("--cpu-only") == 1

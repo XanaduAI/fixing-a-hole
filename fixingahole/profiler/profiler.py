@@ -202,7 +202,12 @@ class Profiler:
         scalene_kwargs = scalene_flags_to_kwargs(scalene_kwargs_to_flags(scalene_kwargs))
         # Extract Scalene flags needed for internal logic and remove them from the
         # pass-through kwargs so they are not double-added when building the command.
-        self.cpu_only: bool = bool(scalene_kwargs.pop("cpu_only", False)) or not bool(scalene_kwargs.pop("memory", False))
+        # Scalene's argparse dest for --cpu-only is "cpu", not "cpu_only".
+        cpu_flag: bool = bool(scalene_kwargs.pop("cpu", False))
+        memory_flag: bool = bool(scalene_kwargs.pop("memory", False))
+        if cpu_flag and memory_flag:
+            Colour.warning("Warning: --cpu-only and --memory are mutually exclusive; ignoring --memory.")
+        self.cpu_only: bool = cpu_flag or not memory_flag
         # Translate precision to --allocation-sampling-window, if unset.
         if precision is not None and not self.cpu_only:
             scalene_kwargs.setdefault("allocation_sampling_window", precision_to_allocation_window(precision))
@@ -457,7 +462,7 @@ class Profiler:
         user_exclude = scalene_flags.pop("profile_exclude", None)
         if user_exclude is not None:
             user_paths = user_exclude if isinstance(user_exclude, list) else [str(user_exclude)]
-            exclude_csv = ",".join([exclude_csv, *user_paths])
+            exclude_csv = ",".join(set(exclude_csv.split(",")) | set(user_paths))
         cmd = [
             sys.executable,
             "-m",

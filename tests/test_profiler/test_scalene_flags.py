@@ -127,6 +127,11 @@ class TestScaleneFlagsToKwargs:
         result = scalene_flags_to_kwargs([f"{flag}={val}"])
         assert dest in result
 
+    def test_value_flag_equals_with_equals_in_value(self):
+        """A value flag in --flag=foo=bar form should not split on the second '='."""
+        result = scalene_flags_to_kwargs(["--profile-only=foo=bar"])
+        assert result.get("profile_only") == "foo=bar"
+
     def test_integer_value_is_cast(self):
         """Numeric strings for value flags should be cast to int or float."""
         flag, _ = _known_value_flag()
@@ -147,18 +152,41 @@ class TestScaleneFlagsToKwargs:
         with pytest.raises(SystemExit):
             scalene_flags_to_kwargs(["--not-a-real-scalene-flag"])
 
+    def test_reserved_cli_flag_exits_with_managed_message(self, capsys: pytest.CaptureFixture[str]):
+        """Passing a reserved CLI flag (e.g. --outfile) should exit with a 'managed by fixing-a-hole' message."""
+        from fixingahole.profiler.scalene_flags import _RESERVED_TOKEN_MAP  # noqa: PLC0415, PLC2701
+
+        if not _RESERVED_TOKEN_MAP:
+            pytest.skip("No reserved CLI tokens found in this Scalene version")
+        token = next(iter(_RESERVED_TOKEN_MAP))
+        with pytest.raises(SystemExit):
+            scalene_flags_to_kwargs([token])
+        captured = capsys.readouterr()
+        assert "managed by fixing-a-hole" in captured.err or "managed by fixing-a-hole" in captured.out
+
     def test_duplicate_boolean_flag_raises_duplicate_key_error(self):
         """Passing the same boolean flag twice should raise DuplicateKeyError."""
         flag = _known_bool_flag()
         with pytest.raises(DuplicateKeyError):
             scalene_flags_to_kwargs([flag, flag])
 
-    def test_repeated_value_flag_accumulates_list(self):
-        """Supplying the same value flag twice should merge the values into a list."""
-        flag, _ = _known_value_flag()
-        dest = _TOKEN_MAP[flag][0]
-        result = scalene_flags_to_kwargs([flag, "a", flag, "b"])
-        assert isinstance(result[dest], list)
+    def test_repeated_scalar_value_flag_takes_last_wins(self):
+        """Supplying the same scalar value flag twice should use the last value (last-wins)."""
+        accumulating = {"profile_exclude", "profile_only"}
+        for cfg in _META.values():
+            dest_key = _TOKEN_MAP.get(cfg["pos"], (None,))[0] if cfg["pos"] else None
+            if not cfg["bool"] and cfg["pos"] and dest_key and dest_key not in accumulating:
+                result = scalene_flags_to_kwargs([cfg["pos"], "first", cfg["pos"], "second"])
+                assert result[dest_key] == "second"
+                return
+        pytest.fail("No non-accumulating scalar value flag found")
+
+    def test_repeated_profile_exclude_accumulates_list(self):
+        """--profile-exclude is a CSV flag; repeated occurrences should be merged into a list."""
+        result = scalene_flags_to_kwargs(["--profile-exclude", "/a", "--profile-exclude", "/b"])
+        assert isinstance(result["profile_exclude"], list)
+        assert "/a" in result["profile_exclude"]
+        assert "/b" in result["profile_exclude"]
 
     def test_multiple_distinct_flags(self):
         """Two distinct flags should both appear in the result."""
@@ -283,3 +311,37 @@ class TestRoundTrip:
                 assert recovered == original
                 return
         pytest.fail("No boolean flag found")
+
+
+# ---------------------------------------------------------------------------
+# cpu-only / --memory targeted tests
+# ---------------------------------------------------------------------------
+
+
+class TestCpuOnlyMemoryFlags:
+    """Targeted tests for --cpu-only / --memory flag handling."""
+
+    def test_cpu_only_flag_maps_to_cpu_dest(self):
+        """--cpu-only should be stored under the 'cpu' destination, not 'cpu_only'."""
+        result = scalene_flags_to_kwargs(["--cpu-only"])
+        assert "cpu" in result
+        assert result["cpu"] is True
+        assert "cpu_only" not in result
+
+    def test_cpu_only_round_trips_without_duplication(self):
+        """--cpu-only should survive kwargs→flags without producing a duplicate flag."""
+        kwargs = scalene_flags_to_kwargs(["--cpu-only"])
+        flags = scalene_kwargs_to_flags(kwargs)
+        assert flags.count("--cpu-only") == 1
+
+    def test_memory_flag_maps_to_memory_dest(self):
+        """--memory should be stored under the 'memory' destination."""
+        result = scalene_flags_to_kwargs(["--memory"])
+        assert "memory" in result
+        assert result["memory"] is True
+
+    def test_cpu_only_and_memory_are_mutually_exclusive_in_kwargs(self):
+        """Passing both --cpu-only and --memory produces both keys in kwargs (resolution is up to Profiler)."""
+        result = scalene_flags_to_kwargs(["--cpu-only", "--memory"])
+        assert result.get("cpu") is True
+        assert result.get("memory") is True

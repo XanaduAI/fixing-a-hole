@@ -30,6 +30,10 @@ RESERVED = {
     "program_path",
     "config_file",
     "unused_args",
+    # Meta-flags: not valid for `scalene run` profiling
+    "help_advanced",
+    "on",
+    "off",
 }
 
 
@@ -64,7 +68,20 @@ def _metadata() -> dict[str, dict]:
     return meta
 
 
+def _reserved_token_map() -> dict[str, tuple[str, bool]]:
+    """Map every CLI token (long and short) for reserved dests to (dest, is_bool)."""
+    mapping: dict[str, tuple[str, bool]] = {}
+    for adv in (False, True):
+        for a in _run_parser(adv)._actions:  # noqa: SLF001
+            if a.dest in RESERVED:
+                is_bool = type(a).__name__ in {"_StoreTrueAction", "_StoreFalseAction", "_StoreConstAction"}
+                for opt in a.option_strings:
+                    mapping[opt] = (a.dest, is_bool)
+    return mapping
+
+
 _META = _metadata()
+_RESERVED_TOKEN_MAP: dict[str, tuple[str, bool]] = _reserved_token_map()
 _ALIASES = {d: d for d in _META}
 _ALIASES |= {e["pos"].lstrip("-").replace("-", "_"): d for d, e in _META.items() if e["pos"]}
 _TOKEN_MAP: dict[str, tuple[str, dict]] = {
@@ -139,11 +156,17 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:
     """Convert a Click.Context.args (list[str]) into Scalene kwargs."""
     result: dict = {}
     unknown: list[str] = []
-    args = [part for a in ctx_args for part in (a.split("=") if "=" in a else [a])]
+    reserved_used: list[str] = []
+    args = [part for a in ctx_args for part in (a.split("=", 1) if "=" in a else [a])]
     i = 0
     while i < len(args):
         token = args[i]
-        if token in _TOKEN_MAP:
+        if token in _RESERVED_TOKEN_MAP:
+            _, is_bool = _RESERVED_TOKEN_MAP[token]
+            reserved_used.append(token)
+            has_value = not is_bool and i + 1 < len(args) and not args[i + 1].startswith("--")
+            i += 2 if has_value else 1
+        elif token in _TOKEN_MAP:
             key, cfg = _TOKEN_MAP[token]
             if cfg["bool"]:
                 if key not in result:
@@ -161,25 +184,31 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:
                     except ValueError:
                         continue
                 val = [v.strip() for v in val.split(",")] if isinstance(val, str) and "," in val else val
-                result[key] = (
-                    val
-                    if key not in result
-                    else [
+                if key not in result:
+                    result[key] = val
+                elif key in {"profile_exclude", "profile_only"}:
+                    # --profile-exclude is a CSV-accumulating flag; merge repeated occurrences.
+                    result[key] = [
                         *(result[key] if isinstance(result[key], list) else (result[key],)),
                         *(val if isinstance(val, list) else (val,)),
                     ]
-                )
+                else:
+                    # Scalar flags: last-wins.
+                    result[key] = val
                 i += 2
             else:
                 i += 1
         else:
             unknown.append(token)
             i += 1
-    if unknown:
-        flags = "\n ".join([Colour.green(f"--{f.replace('_', '-')}") for f in sorted(_ALIASES)])
-        s = "s" if len(unknown) > 1 else ""
-        msg = f"Unknown flag{s}: {[Colour.orange(u) for u in unknown]}. Was a script argument placed before the `---`?"
-        msg += f"\n{Colour.GREEN('Valid Scalene flags:')}\n {flags}"
-        Colour.error(msg)
+    if unknown or reserved_used:
+        if reserved_used:
+            Colour.error("These scalene flags are managed by fixing-a-hole: %s", [Colour.orange(u) for u in reserved_used])
+        if unknown:
+            s = "s" if len(unknown) > 1 else ""
+            msg = f"Unknown flag{s}: {[Colour.orange(u) for u in unknown]}. Was a script argument placed before the `---`?"
+            valid_flags = "\n ".join([Colour.green(f) for f in sorted(_TOKEN_MAP)])
+            msg += f"\n{Colour.GREEN('Valid Scalene flags:')}\n {valid_flags}"
+            Colour.error(msg)
         sys.exit(1)
     return result
