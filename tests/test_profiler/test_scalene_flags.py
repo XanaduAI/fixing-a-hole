@@ -20,6 +20,8 @@ from fixingahole.profiler.scalene_flags import (
     _META,  # noqa: PLC2701
     _TOKEN_MAP,  # noqa: PLC2701
     DuplicateKeyError,
+    InvalidValueError,
+    MissingValueError,
     scalene_flags_to_kwargs,
     scalene_kwargs_to_flags,
 )
@@ -140,13 +142,13 @@ class TestScaleneFlagsToKwargs:
         assert isinstance(result[dest], (int, float, str))  # str if Scalene type=None
 
     def test_invalid_typed_value_exits(self):
-        """A value that fails Scalene's declared type should call sys.exit."""
+        """A value that fails Scalene's declared type should raise InvalidValueError."""
         for cfg in _META.values():
             if not cfg["bool"] and cfg["pos"] and cfg["type"] is int:
-                with pytest.raises(SystemExit):
+                with pytest.raises(InvalidValueError):
                     scalene_flags_to_kwargs([cfg["pos"], "snickers"])
                 return
-        pytest.skip("No int-typed Scalene flag found in this version")
+        pytest.fail("No int-typed Scalene flag found in this version")
 
     def test_comma_separated_value_becomes_list(self):
         """A comma-separated string value should be split into a list."""
@@ -156,9 +158,18 @@ class TestScaleneFlagsToKwargs:
         assert isinstance(result[dest], list)
         assert len(result[dest]) == 3
 
-    def test_unknown_flag_calls_sys_exit(self):
-        """An unrecognised flag should call sys.exit rather than raise."""
-        with pytest.raises(SystemExit):
+    def test_value_flag_with_no_value_raises_missing_value_error(self):
+        """A value flag with no following argument should raise MissingValueError."""
+        for cfg in _META.values():
+            if not cfg["bool"] and cfg["pos"]:
+                with pytest.raises(MissingValueError):
+                    scalene_flags_to_kwargs([cfg["pos"]])
+                return
+        pytest.fail("No value flag found in this version")
+
+    def test_unknown_flag_raises_invalid_value_error(self):
+        """An unrecognised flag should raise InvalidValueError."""
+        with pytest.raises(InvalidValueError):
             scalene_flags_to_kwargs(["--not-a-real-scalene-flag"])
 
     def test_reserved_cli_flag_exits_with_managed_message(self, capsys: pytest.CaptureFixture[str]):
@@ -166,9 +177,9 @@ class TestScaleneFlagsToKwargs:
         from fixingahole.profiler.scalene_flags import _RESERVED_TOKEN_MAP  # noqa: PLC0415, PLC2701
 
         if not _RESERVED_TOKEN_MAP:
-            pytest.skip("No reserved CLI tokens found in this Scalene version")
+            pytest.fail("No reserved CLI tokens found in this Scalene version")
         token = next(iter(_RESERVED_TOKEN_MAP))
-        with pytest.raises(SystemExit):
+        with pytest.raises(InvalidValueError):
             scalene_flags_to_kwargs([token])
         captured = capsys.readouterr()
         assert "managed by fixing-a-hole" in captured.err or "managed by fixing-a-hole" in captured.out

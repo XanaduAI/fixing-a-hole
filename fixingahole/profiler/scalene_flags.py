@@ -41,6 +41,14 @@ class DuplicateKeyError(click.exceptions.Exit):
     """Key was already given."""
 
 
+class MissingValueError(click.exceptions.Exit):
+    """Value was expected for a given key."""
+
+
+class InvalidValueError(click.exceptions.Exit):
+    """Value was expected for a given key."""
+
+
 def _run_parser(advanced: bool) -> argparse.ArgumentParser:
     saved = sys.argv
     sys.argv = ["scalene", "run"] + (["--help-advanced"] if advanced else [])
@@ -158,7 +166,7 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:  # noqa: C901, PLR0912
     result: dict = {}
     unknown: list[str] = []
     reserved_used: list[str] = []
-    args = [part for a in ctx_args for part in (a.split("=", 1) if "=" in a else [a])]
+    args = [part for a in ctx_args for part in (a.split("=", 1) if a.startswith("--") and "=" in a else [a])]
     i = 0
     while i < len(args):
         token = args[i]
@@ -176,20 +184,20 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:  # noqa: C901, PLR0912
                 else:
                     Colour.error("DuplicateKeyError: The %s flag (%s/%s) was already provided.", key, cfg["pos"], cfg["neg"])
                     raise DuplicateKeyError(code=1)
-            elif i + 1 < len(args):
+            elif i + 1 < len(args) and not args[i + 1].startswith("--"):
                 val = args[i + 1]
                 cast = _META[key]["type"]
                 if cast is not None:
                     try:
                         val = cast(val)
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError) as err:
                         Colour.error(
                             "Invalid value for %s: %s is not a valid %s.",
                             Colour.green(cfg["pos"]),
                             Colour.orange(repr(val)),
                             cast.__name__,
                         )
-                        sys.exit(1)
+                        raise InvalidValueError(code=1) from err
                 val = [v.strip() for v in val.split(",")] if isinstance(val, str) and "," in val else val
                 if key not in result:
                     result[key] = val
@@ -202,13 +210,17 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:  # noqa: C901, PLR0912
                 else:
                     Colour.error(
                         "DuplicateKeyError: The %s option was already provided. Also found %s",
-                        Colour.green(f"{cfg['pos']} {result[key]}"),
-                        Colour.orange(f"{cfg['pos']} {val}"),
+                        Colour.green(f"{token} {result[key]}"),
+                        Colour.orange(f"{token} {val}"),
                     )
                     raise DuplicateKeyError(code=1)
                 i += 2
             else:
-                i += 1
+                Colour.error(
+                    "Missing value for %s: expected a value after the flag.",
+                    Colour.green(token),
+                )
+                raise MissingValueError(code=3)
         else:
             unknown.append(token)
             i += 1
@@ -221,5 +233,5 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:  # noqa: C901, PLR0912
             valid_flags = "\n ".join([Colour.green(f) for f in sorted(_TOKEN_MAP)])
             msg += f"\n{Colour.GREEN('Valid Scalene flags:')}\n {valid_flags}"
             Colour.error(msg)
-        sys.exit(1)
+        raise InvalidValueError(code=1)
     return result
