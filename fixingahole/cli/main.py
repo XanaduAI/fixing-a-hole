@@ -36,8 +36,10 @@ class _LazyEpilogCommand(typer.core.TyperCommand):
     """TyperCommand that defers expensive epilog construction until ``--help`` is rendered."""
 
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
-        if callable(self.epilog):
-            self.epilog = self.epilog()
+        # Resolve lazily and memoize so subsequent --help invocations don't
+        # re-invoke the epilog builder, while keeping the initial import cheap.
+        epilog = self.epilog() if callable(self.epilog) else self.epilog
+        self.epilog = epilog
         super().format_help(ctx, formatter)
 
 

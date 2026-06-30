@@ -198,7 +198,25 @@ class Profiler:
         scalene_kwargs: dict[str, bool | float | str | list[str]],
         precision: float | None,
     ) -> None:
-        """Validate Scalene flags and apply precision."""
+        """Validate Scalene flags and apply precision.
+
+        Normalize and validate the incoming kwargs via a flags→kwargs round-trip:
+
+        1. ``scalene_kwargs_to_flags`` converts each key/value pair into its
+           canonical CLI token (e.g. ``{"stacks": True}`` → ``["--stacks"]``,
+           ``{"allocation_sampling_window": 4096}`` → ``["--allocation-sampling-window", "4096"]``).
+           It also raises ``ValueError`` for any key that is unknown to Scalene
+           or that is reserved (managed internally by fixing-a-hole), so invalid
+           kwargs surface at construction time rather than at subprocess launch.
+
+        2. ``scalene_flags_to_kwargs`` parses those tokens back into a dict whose
+           keys are Scalene's *argparse dest* names (e.g. the Python kwarg
+           ``cpu_only=True`` passed by a caller maps to the CLI flag ``--cpu-only``,
+           whose argparse dest is ``"cpu"`` — not ``"cpu_only"``).  Using the
+           canonical dest as the key is important because subsequent code pops
+           ``"cpu"`` and ``"memory"`` by their dest names and because
+           ``scalene_kwargs_to_flags`` looks up entries in ``_META`` by dest.
+        """
         scalene_kwargs = scalene_flags_to_kwargs(scalene_kwargs_to_flags(scalene_kwargs))
         # Extract Scalene flags needed for internal logic and remove them from the
         # pass-through kwargs so they are not double-added when building the command.
@@ -456,8 +474,9 @@ class Profiler:
     def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
         scalene_flags = dict(self.scalene_kwargs)
-        # Merge any user-supplied --profile-exclude paths with the internally excluded folders
-        # so that Scalene receives a single, deduplicated --profile-exclude flag.
+        # ``excluded_folders`` always returns exactly ["--profile-exclude", csv_string].
+        # The two-element unpack below is intentional; the list length is an
+        # invariant of that property's implementation.
         exclude_flag, exclude_csv = self.excluded_folders
         user_exclude = scalene_flags.pop("profile_exclude", None)
         if user_exclude is not None:
@@ -502,6 +521,10 @@ class Profiler:
                 if line.startswith(suppress):
                     prev_suppressed = True
                 elif line == "\n" and prev_suppressed:
+                    # Swallow the single blank line that Scalene emits immediately
+                    # after its status block so it doesn't clutter the terminal.
+                    # ``prev_suppressed`` is reset here so only the first blank
+                    # line is consumed; any further output is forwarded normally.
                     prev_suppressed = False
                 else:
                     prev_suppressed = False

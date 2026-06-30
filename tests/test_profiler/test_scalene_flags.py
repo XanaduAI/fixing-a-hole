@@ -22,6 +22,8 @@ from fixingahole.profiler.scalene_flags import (
     DuplicateKeyError,
     InvalidValueError,
     MissingValueError,
+    ReservedKeyError,
+    _ScaleneError,  # noqa: PLC2701
     scalene_flags_to_kwargs,
     scalene_kwargs_to_flags,
 )
@@ -287,18 +289,24 @@ class TestScaleneKwargsToFlags:
                 return
         pytest.fail("No value flag found")
 
-    def test_reserved_key_raises_value_error(self):
-        """Passing a reserved destination key should raise ValueError."""
+    def test_reserved_key_raises_reserved_key_error(self):
+        """Passing a reserved destination key should raise ReservedKeyError."""
         from fixingahole.profiler.scalene_flags import RESERVED  # noqa: PLC0415
 
         reserved_key = next(iter(RESERVED))
-        with pytest.raises(ValueError, match="managed by fixing-a-hole"):
+        with pytest.raises(ReservedKeyError, match="managed by fixing-a-hole"):
             scalene_kwargs_to_flags({reserved_key: True})
 
-    def test_unknown_key_raises_value_error(self):
-        """An unrecognised destination key should raise ValueError."""
-        with pytest.raises(ValueError, match="Unknown scalene flag"):
+    def test_unknown_key_raises_invalid_value_error(self):
+        """An unrecognised destination key should raise InvalidValueError."""
+        with pytest.raises(InvalidValueError, match="Unknown scalene flag"):
             scalene_kwargs_to_flags({"not_a_scalene_kwarg": True})
+
+    def test_specific_errors_are_scalene_errors(self):
+        """All custom exception classes should be subclasses of _ScaleneError."""
+        for cls in (DuplicateKeyError, ReservedKeyError, MissingValueError, InvalidValueError):
+            assert issubclass(cls, _ScaleneError)
+            assert issubclass(cls, ValueError)
 
 
 # ---------------------------------------------------------------------------

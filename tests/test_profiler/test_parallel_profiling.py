@@ -71,8 +71,10 @@ def _run_profiler(
     profiler = Profiler(dest, profile_all=True, python_script_args=script_args)
     with patch.dict(os.environ, _SINGLE_THREAD_ENV), contextlib.suppress(SuccessfulExit):
         profiler.run_profiler(raise_exit=True)
-    yield profiler
-    Config.configure(prev_settings)
+    try:
+        yield profiler
+    finally:
+        Config.configure(prev_settings)
 
 
 @pytest.fixture(scope="class")
@@ -127,6 +129,10 @@ class TestMultithreadingProfiling:
 
         Both runs are profiled by Scalene with identical settings and single-threaded BLAS,
         so any speedup is attributable purely to thread-level parallelism.
+
+        Note: this test may be flaky on heavily-loaded CI machines where OS scheduling
+        prevents threads from running truly concurrently.  If this becomes a recurring
+        problem, consider marking it ``pytest.mark.flaky`` or moving it to a nightly suite.
         """
         parallel_time = ProfileData.from_file(multithreading_profiler.output_json).elapsed_time_sec
         serial_time = ProfileData.from_file(multithreading_serial_profiler.output_json).elapsed_time_sec
@@ -174,6 +180,10 @@ class TestMultiprocessingProfiling:
 
         Both runs are profiled by Scalene with identical settings and single-threaded BLAS,
         so any speedup is attributable purely to process-level parallelism.
+
+        Note: this test may be flaky on heavily-loaded CI machines where OS scheduling
+        prevents processes from running truly concurrently.  If this becomes a recurring
+        problem, consider marking it ``pytest.mark.flaky`` or moving it to a nightly suite.
         """
         parallel_time = ProfileData.from_file(multiprocessing_profiler.output_json).elapsed_time_sec
         serial_time = ProfileData.from_file(multiprocessing_serial_profiler.output_json).elapsed_time_sec

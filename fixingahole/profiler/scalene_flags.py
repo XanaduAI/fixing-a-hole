@@ -17,6 +17,7 @@ import argparse
 import os
 import subprocess
 import sys
+import threading
 
 import click
 from colours import Colour
@@ -37,26 +38,49 @@ RESERVED = {
 }
 
 
-class DuplicateKeyError(click.exceptions.Exit):
+class _ScaleneError(ValueError, click.exceptions.Exit):
+    """Base class combining :class:`ValueError` and :class:`click.exceptions.Exit`.
+
+    Subclasses gain both programmatic (``ValueError``) and Click CLI
+    (``click.exceptions.Exit``) exception behaviour without each needing
+    their own ``__init__``.
+    """
+
+    def __init__(self, *args: object, code: int = 0) -> None:
+        ValueError.__init__(self, *args)
+        click.exceptions.Exit.__init__(self, code)
+
+
+class DuplicateKeyError(_ScaleneError):
     """Key was already given."""
 
 
-class MissingValueError(click.exceptions.Exit):
+class ReservedKeyError(_ScaleneError):
+    """Key is reserved for use by fixing-a-hole."""
+
+
+class MissingValueError(_ScaleneError):
     """Value was expected for a given key."""
 
 
-class InvalidValueError(click.exceptions.Exit):
-    """Value was expected for a given key."""
+class InvalidValueError(_ScaleneError):
+    """Value was invalid or unrecognised for a given key."""
+
+
+# Protects the temporary sys.argv mutation in _run_parser against concurrent
+# access (e.g. when tests are executed with a thread-based parallelism plugin).
+_SYS_ARGV_LOCK = threading.Lock()
 
 
 def _run_parser(advanced: bool) -> argparse.ArgumentParser:
-    saved = sys.argv
-    sys.argv = ["scalene", "run"] + (["--help-advanced"] if advanced else [])
-    try:
-        p = argparse.ArgumentParser(prog="scalene run", add_help=False, allow_abbrev=False)
-        ScaleneParseArgs._add_run_arguments(p, ScaleneArguments())  # noqa: SLF001
-    finally:
-        sys.argv = saved
+    with _SYS_ARGV_LOCK:
+        saved = sys.argv
+        sys.argv = ["scalene", "run"] + (["--help-advanced"] if advanced else [])
+        try:
+            p = argparse.ArgumentParser(prog="scalene run", add_help=False, allow_abbrev=False)
+            ScaleneParseArgs._add_run_arguments(p, ScaleneArguments())  # noqa: SLF001
+        finally:
+            sys.argv = saved
     return p
 
 
@@ -109,7 +133,14 @@ def get_scalene_help(cmd: list[str] | None = None, *, append: str = "") -> str:
         env=os.environ | {"LINES": "320", "COLUMNS": "160"},
     )
     scalene_help = ""
-    if res.returncode == 0:
+    if res.returncode != 0:
+        Colour.warning(
+            "Warning: `scalene %s` exited with code %d; help text will be empty.\n%s",
+            " ".join(cmd),
+            res.returncode,
+            res.stderr.strip(),
+        )
+    elif res.returncode == 0:
         lines = res.stdout.splitlines()
         rm: list[int] = []
         for i, line in enumerate(lines):
@@ -154,10 +185,10 @@ def scalene_kwargs_to_flags(kwargs: dict) -> list[str]:
             tokens += [e["pos"], ",".join(map(str, val)) if isinstance(val, list) else str(val)]
     if reserved:
         msg = f"These scalene flags are managed by fixing-a-hole: {reserved}"
-        raise ValueError(msg)
+        raise ReservedKeyError(msg, code=1)
     if unknown:
         msg = f"Unknown scalene flag(s): {unknown}. Valid: {sorted(_ALIASES)}"
-        raise ValueError(msg)
+        raise InvalidValueError(msg, code=1)
     return tokens
 
 
