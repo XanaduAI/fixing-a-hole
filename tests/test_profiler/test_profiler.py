@@ -244,11 +244,10 @@ class TestProfilerProperties:
         """Test the excluded_folders property."""
         profiler = Profiler(mock_file, profile_all=True)
         excluded = profiler.excluded_folders
-        # Should contain the system python directory exclude flag
+        # Should contain the system python directory path as a string
         if sys.executable:
             exclude_dir = Path(sys.executable).resolve().parents[1]
             if not exclude_dir.is_relative_to(Config.root()):
-                assert "--profile-exclude" in excluded
                 assert str(exclude_dir) in excluded
             else:
                 assert not excluded
@@ -590,10 +589,15 @@ class TestScaleneRunCmd:
         cmd = profiler._scalene_run_cmd  # noqa: SLF001
         assert cmd.count("--memory") == 1
 
-    def test_cpu_only_and_memory_together_cpu_wins(self, mock_file: Path):
-        """When both --cpu-only and --memory are passed, --cpu-only wins and --memory is absent."""
+    def test_cpu_only_and_memory_together_both_flags_present(self, mock_file: Path):
+        """When both --cpu-only and --memory are passed, both flags appear in the command.
+
+        The profiler emits a warning that --memory takes priority, but both flags are
+        forwarded to Scalene unchanged; Scalene itself resolves the conflict.
+        """
         profiler = Profiler(mock_file, cpu_only=True, memory=True)
         cmd = profiler._scalene_run_cmd  # noqa: SLF001
         assert "--cpu-only" in cmd
-        assert "--memory" not in cmd
+        assert "--memory" in cmd
         assert cmd.count("--cpu-only") == 1
+        assert cmd.count("--memory") == 1

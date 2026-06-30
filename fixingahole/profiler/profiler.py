@@ -213,14 +213,11 @@ class Profiler:
            keys are Scalene's *argparse dest* names (e.g. the Python kwarg
            ``cpu_only=True`` passed by a caller maps to the CLI flag ``--cpu-only``,
            whose argparse dest is ``"cpu"`` — not ``"cpu_only"``).  Using the
-           canonical dest as the key is important because subsequent code pops
-           ``"cpu"`` and ``"memory"`` by their dest names and because
+           canonical dest as the key is important because ``_init_scalene_kwargs``
+           reads ``"cpu"`` and ``"memory"`` by their dest names and because
            ``scalene_kwargs_to_flags`` looks up entries in ``_META`` by dest.
         """
         scalene_kwargs = scalene_flags_to_kwargs(scalene_kwargs_to_flags(scalene_kwargs))
-        # Extract Scalene flags needed for internal logic and remove them from the
-        # pass-through kwargs so they are not double-added when building the command.
-        # Scalene's argparse dest for --cpu-only is "cpu", not "cpu_only".
         cpu_flag: bool = bool(scalene_kwargs.get("cpu", False))
         memory_flag: bool = bool(scalene_kwargs.get("memory", False))
         if cpu_flag and memory_flag:
@@ -474,9 +471,14 @@ class Profiler:
     def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
         scalene_flags = dict(self.scalene_kwargs)
+        # Merge any user-supplied --profile-exclude paths with the internally
+        # excluded folders so that Scalene receives a single deduplicated flag.
         user_exclude = scalene_flags.pop("profile_exclude", None)
-        if user_exclude is not None:
-            user_paths = set(map(str, user_exclude)) if isinstance(user_exclude, list) else {str(user_exclude)}
+        user_paths: set[str] = (
+            (set(map(str, user_exclude)) if isinstance(user_exclude, list) else {str(user_exclude)})
+            if user_exclude is not None
+            else set()
+        )
         exclude_csv = ",".join(self.excluded_folders | user_paths)
         cmd = [
             sys.executable,

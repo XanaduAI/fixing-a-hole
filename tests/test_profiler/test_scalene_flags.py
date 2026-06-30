@@ -181,7 +181,7 @@ class TestScaleneFlagsToKwargs:
         if not _RESERVED_TOKEN_MAP:
             pytest.fail("No reserved CLI tokens found in this Scalene version")
         token = next(iter(_RESERVED_TOKEN_MAP))
-        with pytest.raises(InvalidValueError):
+        with pytest.raises(ReservedKeyError):
             scalene_flags_to_kwargs([token])
         captured = capsys.readouterr()
         assert "managed by fixing-a-hole" in captured.err or "managed by fixing-a-hole" in captured.out
