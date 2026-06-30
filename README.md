@@ -250,6 +250,18 @@ i.e. `--ignore foo --ignore /home/bar/baz`. These are resolved relative
 to the `root` directory you configure, but you can also set absolute paths.
 
 ```bash
+--precision (-p)
+```
+As a convenience, you can use the `--precision` flag to alter the memory sampling overhead.
+By default, [Scalene](https://github.com/plasma-umass/scalene) will highlight lines of code
+that allocate more than about 10 MB of memory. The `--precision` flag modifies this by scaling
+the default value by $2^p$, where $p$ is the `--precision` value. The higher the level
+of precision the slower the profiling might take as more samples are taken. However,
+setting the level of precision too low _may_ result in an uninformed summary. You will
+need to find the right balance for the level of profiling that you are doing. The speed
+depends on the script itself.
+
+```bash
 --repeat (-r)
 ```
 If there is a need to benchmark a script by profiling it repeatedly and then compute the average

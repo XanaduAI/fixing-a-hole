@@ -137,7 +137,16 @@ class TestScaleneFlagsToKwargs:
         flag, _ = _known_value_flag()
         dest = _TOKEN_MAP[flag][0]
         result = scalene_flags_to_kwargs([flag, "42"])
-        assert isinstance(result[dest], (int, float))
+        assert isinstance(result[dest], (int, float, str))  # str if Scalene type=None
+
+    def test_invalid_typed_value_exits(self):
+        """A value that fails Scalene's declared type should call sys.exit."""
+        for cfg in _META.values():
+            if not cfg["bool"] and cfg["pos"] and cfg["type"] is int:
+                with pytest.raises(SystemExit):
+                    scalene_flags_to_kwargs([cfg["pos"], "snickers"])
+                return
+        pytest.skip("No int-typed Scalene flag found in this version")
 
     def test_comma_separated_value_becomes_list(self):
         """A comma-separated string value should be split into a list."""
@@ -170,14 +179,16 @@ class TestScaleneFlagsToKwargs:
         with pytest.raises(DuplicateKeyError):
             scalene_flags_to_kwargs([flag, flag])
 
-    def test_repeated_scalar_value_flag_takes_last_wins(self):
-        """Supplying the same scalar value flag twice should use the last value (last-wins)."""
+    def test_repeated_scalar_value_flag_raises_duplicate_key_error(self):
+        """Supplying the same scalar value flag twice should raise DuplicateKeyError."""
         accumulating = {"profile_exclude", "profile_only"}
         for cfg in _META.values():
             dest_key = _TOKEN_MAP.get(cfg["pos"], (None,))[0] if cfg["pos"] else None
             if not cfg["bool"] and cfg["pos"] and dest_key and dest_key not in accumulating:
-                result = scalene_flags_to_kwargs([cfg["pos"], "first", cfg["pos"], "second"])
-                assert result[dest_key] == "second"
+                flag_type = cfg["type"]
+                v1, v2 = ("1", "2") if flag_type in {int, float} else ("aaa", "bbb")
+                with pytest.raises(DuplicateKeyError):
+                    scalene_flags_to_kwargs([cfg["pos"], v1, cfg["pos"], v2])
                 return
         pytest.fail("No non-accumulating scalar value flag found")
 

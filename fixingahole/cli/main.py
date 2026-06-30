@@ -52,6 +52,16 @@ def profile(
         ),
     ],
     ctx: typer.Context,
+    precision: Annotated[
+        float,
+        typer.Option(
+            "--precision",
+            "-p",
+            help="Level of memory sampling precision. (-) is faster, less precise; (+) is slower, more precise.",
+            show_default="0",
+            rich_help_panel="Profiling",
+        ),
+    ] = 0,
     log_level: Annotated[
         LogLevel,
         typer.Option(
@@ -188,6 +198,7 @@ def profile(
         no_plots=no_plots,
         ignore_dirs=ignore_dirs,
         output_dir=output_dir,
+        precision=precision,
         **scalene_kwargs,
     )
 

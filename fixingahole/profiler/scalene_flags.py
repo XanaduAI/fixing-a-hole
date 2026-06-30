@@ -60,11 +60,12 @@ def _metadata() -> dict[str, dict]:
             if not longs or a.dest in RESERVED:
                 continue
             is_bool = type(a).__name__ in {"_StoreTrueAction", "_StoreFalseAction", "_StoreConstAction"}
-            e = meta.setdefault(a.dest, {"pos": None, "neg": None, "bool": is_bool})
+            e = meta.setdefault(a.dest, {"pos": None, "neg": None, "bool": is_bool, "type": bool if is_bool else None})
             for o in longs:
                 (e.__setitem__("neg", o) if o.startswith("--no-") else e.__setitem__("pos", o))
             if not is_bool:
                 e["bool"] = False
+                e["type"] = a.type
     return meta
 
 
@@ -152,7 +153,7 @@ def scalene_kwargs_to_flags(kwargs: dict) -> list[str]:
     return tokens
 
 
-def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:
+def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:  # noqa: C901, PLR0912, PLR0915
     """Convert a Click.Context.args (list[str]) into Scalene kwargs."""
     result: dict = {}
     unknown: list[str] = []
@@ -177,24 +178,34 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:
                     raise DuplicateKeyError(code=1)
             elif i + 1 < len(args):
                 val = args[i + 1]
-                for cast in (int, float):
+                cast = _META[key]["type"]
+                if cast is not None:
                     try:
                         val = cast(val)
-                        break
-                    except ValueError:
-                        continue
+                    except (ValueError, TypeError):
+                        Colour.error(
+                            "Invalid value for %s: %s is not a valid %s.",
+                            Colour.green(cfg["pos"]),
+                            Colour.orange(repr(val)),
+                            cast.__name__,
+                        )
+                        sys.exit(1)
                 val = [v.strip() for v in val.split(",")] if isinstance(val, str) and "," in val else val
                 if key not in result:
                     result[key] = val
                 elif key in {"profile_exclude", "profile_only"}:
-                    # --profile-exclude is a CSV-accumulating flag; merge repeated occurrences.
+                    # CSV-accumulating flags; merge repeated occurrences.
                     result[key] = [
                         *(result[key] if isinstance(result[key], list) else (result[key],)),
                         *(val if isinstance(val, list) else (val,)),
                     ]
                 else:
-                    # Scalar flags: last-wins.
-                    result[key] = val
+                    Colour.error(
+                        "DuplicateKeyError: The %s option was already provided. Also found %s",
+                        Colour.green(f"{cfg['pos']} {result[key]}"),
+                        Colour.orange(f"{cfg['pos']} {val}"),
+                    )
+                    raise DuplicateKeyError(code=1)
                 i += 2
             else:
                 i += 1
