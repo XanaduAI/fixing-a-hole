@@ -46,25 +46,35 @@ class _ScaleneError(ValueError, click.exceptions.Exit):
     their own ``__init__``.
     """
 
+    _default_message: str = "An error occurred."
+
     def __init__(self, *args: object, code: int = 0) -> None:
-        ValueError.__init__(self, *args)
+        ValueError.__init__(self, *(args or (self._default_message,)))
         click.exceptions.Exit.__init__(self, code)
 
 
 class DuplicateKeyError(_ScaleneError):
     """Key was already given."""
 
+    _default_message = "A flag or option was provided more than once."
+
 
 class ReservedKeyError(_ScaleneError):
     """Key is reserved for use by fixing-a-hole."""
+
+    _default_message = "That flag is managed internally by fixing-a-hole and cannot be set directly."
 
 
 class MissingValueError(_ScaleneError):
     """Value was expected for a given key."""
 
+    _default_message = "A value was expected after the flag but none was found."
+
 
 class InvalidValueError(_ScaleneError):
     """Value was invalid or unrecognised for a given key."""
+
+    _default_message = "The value or flag provided was invalid or unrecognised."
 
 
 # Protects the temporary sys.argv mutation in _run_parser against concurrent
@@ -140,7 +150,7 @@ def get_scalene_help(cmd: list[str] | None = None, *, append: str = "") -> str:
             res.returncode,
             res.stderr.strip(),
         )
-    elif res.returncode == 0:
+    else:
         lines = res.stdout.splitlines()
         rm: list[int] = []
         for i, line in enumerate(lines):
@@ -255,14 +265,14 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:  # noqa: C901, PLR0912
         else:
             unknown.append(token)
             i += 1
-    if unknown or reserved_used:
-        if reserved_used:
-            Colour.error("These scalene flags are managed by fixing-a-hole: %s", [Colour.orange(u) for u in reserved_used])
-        if unknown:
-            s = "s" if len(unknown) > 1 else ""
-            msg = f"Unknown flag{s}: {[Colour.orange(u) for u in unknown]}. Was a script argument placed before the `---`?"
-            valid_flags = "\n ".join([Colour.green(f) for f in sorted(_TOKEN_MAP)])
-            msg += f"\n{Colour.GREEN('Valid Scalene flags:')}\n {valid_flags}"
-            Colour.error(msg)
+    if reserved_used:
+        Colour.error("These scalene flags are managed by fixing-a-hole: %s", [Colour.orange(u) for u in reserved_used])
+        raise ReservedKeyError(code=1)
+    if unknown:
+        s = "s" if len(unknown) > 1 else ""
+        msg = f"Unknown flag{s}: {[Colour.orange(u) for u in unknown]}. Was a script argument placed before the `---`?"
+        valid_flags = "\n ".join([Colour.green(f) for f in sorted(_TOKEN_MAP)])
+        msg += f"\n{Colour.GREEN('Valid Scalene flags:')}\n {valid_flags}"
+        Colour.error(msg)
         raise InvalidValueError(code=1)
     return result

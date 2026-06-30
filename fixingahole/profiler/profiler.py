@@ -221,10 +221,10 @@ class Profiler:
         # Extract Scalene flags needed for internal logic and remove them from the
         # pass-through kwargs so they are not double-added when building the command.
         # Scalene's argparse dest for --cpu-only is "cpu", not "cpu_only".
-        cpu_flag: bool = bool(scalene_kwargs.pop("cpu", False))
-        memory_flag: bool = bool(scalene_kwargs.pop("memory", False))
+        cpu_flag: bool = bool(scalene_kwargs.get("cpu", False))
+        memory_flag: bool = bool(scalene_kwargs.get("memory", False))
         if cpu_flag and memory_flag:
-            Colour.warning("Warning: --cpu-only and --memory are mutually exclusive; ignoring --memory.")
+            Colour.warning("Warning: --memory takes priority over --cpu-only; Profiling with --memory.")
         self.cpu_only: bool = cpu_flag or not memory_flag
         # Translate precision to --allocation-sampling-window, if unset.
         if precision is not None and not self.cpu_only:
@@ -354,14 +354,14 @@ class Profiler:
         return not (self.no_plots or self.python_file.suffix != ".py" or self.log_level.capture_output())
 
     @property
-    def excluded_folders(self) -> list[str]:
+    def excluded_folders(self) -> set[str]:
         """Scalene flag to exclude system python directory when profiling all modules."""
         exclude_dir: list[Path] = [
             Path(os.getenv("APPDATA") or sys.prefix) if HOST is Platform.Windows else Path(sys.executable).resolve().parents[1]
         ]
         exclude_dir.extend([folder for folder in Config.ignore() if folder != Config.output()])
         exclude_dir.extend(self.ignored_folders)  # allow users to ignore the OUTPUT_DIR if they want to.
-        return ["--profile-exclude", ",".join(map(str, exclude_dir))]
+        return set(map(str, exclude_dir))
 
     @property
     def profile_file(self) -> Path:
@@ -474,27 +474,22 @@ class Profiler:
     def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
         scalene_flags = dict(self.scalene_kwargs)
-        # ``excluded_folders`` always returns exactly ["--profile-exclude", csv_string].
-        # The two-element unpack below is intentional; the list length is an
-        # invariant of that property's implementation.
-        exclude_flag, exclude_csv = self.excluded_folders
         user_exclude = scalene_flags.pop("profile_exclude", None)
         if user_exclude is not None:
-            user_paths = user_exclude if isinstance(user_exclude, list) else [str(user_exclude)]
-            exclude_csv = ",".join(set(exclude_csv.split(",")) | set(user_paths))
+            user_paths = set(map(str, user_exclude)) if isinstance(user_exclude, list) else {str(user_exclude)}
+        exclude_csv = ",".join(self.excluded_folders | user_paths)
         cmd = [
             sys.executable,
             "-m",
             "scalene",
             "run",
-            exclude_flag,
-            exclude_csv,
-            "--memory" if not self.cpu_only else "--cpu-only",
             "--program-path",
             str(Config.root()),
             "--outfile",
             str(self.output_json),
             str(self.profile_file),
+            "--profile-exclude",
+            exclude_csv,
             *scalene_kwargs_to_flags(scalene_flags),
         ]
         if self.script_args:
