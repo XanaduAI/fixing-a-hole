@@ -168,7 +168,11 @@ def precision_to_allocation_window(precision: float) -> int:
 
     """
     base_threshold = 10485767  # ~ 10 MB
-    return nextprime(int(base_threshold / 2**precision))
+    # Clamp precision to avoid underflow (2**precision -> 0) or a window of 0.
+    # Limit the range so the result stays between 1 byte and ~10 GB.
+    precision = max(-10.0, min(precision, 23.0))
+    window = max(1, int(base_threshold / 2**precision))
+    return nextprime(window)
 
 
 class FindPathException(Exit):
@@ -333,24 +337,27 @@ class FileWatcher:
             def __init__(self, target_path: str, callback: Callable):
                 self.target_path = target_path
                 self.callback = callback
-                self._debounce_timer: threading.Timer | None = None
+                self.debounce_timer: threading.Timer | None = None
                 self._debounce_delay: float = 0.1
 
             def on_modified(self, event: FileSystemEvent) -> None:
                 if not event.is_directory and event.src_path == self.target_path:
-                    if self._debounce_timer is not None:
-                        self._debounce_timer.cancel()
-                    self._debounce_timer = threading.Timer(self._debounce_delay, self.callback)
-                    self._debounce_timer.daemon = True
-                    self._debounce_timer.start()
+                    if self.debounce_timer is not None:
+                        self.debounce_timer.cancel()
+                    self.debounce_timer = threading.Timer(self._debounce_delay, self.callback)
+                    self.debounce_timer.daemon = True
+                    self.debounce_timer.start()
 
-        handler = FileChangeHandler(str(self.file_path), self.callback)
+        self._handler = FileChangeHandler(str(self.file_path), self.callback)
         self.observer = Observer()
-        self.observer.schedule(handler, str(self.file_path.parent), recursive=False)
+        self.observer.schedule(self._handler, str(self.file_path.parent), recursive=False)
         self.observer.start()
 
     def stop(self) -> None:
         """Stop watching the file."""
+        if (handler := getattr(self, "_handler", None)) and handler.debounce_timer is not None:
+            handler.debounce_timer.cancel()
+            handler.debounce_timer = None
         if self.observer:
             self.observer.stop()
             self.observer.join(timeout=1.0)

@@ -223,6 +223,10 @@ class Profiler:
         if cpu_flag and memory_flag:
             Colour.warning("Warning: --memory takes priority over --cpu-only; Profiling with --memory.")
         self.cpu_only: bool = cpu_flag or not memory_flag
+        # Enforce fixing-a-hole's default of CPU-only by setting the flag explicitly
+        # when neither --cpu-only nor --memory was requested.
+        if not cpu_flag and not memory_flag:
+            scalene_kwargs["cpu"] = True
         # Translate precision to --allocation-sampling-window, if unset.
         if precision is not None and not self.cpu_only:
             scalene_kwargs.setdefault("allocation_sampling_window", precision_to_allocation_window(precision))
@@ -340,6 +344,9 @@ class Profiler:
         if not self.cpu_only and HOST is Platform.Windows:
             Colour.error("Memory profiling is not available on Windows\nUsing --cpu-only")
             self.cpu_only = True
+            # Remove memory-related flags so they are not forwarded to Scalene.
+            for key in ("memory", "allocation_sampling_window"):
+                self.scalene_kwargs.pop(key, None)
 
     @property
     def in_place(self) -> bool:
@@ -470,7 +477,7 @@ class Profiler:
             if user_exclude is not None
             else set()
         )
-        exclude_csv = ",".join(self.excluded_folders | user_paths)
+        exclude_csv = ",".join(sorted(self.excluded_folders | user_paths))
         cmd = [
             sys.executable,
             "-m",
