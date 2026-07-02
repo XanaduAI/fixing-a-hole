@@ -16,6 +16,7 @@
 import datetime
 import importlib.metadata
 import logging
+import math
 import threading
 import warnings
 from collections.abc import Callable
@@ -170,6 +171,9 @@ def precision_to_allocation_window(precision: float) -> int:
     base_threshold = 10485767  # ~ 10 MB
     # Clamp precision to avoid underflow (2**precision -> 0) or a window of 0.
     # Limit the range so the result stays between 1 byte and ~10 GB.
+    # Guard against NaN, which passes through max/min silently.
+    if math.isnan(precision):
+        precision = 0.0
     precision = max(-10.0, min(precision, 23.0))
     window = max(1, int(base_threshold / 2**precision))
     return nextprime(window)

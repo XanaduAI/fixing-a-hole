@@ -159,7 +159,8 @@ def get_scalene_help(cmd: list[str] | None = None, *, append: str = "") -> str:
                 rm.append(i)
             elif all(c == " " for c in line[:4]):
                 rm.append(i)
-                lines[i - 1] += "\t" + line.strip()
+                if i > 0:
+                    lines[i - 1] += "\t" + line.strip()
         for i in sorted(rm, reverse=True):
             del lines[i]
 
@@ -262,7 +263,7 @@ def scalene_flags_to_kwargs(ctx_args: list[str]) -> dict:  # noqa: C901, PLR0912
                     "Missing value for %s: expected a value after the flag.",
                     Colour.green(token),
                 )
-                raise MissingValueError(code=3)
+                raise MissingValueError(code=1)
         else:
             unknown.append(token)
             i += 1

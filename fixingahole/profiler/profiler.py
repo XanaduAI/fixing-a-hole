@@ -221,7 +221,9 @@ class Profiler:
         cpu_flag: bool = bool(scalene_kwargs.get("cpu", False))
         memory_flag: bool = bool(scalene_kwargs.get("memory", False))
         if cpu_flag and memory_flag:
-            Colour.warning("Warning: --memory takes priority over --cpu-only; Profiling with --memory.")
+            Colour.warning("Warning: --memory takes priority over --cpu-only; profiling with --memory.")
+            scalene_kwargs.pop("cpu", None)
+            cpu_flag = False
         self.cpu_only: bool = cpu_flag or not memory_flag
         # Enforce fixing-a-hole's default of CPU-only by setting the flag explicitly
         # when neither --cpu-only nor --memory was requested.

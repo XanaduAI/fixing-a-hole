@@ -589,15 +589,15 @@ class TestScaleneRunCmd:
         cmd = profiler._scalene_run_cmd  # noqa: SLF001
         assert cmd.count("--memory") == 1
 
-    def test_cpu_only_and_memory_together_both_flags_present(self, mock_file: Path):
-        """When both --cpu-only and --memory are passed, both flags appear in the command.
+    def test_cpu_only_and_memory_together_memory_wins(self, mock_file: Path):
+        """When both --cpu-only and --memory are passed, --memory takes priority.
 
-        The profiler emits a warning that --memory takes priority, but both flags are
-        forwarded to Scalene unchanged; Scalene itself resolves the conflict.
+        The profiler emits a warning and drops --cpu-only so that Scalene clearly
+        profiles memory as well, consistent with the warning message.
         """
         profiler = Profiler(mock_file, cpu_only=True, memory=True)
+        assert profiler.cpu_only is False
         cmd = profiler._scalene_run_cmd  # noqa: SLF001
-        assert "--cpu-only" in cmd
+        assert "--cpu-only" not in cmd
         assert "--memory" in cmd
-        assert cmd.count("--cpu-only") == 1
         assert cmd.count("--memory") == 1
