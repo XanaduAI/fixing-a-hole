@@ -14,7 +14,6 @@
 """Convert Profiler kwargs / CLI tokens into ``scalene run`` flags and back."""
 
 import argparse
-import os
 import subprocess
 import sys
 import threading
@@ -25,6 +24,8 @@ from rich.console import Console
 from rich.markdown import Markdown
 from scalene.scalene_arguments import ScaleneArguments
 from scalene.scalene_parseargs import ScaleneParseArgs
+
+from fixingahole import Config
 
 RESERVED = {
     "outfile",
@@ -140,7 +141,7 @@ def get_scalene_help(cmd: list[str] | None = None, *, append: str = "") -> str:
         check=False,
         capture_output=True,
         text=True,
-        env=os.environ | {"LINES": "320", "COLUMNS": "160"},
+        env=Config.env(),
     )
     scalene_help = ""
     if res.returncode != 0:

@@ -458,15 +458,6 @@ class Profiler:
             return False
         return True
 
-    def env(self) -> dict[str, str]:
-        """Clean the environment variables."""
-        # With Python 3.12, pytest-cov sets `COV_CORE` environment variables which will inject coverage.py into the
-        #  Scalene profiler subprocess, where both tracing tools fight over sys.settrace().
-        # This conflict is due to changes in CPython's internal tracing infrastructure and causes significant slowdown.
-        clean_env: dict[str, str] = {k: v for k, v in os.environ.items() if not k.startswith("COV_CORE")}
-        ncols = max(160, len(str(self.profile_file)) + 75)
-        return clean_env | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXINGAHOLE_PROFILE": "1"}
-
     @property
     def _scalene_run_cmd(self) -> list[str]:
         """Build the profiling run command."""
@@ -501,12 +492,13 @@ class Profiler:
 
     def _run_scalene(self, usage: ResourceUsage) -> None:
         """Launch the Scalene subprocess, forwarding stderr while suppressing Scalene's own status lines."""
+        ncols = max(160, len(str(self.profile_file)) + 75)
         proc = subprocess.Popen(
             self._scalene_run_cmd,
             text=True,
             stdout=subprocess.DEVNULL if self.log_level.capture_output() else None,
             stderr=subprocess.PIPE,
-            env=self.env(),
+            env=Config.env(ncols),
         )
         stderr_tail: deque[str] = deque(maxlen=50)
 
@@ -548,12 +540,13 @@ class Profiler:
         if not self._json_output_exists():
             return
 
+        ncols = max(160, len(str(self.profile_file)) + 75)
         result = subprocess.run(
             [sys.executable, "-m", "scalene", "view", "--cli", "--reduced", str(self.output_json)],
             check=False,
             text=True,
             capture_output=True,
-            env=self.env(),
+            env=Config.env(ncols),
         )
         if result.returncode == 0 and result.stdout:
             self.output_file.write_text(Colour.remove_ansi(result.stdout))
