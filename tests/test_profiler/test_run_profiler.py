@@ -30,9 +30,8 @@ class TestProfilerRunProfiler:
         """Test successful profiler run."""
         profiler = Profiler(
             mock_file,
-            precision=5,
             log_level=LogLevel.INFO,
-            live_update=1,
+            profile_interval=1,
         )
         with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler(raise_exit=True)
@@ -47,7 +46,7 @@ class TestProfilerRunProfiler:
 
     def test_run_profiler_detailed_mode(self, mock_file: Path):
         """Test profiler run with detailed profiling enabled."""
-        profiler = Profiler(mock_file, precision=5, detailed=True)
+        profiler = Profiler(mock_file, profile_all=True)
         with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler(raise_exit=True)
 
@@ -66,7 +65,7 @@ class TestProfilerRunProfiler:
         mock_popen.return_value = mock_proc
         mock_wait4.return_value = (12345, 256, mock_rusage)  # raw status 256 → exit code 1
 
-        profiler = Profiler(mock_file, cpu_only=False, precision=5)
+        profiler = Profiler(mock_file, memory=True)
 
         with pytest.raises(ProfilerException) as exc_info, patch("os.waitstatus_to_exitcode", return_value=1):
             profiler.run_profiler(raise_exit=True)
@@ -81,7 +80,7 @@ class TestProfilerRunProfiler:
         # Setup subprocess to raise KeyboardInterrupt.
         mock_run.side_effect = KeyboardInterrupt()
 
-        profiler = Profiler(mock_file, precision=5)
+        profiler = Profiler(mock_file)
 
         with pytest.raises(ProfilerException) as exc_info:
             profiler.run_profiler(raise_exit=True)
@@ -96,7 +95,6 @@ class TestProfilerRunProfiler:
         profiler = Profiler(
             mock_file,
             python_script_args=args,
-            precision=5,
             log_level=LogLevel.INFO,
         )
         with pytest.raises(SuccessfulExit) as exc_info:
@@ -118,7 +116,6 @@ class TestProfilerRunProfiler:
         profiler = Profiler(
             mock_file_with_argparse,
             python_script_args=args,
-            precision=5,
             log_level=LogLevel.INFO,
         )
         with pytest.raises(SuccessfulExit) as exc_info:
@@ -151,7 +148,7 @@ class TestProfilerRunProfiler:
                 profiler.output_file = output / "config_results.txt"
 
         config = CustomConfig()
-        profiler = Profiler(config, precision=3, log_level=LogLevel.INFO)
+        profiler = Profiler(config, log_level=LogLevel.INFO)
 
         # Verify config was applied
         assert profiler.filestem == "config_test"

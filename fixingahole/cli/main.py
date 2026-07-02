@@ -17,19 +17,30 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import click
 import typer
+import typer.core
 from colours import Colour
 from typer import Exit
 
 from fixingahole import Config, LogLevel, PlottingLibrary, Profiler, ProfileSummary, StatisticsManager, StatsSummary
 from fixingahole.config import DurationOption
+from fixingahole.profiler.scalene_flags import get_scalene_help, scalene_flags_to_kwargs
 from fixingahole.profiler.utils import FindPathException, find_path
 
-app = typer.Typer(
-    rich_markup_mode="markdown",
-    epilog=":copyright: Xanadu Quantum Technologies",
-)
+app = typer.Typer(epilog="\u00a9 Xanadu Quantum Technologies")
 ModuleType = type(typer)
+
+
+class _LazyEpilogCommand(typer.core.TyperCommand):
+    """TyperCommand that defers expensive epilog construction until ``--help`` is rendered."""
+
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        # Resolve lazily and memoize so subsequent --help invocations don't
+        # re-invoke the epilog builder, while keeping the initial import cheap.
+        epilog = self.epilog() if callable(self.epilog) else self.epilog
+        self.epilog = epilog
+        super().format_help(ctx, formatter)
 
 
 def profile(
@@ -42,49 +53,17 @@ def profile(
             rich_help_panel="Profiling",
         ),
     ],
-    python_script_args: typer.Context,
-    cpu_only: Annotated[
-        bool,
-        typer.Option(
-            "--cpu/--memory",
-            "-c/-m",
-            help="Profile only the CPU runtime or both CPU and memory usage of the script or notebook.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = True,
-    detailed: Annotated[
-        bool,
-        typer.Option(
-            "--detailed",
-            "-d",
-            help="Also profile how external libraries and modules are used.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = False,
+    ctx: typer.Context,
     precision: Annotated[
-        int,
+        float,
         typer.Option(
             "--precision",
             "-p",
-            help="Level of memory sampling precision. -10 is fastest, least precise; 10 is slowest, most precise.",
+            help="Level of memory sampling precision. (-) is faster, less precise; (+) is slower, more precise.",
             show_default="0",
-            min=-10,
-            max=10,
             rich_help_panel="Profiling",
         ),
     ] = 0,
-    trace: Annotated[
-        bool,
-        typer.Option(
-            "--trace/--no-trace",
-            "-t/-nt",
-            help="Capture the stack traces for the most expensive function calls.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = True,
     log_level: Annotated[
         LogLevel,
         typer.Option(
@@ -107,15 +86,6 @@ def profile(
             rich_help_panel="Preprocessing",
         ),
     ] = None,
-    live: Annotated[
-        float,
-        typer.Option(
-            help="Update the profile output every so many seconds as the profiling happens.",
-            show_default=True,
-            min=1,
-            rich_help_panel="Profiling",
-        ),
-    ] = float("inf"),
     ignore: Annotated[
         list[str] | None,
         typer.Option(
@@ -137,12 +107,12 @@ def profile(
         ),
     ] = None,
     duration: Annotated[
-        DurationOption,
+        DurationOption | None,
         typer.Option(
             help="Temporarily set whether the summary shows duration times as 'absolute' or 'relative' values.",
             hidden=True,
         ),
-    ] = DurationOption.relative,
+    ] = None,
     repeat: Annotated[
         int,
         typer.Option(
@@ -190,18 +160,24 @@ def profile(
             output_dir if output_dir is not None else Config.output(),
         )
         Colour.set_log_level("warning")
-    Config.update_duration(duration.value)
+    Config.update_duration(duration.value if duration is not None else Config.settings().duration.value)
+    all_args = ctx.args
+    if "---" in all_args:
+        sep = all_args.index("---")
+        scalene_args, script_args = all_args[:sep], all_args[sep + 1 :]
+    else:
+        scalene_args, script_args = all_args, []
+    scalene_kwargs = scalene_flags_to_kwargs(scalene_args)
 
     # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
     full_path = (Config.root() / filename).resolve()
-    if full_path.exists() and not full_path.is_dir():
-        python_file = full_path
-    else:
-        python_file: Path = find_path(filename, Config.root(), exclude=[*Config.ignore(), ".venv", ".git"])
-        if python_file.is_dir():
-            Colour.error("Error: cannot profile a directory.")
-            raise Exit(code=1)
+    python_file = (
+        full_path if full_path.is_file() else find_path(filename, Config.root(), exclude=[*Config.ignore(), ".venv", ".git"])
+    )
+    if python_file.is_dir():
+        Colour.error("Error: cannot profile a directory.")
+        raise Exit(code=1)
 
     ignore_dirs: list = []
     if ignore is not None:
@@ -219,16 +195,13 @@ def profile(
 
     profiler = Profiler(
         python_file,
-        python_script_args=python_script_args.args,
-        cpu_only=cpu_only,
-        precision=precision,
-        detailed=detailed,
+        python_script_args=script_args,
         log_level=log_level,
         no_plots=no_plots,
-        trace=trace,
-        live_update=live,
         ignore_dirs=ignore_dirs,
         output_dir=output_dir,
+        precision=precision,
+        **scalene_kwargs,
     )
 
     cli_args = sys.argv
@@ -255,19 +228,29 @@ def profile(
         stats_file.with_suffix(".txt").write_text(summary_text, encoding="utf-8")
 
 
-# Register the profile function as a command in this CLI
+# Register the profile function as a command in this CLI.
+# The epilog embeds Scalene's own --help output; compute it lazily so that
+# importing this module (e.g. for tab-completion or --version) does not pay
+# the cost of two subprocess invocations.
+def _build_profile_epilog() -> str:
+    basic_help = get_scalene_help(["run", "--help"], append="\n\n\n")
+    adv_help = get_scalene_help(["run", "--help-advanced"], append="\n\n\n")
+    return f"{basic_help}{adv_help}\u00a9 Xanadu Quantum Technologies"
+
+
 app.command(
     no_args_is_help=True,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
     rich_help_panel="Utilities",
-    epilog=":copyright: Xanadu Quantum Technologies",
+    epilog=_build_profile_epilog,
+    cls=_LazyEpilogCommand,
 )(profile)
 
 
 @app.command(
     no_args_is_help=True,
     rich_help_panel="Utilities",
-    epilog=":copyright: Xanadu Quantum Technologies",
+    epilog="\u00a9 Xanadu Quantum Technologies",
 )
 def summarize(
     filename: Annotated[
@@ -314,7 +297,7 @@ def summarize(
 @app.command(
     no_args_is_help=True,
     rich_help_panel="Utilities",
-    epilog=":copyright: Xanadu Quantum Technologies",
+    epilog="\u00a9 Xanadu Quantum Technologies",
 )
 def stats(
     folder: Annotated[

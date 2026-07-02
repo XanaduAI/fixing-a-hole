@@ -249,9 +249,13 @@ def _render_tree_core(
     if len(items) > 1:
         items = sorted(
             items,
-            key=lambda item: sum(f.total_percentage for f in item[1].get("_functions", []))
-            + sum(
-                f.total_percentage for file_funcs in get_all_functions_in_tree(item[1].get("_children", {})) for f in file_funcs
+            key=lambda item: (
+                sum(f.total_percentage for f in item[1].get("_functions", []))
+                + sum(
+                    f.total_percentage
+                    for file_funcs in get_all_functions_in_tree(item[1].get("_children", {}))
+                    for f in file_funcs
+                )
             ),
             reverse=True,
         )

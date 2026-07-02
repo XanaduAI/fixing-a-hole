@@ -29,6 +29,7 @@ from fixingahole.profiler.utils import (
     format_time,
     installed_modules,
     memory_with_units,
+    precision_to_allocation_window,
 )
 
 
@@ -90,6 +91,42 @@ class TestFormatTime:
         """Test formatting when max_val has minutes."""
         # If max_val has minutes, format with minutes
         assert format_time(45, max_val=200) == "00:45"
+
+
+class TestPrecisionToAllocationWindow:
+    """Test the precision_to_allocation_window utility function."""
+
+    DEFAULT_THRESHOLD = 10485767
+
+    def test_default_precision(self):
+        """Default precision (0) yields a prime near 10 MB."""
+        result = precision_to_allocation_window(0)
+        assert 10_000_000 <= result <= 11_000_000
+
+    def test_positive_precision_smaller_window(self):
+        """A positive precision produces a window smaller than the default."""
+        result = precision_to_allocation_window(3)
+        assert result < self.DEFAULT_THRESHOLD
+        assert result > 1_000_000  # still reasonable
+
+    def test_negative_precision_larger_window(self):
+        """A negative precision produces a window larger than the default."""
+        result = precision_to_allocation_window(-3)
+        assert result > self.DEFAULT_THRESHOLD
+        assert result < 9e7
+
+    def test_no_warning_within_range(self):
+        """Values within range do not emit a warning."""
+        with patch("fixingahole.profiler.utils.Colour.warning") as mock_warn:
+            precision_to_allocation_window(5)
+            mock_warn.assert_not_called()
+
+    def test_returns_prime(self):
+        """The returned value is a prime number."""
+        from sympy import isprime  # noqa: PLC0415
+
+        for p in range(-3, 4):
+            assert isprime(precision_to_allocation_window(p))
 
 
 class TestMemoryWithUnits:

@@ -5,14 +5,33 @@ potential areas of optimization and improvement. Typical types of resources used
 time, memory usage, and disk space. It can be the case that improvements in one area come at the
 expense of costs in another.
 
-`fixing-a-hole` uses the [scalene](https://github.com/plasma-umass/scalene) profiler which,
+`fixing-a-hole` uses the [Scalene](https://github.com/plasma-umass/scalene) profiler which,
 unfortunately, has very limited support on Windows, even for single-threaded CPU usage. Scalene
 supports (single- and multi-threaded) CPU and (peak heap) memory usage on macOS, Linux, and WSL
-(Windows Subsystem for Linux). It also uses `/usr/bin/time`, when available, as an independent
+(Windows Subsystem for Linux). It also tracks high-level resource usage, as an independent
 check on the total walltime and max resident set size (RSS) memory usage.
 
 > [!TIP]
 > _"premature optimization is the root of all evil"_ - [Donald Knuth](https://en.wikipedia.org/wiki/Donald_Knuth)
+
+## Contents
+
+- [Usage](#usage)
+  - [Installing `fixing-a-hole`](#installing-fixing-a-hole)
+  - [Configuring `fixing-a-hole`](#configuring-fixing-a-hole)
+  - [Scripts and Notebooks](#scripts-and-notebooks)
+- [Advanced Usage: Custom Profiler Configuration](#advanced-usage-custom-profiler-configuration)
+  - [Example 1: Environment-Aware Configuration](#example-1-environment-aware-configuration)
+  - [Example 2: Auto-Discover Latest Script](#example-2-auto-discover-latest-script)
+- [Options](#options)
+  - [Convenience flags](#convenience-flags)
+  - [Scalene flags](#scalene-flags)
+- [Results](#results)
+  - [Benchmarking](#benchmarking)
+  - [Understanding Memory Profiling: Heap vs RSS](#understanding-memory-profiling-heap-vs-rss)
+  - [`profile_summary.txt`](#profile_summarytxt)
+  - [`profile_results.txt`](#profile_resultstxt)
+
 
 ## Usage
 
@@ -108,6 +127,9 @@ Python scripts `.py` and notebooks `.ipynb` can be profiled using
 ```bash
 fixingahole profile <filename>
 ```
+By default this profiles **CPU only**. To also profile heap memory usage, pass `--memory` after
+the filename (see [`--cpu-only / --memory`](#some-commonly-used-scalene-flags) below).
+
 For example, if you're working on a new method in `my_repo/my_work/my_new_method.ipynb` then
 you can profile it using
 ```bash
@@ -187,65 +209,24 @@ Profiler(LatestExperimentConfig()).run_profiler()
 
 ## Options
 
+### Convenience flags
 To see all the available options for the `fixing-a-hole` profiler, run
 ```bash
 fixingahole profile --help
 ```
-Additional information for each option can also be found below.
-
-```bash
---cpu/--memory (-c/-m)
-```
-The main options are `--cpu` vs `--memory`. By default, `fixing-a-hole` will try to profile the
-RSS memory usage of the script/experiment. _However_, additional CPU overhead is required in order
-to determine the _heap_ memory usage of the script. The slowdown varies depending on the script,
-but may be as low as 1.2x to as much as 4x or more. Again, it really depends on the script
-itself. The _heap_ memory profiling (using the `--memory` flag) provides line-by-line blame for
-memory usage.
-
-> [!TIP]
-> It's likely (and recommended) that you have run your script or notebook normally before you
-> profile it. _Even the fastest code is useless if it doesn't solve the problem._ However, if
-> you're concerned with the overhead of memory sampling, run a default `--cpu` test first to
-> establish an expectation on how long you may need to wait when using `--memory`.
-
-```bash
---precision (-p)
-```
-It is possible to alter the memory sampling overhead using the `--precision` flag. By default,
-[scalene](https://github.com/plasma-umass/scalene) will highlight lines of code that allocate more
-than about 10 MB of memory. This can be modified to be as verbose as about 10 kB (by setting
-`--precision=10`) or as vague as about 10 GB (by setting `--precision=-10`). The higher the level
-of precision (`≤10`) the slower the profiling might take as more samples are taken. However,
-setting the level of precision too low (`≥-10`) _may_ result in an uninformed summary. You will
-need to find the right balance for the level of profiling that you are doing. Again, the speed
-depends on the script itself.
-
-```bash
---detailed (-d)
-```
-By default, `fixing-a-hole` will only report CPU and memory usage within the `root` directory
-(see how to configure `fixing-a-hole` above). However, if you would also like a report on the
-usage by imported modules, such as `scipy`, `numpy`, etc., then use the `--detailed` flag.
-This can be used along with `--ignore` to build a report with only the relevant modules.
-
-```bash
---trace (-t)
-```
-By default, `fixing-a-hole` will build the stack traces for the most expensive function calls.
-This helps determine where the most expensive function calls are originating from and helps
-distinguish the difference between functions that are expensive to call even once from functions
-that are called repeatedly.
+The help output also includes the full list of [Scalene](https://github.com/plasma-umass/scalene)
+flags that can be passed through directly (see [Scalene flags](#scalene-flags) below).
+Additional information for each `fixing-a-hole` option can also be found below.
 
 ```bash
 --log-level (-l)
 ```
-By default, `fixing-a-hole` will capture warnings while profiling scripts and save them to a log
-file. More or less detailed capture can be specified using the `--log-level` flag. The options
-are: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Each level will capture that level of
-severity _and higher_. So the default capturing `WARNING` will also capture `ERROR` and
-`CRITICAL`. However, if you have a syntax error or something, your code will still crash, not run,
-and throw errors during profiling.
+By default, `fixing-a-hole` does not capture output, both stdout and stderr from your script pass
+through to the terminal as normal. Setting `--log-level` redirects output to a log file saved
+alongside the profiling results. The options are: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
+Each level will capture that level of severity _and higher_. So `--log-level WARNING` will also
+capture `ERROR` and `CRITICAL`. However, if you have a syntax error or something, your code will
+still crash, not run, and throw errors during profiling.
 
 ```bash
 --no-plots (-np)
@@ -260,13 +241,6 @@ i.e. `-np matplotlib -np plotly`.
 The currently supported libraries are `matplotlib` and `plotly`.
 
 ```bash
---live
-```
-If you would like periodic readouts of the profiling _while_ the profiling is happening, then you
-can set the `--live` flag to a value (in seconds). However, this may cause additional,
-unintentional side effects.
-
-```bash
 --ignore (-i)
 ```
 If there are specific folders that you would like to ignore while profiling, you can either
@@ -276,12 +250,93 @@ i.e. `--ignore foo --ignore /home/bar/baz`. These are resolved relative
 to the `root` directory you configure, but you can also set absolute paths.
 
 ```bash
+--precision (-p)
+```
+As a convenience, you can use the `--precision` flag to alter the memory sampling overhead.
+By default, [Scalene](https://github.com/plasma-umass/scalene) will highlight lines of code
+that allocate more than about 10 MB of memory. The `--precision` flag modifies this by scaling
+the default value by $2^p$, where $p$ is the `--precision` value. The higher the level
+of precision the slower the profiling might take as more samples are taken. However,
+setting the level of precision too low _may_ result in an uninformed summary. You will
+need to find the right balance for the level of profiling that you are doing. The speed
+depends on the script itself.
+
+```bash
 --repeat (-r)
 ```
 If there is a need to benchmark a script by profiling it repeatedly and then compute the average
 and standard deviation of the results, then using the `--repeat` flag will do this for you. See
 also the [benchmarking](#benchmarking) section below. Additional options associated with this flag
 can be seen with either `fixingahole profile --help` or `fixingahole stats --help`.
+
+### Scalene flags
+
+`fixing-a-hole` passes Scalene flags through directly to `scalene run`. Any Scalene flag listed
+in `fixingahole profile --help` can be placed on the command line after the script filename.
+Script arguments (arguments intended for _your_ script, not for Scalene) must be placed after a
+`---` separator to distinguish them from Scalene flags. For example:
+
+```bash
+fixingahole profile my_script.py --memory --stacks --- --my-script-arg value
+```
+
+#### Some commonly used Scalene flags:
+
+```bash
+--cpu-only / --memory
+```
+The main options are `--cpu-only` vs `--memory`. By default, `fixing-a-hole` profiles only the
+CPU runtime of the script. _However_, additional CPU overhead is required in order to determine
+the _heap_ memory usage of the script. The slowdown varies depending on the script, but may be as
+low as 1.2x to as much as 4x or more. The `--memory` flag enables line-by-line blame for memory
+usage.
+
+> [!TIP]
+> It's likely (and recommended) that you have run your script or notebook normally before you
+> profile it. _Even the fastest code is useless if it doesn't solve the problem._ However, if
+> you're concerned with the overhead of memory sampling, run a default `--cpu-only` test first to
+> establish an expectation on how long you may need to wait when using `--memory`.
+
+```bash
+--allocation-sampling-window <float>
+```
+It is possible to alter the memory sampling overhead using the `--allocation-sampling-window`
+flag. By default, [Scalene](https://github.com/plasma-umass/scalene) will highlight lines of code
+that allocate more than about 10 MB of memory. Smaller values increase sampling resolution
+(slower profiling); larger values reduce it (faster profiling). You will need to find the right
+balance for the level of profiling that you are doing.
+
+```bash
+--profile-all
+```
+By default, `fixing-a-hole` will only report CPU and memory usage within the `root` directory
+(see how to configure `fixing-a-hole` above). However, if you would also like a report on the
+usage by imported modules, such as `scipy`, `numpy`, etc., then use the `--profile-all` flag.
+This can be used along with `--ignore` or `--profile-exclude` to build a report with only the
+relevant modules.
+
+```bash
+--profile-exclude
+```
+Exclude files containing these strings (comma-separated) (see also `--ignore` above).
+This can be used to build a report with only the relevant modules.
+
+```bash
+--stacks
+```
+Pass `--stacks` to build stack traces for the most expensive function calls. This helps determine
+where the most expensive function calls are originating from and helps distinguish the difference
+between functions that are expensive to call even once from functions that are called repeatedly.
+
+> [!WARNING]
+> Generating stacks does not work on Apple Silicon M4/M5 chips.
+
+```bash
+--profile-interval <int>
+```
+If you would like periodic readouts of the profiling _while_ the profiling is happening, then you
+can set `--profile-interval` to a value in seconds. However, this may cause additional,
+unintentional side effects.
 
 ## Results
 
@@ -290,7 +345,7 @@ Results generated from `fixingahole profile` are saved in the configured `output
 `fixing-a-hole` above). It is suggested that the `output` directory is not tracked by `git`. Each
 script or notebook that you profile in this way are saved by name and the UTC datetime when you
 ran the profile. For example, `my_work/my_new_method.ipynb` will be saved in
-`performance/my_new_method/20250639_123456/`. Within the folder will be a copy of the code that
+`performance/my_new_method/20260629_123456/`. Within the folder will be a copy of the code that
 was profiled along with the profile results, the profile summary, and any logs that were
 generated.
 
@@ -415,14 +470,14 @@ Instead of relying solely on profiling metrics, consider these approaches:
 
 The first line in the summary file is the command used to generate the results. This is followed
 by the runtime and max heap memory usage (as reported by scalene) as well as the max RSS memory
-usage and total wall time (as reported by `/usr/bin/time`, if available). If the `profile_logs.log`
+usage and total wall time (as independently measured by `fixing-a-hole`). If the `profile_logs.log`
 file is not empty, then a summary is printed next. Following that, the main Profile Summary is
 given (it was also printed to stdout). Finally, if requested, the Stack Trace Summary is displayed.
 The Stack Trace Summary helps to identify whether or not expensive function calls are the result of
 one long execution or repeated calls to a less expensive function call.
 
 ```text
-fixingahole profile advanced.py --memory
+fixingahole profile advanced.py --memory --stacks
 
 Finished in 9.318 seconds using 1.376 GB of heap RAM
 Max RSS Memory Usage: 1.958 GB
@@ -507,7 +562,7 @@ monte_carlo_simulation, (0.40%)
 
 ### `profile_results.txt`
 
-This file shows the summary from [scalene](https://github.com/plasma-umass/scalene), see also the
+This file shows the summary from [Scalene](https://github.com/plasma-umass/scalene), see also the
 original [paper](https://www.usenix.org/system/files/osdi23-berger.pdf) for technical details.
 
 We first see the total memory usage and memory growth rate (the scalene documentation isn't clear

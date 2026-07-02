@@ -51,7 +51,7 @@ def _get_dirty_files(repo: git.Repo) -> set[str]:
     # We compare the HEAD commit to the current Index
     dirty_files.update(item.a_path for item in repo.index.diff("HEAD"))
 
-    return dirty_files
+    return {file for file in dirty_files if file is not None}
 
 
 def _get_used_dirty_files(repo: git.Repo, data: dict) -> list[str]:
@@ -452,7 +452,7 @@ class StatisticsManager:
 
         if save_metadata:
             save_data: dict[str, Any] = save_data if sort else deepcopy(data)
-            save_data["metadata"]: dict[str, Any] = {}
+            save_data["metadata"] = {}
             metadata: dict[str, Callable] = {
                 "repo": lambda repo: Path(str(repo.remotes.origin.url)).stem,
                 "branch": lambda repo: repo.active_branch.name,
