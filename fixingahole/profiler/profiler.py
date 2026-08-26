@@ -268,15 +268,19 @@ class Profiler:
         """
         return not (self.no_plots or self.python_file.suffix != ".py" or self.log_level.capture_output())
 
-    @property
-    def excluded_folders(self) -> str:
-        """Scalene flag to exclude system python directory when profiling all modules."""
+    def _excluded_folder_paths(self) -> list[Path]:
+        """Return directories that Scalene should exclude from detailed profiling."""
         exclude_dir: list[Path] = [
             Path(os.getenv("APPDATA") or sys.prefix) if HOST is Platform.Windows else Path(sys.executable).resolve().parents[1]
         ]
         exclude_dir.extend([folder for folder in Config.ignore() if folder != Config.output()])
         exclude_dir.extend(self.ignored_folders)  # allow users to ignore the OUTPUT_DIR if they want to.
-        return f"--profile-exclude {','.join(map(str, exclude_dir))}"
+        return exclude_dir
+
+    @property
+    def excluded_folders(self) -> str:
+        """Scalene flag to exclude system python directory when profiling all modules."""
+        return f"--profile-exclude {','.join(map(str, self._excluded_folder_paths()))}"
 
     @property
     def profile_file(self) -> Path:
@@ -462,24 +466,26 @@ class Profiler:
 
     @property
     def _scalene_run_cmd(self) -> list[str]:
-        """Build the profiling run command."""
+        """Build the profiling run command without losing argument boundaries."""
         sampling_detail = self.get_memory_precision()
-        cmd = [
-            f"{sys.executable} -m scalene run",
-            "--stacks" if self.trace else "",
-            "--profile-all" if self.detailed else "",
-            self.excluded_folders,
-            f"--memory {sampling_detail}" if not self.cpu_only else "--cpu-only",
-            f"--program-path {Config.root()}",
-            f"--profile-interval {self.live_update}" if 0 < self.live_update < float("inf") else "",
-            f"--outfile {self.output_json}",
-        ]
-        cmd.append(str(self.profile_file))
+        cmd = [sys.executable, "-m", "scalene", "run"]
+        if self.trace:
+            cmd.append("--stacks")
+        if self.detailed:
+            cmd.append("--profile-all")
+        cmd.extend(["--profile-exclude", ",".join(map(str, self._excluded_folder_paths()))])
+        if not self.cpu_only:
+            cmd.extend(["--memory", sampling_detail])
+        else:
+            cmd.append("--cpu-only")
+        cmd.extend(["--program-path", str(Config.root())])
+        if 0 < self.live_update < float("inf"):
+            cmd.extend(["--profile-interval", str(self.live_update)])
+        cmd.extend(["--outfile", str(self.output_json), str(self.profile_file)])
         if self.script_args != []:
             cmd.append("---")
             cmd.extend(self.script_args)
-        cmd_str = " ".join([ln.strip() for ln in cmd if ln]).strip()
-        return cmd_str.split()
+        return cmd
 
     def _run_scalene(self, usage: ResourceUsage) -> None:
         """Launch the Scalene subprocess, forwarding stderr while suppressing Scalene's own status lines."""

@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for the Profiler."""
 
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -53,6 +54,24 @@ class TestProfilerRunProfiler:
 
         assert exc_info.value.exit_code == 0
         assert "numpy" in profiler.profile_file.read_text()
+
+    def test_scalene_run_cmd_preserves_argument_boundaries(self, tmp_path: Path):
+        script = tmp_path / "script with spaces.py"
+        script.write_text("print('hello')\n", encoding="utf-8")
+        output_dir = tmp_path / "output with spaces"
+
+        profiler = Profiler(
+            script,
+            output_dir=output_dir,
+            python_script_args=["argument with spaces"],
+        )
+
+        command = profiler._scalene_run_cmd  # noqa: SLF001
+
+        assert command[:4] == [sys.executable, "-m", "scalene", "run"]
+        assert str(script) in command
+        assert str(profiler.output_json) in command
+        assert "argument with spaces" in command
 
     @patch("os.wait4")
     @patch("subprocess.Popen")
