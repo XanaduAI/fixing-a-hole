@@ -20,7 +20,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from fixingahole.profiler.profile_summary import ProfileSummary
-from fixingahole.profiler.stats_manager import StatisticsManager, _get_dirty_files, _get_used_dirty_files  # noqa: PLC2701
+from fixingahole.profiler.scalene_json_parser import RESOURCE_USAGE_KEY
+from fixingahole.profiler.stats_manager import (
+    TOTAL_KEY,
+    StatisticsManager,
+    _get_dirty_files,  # noqa: PLC2701
+    _get_used_dirty_files,  # noqa: PLC2701
+)
 
 
 @pytest.fixture(params=["old", "new"])
@@ -28,6 +34,16 @@ def profile_summary_obj(request: pytest.FixtureRequest, example_json: Path, exam
     """Load a real ProfileSummary from either the old or new format example JSON."""
     json_path = example_json if request.param == "old" else example_json_new
     return ProfileSummary(json_path)
+
+
+def _summary_with_resources(json_path: Path, walltime: float, rss_mb: float | None, *, memory: bool = True) -> ProfileSummary:
+    """Load a ProfileSummary from a copy of the JSON file with the given resource usage stored in it."""
+    raw = json.loads(json_path.read_text(encoding="utf-8"))
+    raw[RESOURCE_USAGE_KEY] = {"total_walltime_sec": walltime, "max_rss_mb": rss_mb}
+    raw["memory"] = memory
+    new_path = json_path.with_name(f"{json_path.stem}_{walltime}.json")
+    new_path.write_text(json.dumps(raw), encoding="utf-8")
+    return ProfileSummary(new_path)
 
 
 class TestStatisticsManagerInit:
@@ -286,3 +302,66 @@ class TestStatisticsManagerSaveAsJson:
         assert output["metadata"]["used_dirty_files"] == "Failed to save git used_dirty_files."
         assert isinstance(output["metadata"]["utc_time"], str)
         assert len(output["metadata"]["utc_time"]) == 15  # of the form 20251231_123456
+
+
+class TestStatisticsManagerTotals:
+    """Test the whole-program walltime, RSS memory, and heap memory statistics."""
+
+    def test_empty_manager_has_no_totals(self):
+        """No runs means no totals."""
+        manager = StatisticsManager()
+        assert manager.totals() == {}
+        assert TOTAL_KEY not in manager.stats(include_totals=True)
+
+    def test_totals_mean_and_std(self, example_json_both: Path):
+        """Totals are averaged over the runs, with the sample standard deviation and units."""
+        manager = StatisticsManager()
+        for walltime, rss in [(10.0, 100.0), (12.0, 300.0), (14.0, 200.0)]:
+            manager.insert(_summary_with_resources(example_json_both, walltime, rss))
+        heap_mb = json.loads(example_json_both.read_text(encoding="utf-8"))["max_footprint_mb"]
+
+        totals = manager.totals()
+        assert list(totals) == ["walltime", "rss_memory", "heap_memory", "count"]
+        assert totals["count"] == 3
+        assert totals["walltime"] == {"avg": pytest.approx(12.0), "std": pytest.approx(2.0), "unit": "s"}
+        assert totals["rss_memory"] == {"avg": pytest.approx(200.0), "std": pytest.approx(100.0), "unit": "MB"}
+        assert totals["heap_memory"] == {"avg": pytest.approx(heap_mb), "std": pytest.approx(0.0), "unit": "MB"}
+
+    def test_missing_measures_are_omitted(self, example_json_both: Path):
+        """Measures that were never recorded (no RSS, CPU-only) are omitted rather than reported as zero."""
+        manager = StatisticsManager()
+        manager.insert(_summary_with_resources(example_json_both, 5.0, None, memory=False))
+        assert manager.totals() == {"walltime": {"avg": 5.0, "std": 0.0, "unit": "s"}, "count": 1}
+
+    def test_partially_missing_measures_average_over_measured_runs(self, example_json_both: Path):
+        """A measure missing from some runs is averaged over the runs where it was measured."""
+        manager = StatisticsManager()
+        manager.insert(_summary_with_resources(example_json_both, 4.0, 100.0))
+        manager.insert(ProfileSummary(example_json_both))  # No stored walltime or RSS.
+        totals = manager.totals()
+        assert totals["count"] == 2
+        assert totals["walltime"]["avg"] == pytest.approx(4.0)
+        assert totals["rss_memory"]["avg"] == pytest.approx(100.0)
+
+    def test_stats_excludes_totals_by_default(self, example_json_both: Path):
+        """stats() is unchanged unless the totals are requested."""
+        manager = StatisticsManager()
+        manager.insert(_summary_with_resources(example_json_both, 4.0, 100.0))
+        assert TOTAL_KEY not in manager.stats()
+        with_totals = manager.stats(include_totals=True)
+        assert with_totals[TOTAL_KEY] == manager.totals()
+        assert {k: v for k, v in with_totals.items() if k != TOTAL_KEY} == manager.stats()
+
+    @pytest.mark.parametrize("sort", [True, False])
+    def test_save_as_json_with_totals(self, example_json_both: Path, tmp_path: Path, sort: bool):
+        """The totals are saved alongside the function statistics."""
+        manager = StatisticsManager()
+        manager.insert(_summary_with_resources(example_json_both, 4.0, 100.0))
+        manager.insert(_summary_with_resources(example_json_both, 6.0, 300.0))
+        file_path = tmp_path / "function_stats.json"
+        StatisticsManager.save_as_json(file_path, manager.stats(include_totals=True), sort=sort, save_metadata=False)
+        saved = json.loads(file_path.read_text())
+        assert saved[TOTAL_KEY]["walltime"] == {"avg": 5.0, "std": pytest.approx(2**0.5), "unit": "s"}
+        assert saved[TOTAL_KEY]["rss_memory"]["avg"] == pytest.approx(200.0)
+        assert saved[TOTAL_KEY]["count"] == 2
+        assert len(saved) == len(manager.stats()) + 1

@@ -311,6 +311,25 @@ If multiple previous runs of the same code were made before, then these same sta
 using the `fixingahole stats <folder>` command, so long as all of the Scalene JSON files from each
 profile are in the same subfolder. See `fixingahole stats --help` for more details.
 
+Along with the per-function statistics, the statistics file (`function_stats.json` by default) also
+contains a `total` entry with the average and standard deviation of the whole-program measurements
+of each run: the total wall time (`walltime`, in seconds), the max RSS memory usage (`rss_memory`,
+in MB), and the max heap memory usage as reported by Scalene (`heap_memory`, in MB). A measurement
+is only included if it is available, e.g. the heap memory usage requires profiling with `--memory`
+and the RSS memory usage is not available on Windows.
+
+```json
+"total": {
+  "walltime": {"avg": 9.950, "std": 0.120, "unit": "s"},
+  "rss_memory": {"avg": 2005.0, "std": 12.5, "unit": "MB"},
+  "heap_memory": {"avg": 1409.0, "std": 8.2, "unit": "MB"},
+  "count": 10
+}
+```
+
+To make this possible, the total wall time and max RSS memory usage of each run are stored in the
+Scalene JSON file of that run under the `fixingahole` key, which Scalene itself ignores.
+
 ### Understanding Memory Profiling: Heap vs RSS
 
 When profiling memory usage, `fixing-a-hole` reports two different metrics: **heap memory** and

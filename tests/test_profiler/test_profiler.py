@@ -16,12 +16,13 @@
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from fixingahole import Config, LogLevel, PlottingLibrary
-from fixingahole.profiler.profiler import Profiler, ProfilerConfig, ProfilerException, ResourceUsage
+from fixingahole.profiler.profiler import Platform, Profiler, ProfilerConfig, ProfilerException, ResourceUsage
+from fixingahole.profiler.scalene_json_parser import RESOURCE_USAGE_KEY, ProfileData
 from fixingahole.profiler.utils import FindPathException, find_path
 from tests.conftest import basic_name
 
@@ -51,6 +52,53 @@ class TestResourceUsage:
         with ResourceUsage() as usage:
             pass
         assert "Wall Time" in usage.report
+
+    def test_as_dict_raises_before_exit(self):
+        """Accessing .as_dict() before __exit__ raises RuntimeError."""
+        with ResourceUsage() as usage, pytest.raises(RuntimeError, match="before context exit"):
+            usage.as_dict()
+
+    def test_as_dict_without_rusage(self):
+        """Without child rusage, only the walltime is measured."""
+        with ResourceUsage() as usage:
+            pass
+        data = usage.as_dict()
+        assert data["total_walltime_sec"] == usage.walltime > 0.0
+        assert data["max_rss_mb"] is None
+        json.dumps(data)  # Must be JSON serializable.
+
+    @pytest.mark.parametrize(
+        ("host", "ru_maxrss", "expected_mb"),
+        [
+            (Platform.Linux, 2048, 2.0),  # Linux reports kilobytes.
+            (Platform.MacOS, 3 * 1024**2, 3.0),  # macOS reports bytes.
+        ],
+    )
+    def test_max_rss_mb(self, host: Platform, ru_maxrss: int, expected_mb: float):
+        """The max RSS is converted to MB according to the platform's units."""
+        with patch("fixingahole.profiler.profiler.HOST", host), ResourceUsage() as usage:
+            usage.child_rusage = MagicMock(ru_maxrss=ru_maxrss)
+        assert usage.max_rss_mb == pytest.approx(expected_mb)
+        assert usage.as_dict()["max_rss_mb"] == pytest.approx(expected_mb)
+        assert "Max RSS Memory Usage" in usage.report
+
+    def test_store_resource_usage(self, mock_file: Path, example_json_new: Path):
+        """The resource usage is stored in the Scalene JSON file and is readable by ProfileData."""
+        profiler = Profiler(mock_file)
+        profiler.output_json.write_bytes(example_json_new.read_bytes())
+        with patch("fixingahole.profiler.profiler.HOST", Platform.Linux), ResourceUsage() as usage:
+            usage.child_rusage = MagicMock(ru_maxrss=4096)
+        profiler.store_resource_usage(usage)
+
+        raw = json.loads(profiler.output_json.read_text(encoding="utf-8"))
+        original = json.loads(example_json_new.read_text(encoding="utf-8"))
+        assert raw[RESOURCE_USAGE_KEY] == {"total_walltime_sec": usage.walltime, "max_rss_mb": 4.0}
+        assert {k: v for k, v in raw.items() if k != RESOURCE_USAGE_KEY} == original  # Scalene data is untouched.
+
+        data = ProfileData.from_file(profiler.output_json)
+        assert data.total_walltime == pytest.approx(usage.walltime)
+        assert data.max_rss_mb == pytest.approx(4.0)
+        assert data.max_heap_mb == pytest.approx(original["max_footprint_mb"])
 
 
 class TestFindPath:
