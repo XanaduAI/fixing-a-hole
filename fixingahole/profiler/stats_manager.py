@@ -514,8 +514,8 @@ class StatisticsManager:
         )
 
         if save_metadata:
-            save_data: dict[str, Any] = save_data if sort else deepcopy(data)
-            save_data["metadata"]: dict[str, Any] = {}
+            save_data = save_data if sort else deepcopy(data)
+            save_data["metadata"] = {}
             metadata: dict[str, Callable] = {
                 "repo": lambda repo: Path(str(repo.remotes.origin.url)).stem,
                 "branch": lambda repo: repo.active_branch.name,

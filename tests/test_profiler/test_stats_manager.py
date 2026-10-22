@@ -72,7 +72,7 @@ class TestGitDiffHelperFunctions:
         staged_change.a_path = "file2.py"
 
         # Set up diff method to return appropriate changes
-        mock_repo.index.diff.side_effect: list[list[MagicMock]] = [[unstaged_change], [staged_change]]
+        mock_repo.index.diff.side_effect = [[unstaged_change], [staged_change]]
 
         result = _get_dirty_files(mock_repo)
         assert result == {"file1.py", "file2.py"}
@@ -86,7 +86,7 @@ class TestGitDiffHelperFunctions:
         # Mock dirty files
         dirty_change = MagicMock()
         dirty_change.a_path = "fixingahole/profiler/stats_manager.py"
-        mock_repo.index.diff.side_effect: list[list[MagicMock]] = [[dirty_change], []]
+        mock_repo.index.diff.side_effect = [[dirty_change], []]
 
         # Mock profiling data with files
         data: dict[str, dict[str, float]] = {
