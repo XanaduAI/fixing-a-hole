@@ -13,7 +13,9 @@
 # limitations under the License.
 """Tests for the Fixing-A-Hole CLI tools."""
 
+import json
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -78,6 +80,28 @@ class TestStats:
         result = runner.invoke(cli.app, ["stats", str(tmp_dir), "--no-metadata"])
         assert result.exit_code == 0, print_error(result)
 
+    def test_stats_cli_stores_totals(self, example_json_both: Path):
+        """Test that the stats CLI stores the whole-program walltime, RSS memory, and heap memory."""
+        tmp_dir = example_json_both.parent / "tmp"
+        raw = json.loads(example_json_both.read_text(encoding="utf-8"))
+        for i, (walltime, rss) in enumerate([(10.0, 100.0), (20.0, 300.0)]):
+            run_dir = tmp_dir / str(i)  # Mimic results from runs made in parallel and saved in different subfolders.
+            run_dir.mkdir(parents=True)
+            raw["fixingahole"] = {"total_walltime_sec": walltime, "max_rss_mb": rss}
+            (run_dir / "profile_results.json").write_text(json.dumps(raw), encoding="utf-8")
+        result = runner.invoke(cli.app, ["stats", str(tmp_dir), "--no-metadata", "--all-subfolders"])
+        assert result.exit_code == 0, print_error(result)
+
+        stats = json.loads((tmp_dir / "function_stats.json").read_text(encoding="utf-8"))
+        assert stats["total"]["count"] == 2
+        assert stats["total"]["walltime"]["avg"] == pytest.approx(15.0)
+        assert stats["total"]["rss_memory"]["avg"] == pytest.approx(200.0)
+        assert stats["total"]["heap_memory"]["avg"] == pytest.approx(raw["max_footprint_mb"])
+        summary = (tmp_dir / "function_stats.txt").read_text(encoding="utf-8")
+        assert "Total Wall Time" in summary
+        assert "Max RSS Memory Usage" in summary
+        assert "Max Heap Memory Usage" in summary
+
     @pytest.mark.usefixtures("tmp_path")
     @patch("fixingahole.profiler.utils.Colour.error")
     def test_stats_cli_missing_file(self, mock_colour_error: Mock):
@@ -117,6 +141,26 @@ class TestProfilerRunProfiler:
         assert len([f for f in output_files if f.suffix == ".json"]) == n_runs + 1  # one JSON per run, and one stats file.
         txt_files = [f for f in output_files if f.suffix == ".txt"]
         assert len(txt_files) == n_runs * 2 + 1  # results + summary per run, plus stats summary.
+
+    def test_profiler_repeat_stores_totals(self, mock_file: Path, root_dir: Path):
+        """Test that repeated profilings store the whole-program walltime and memory usage."""
+        output_dir = root_dir / "performance" / "repeat"
+        result = runner.invoke(cli.app, ["profile", str(mock_file), "--repeat", "2", "-o", str(output_dir), "--no-metadata"])
+        assert result.exit_code == 0, print_error(result)
+        for run in ["profile_results.json", "profile_results_1.json"]:
+            usage = json.loads((output_dir / run).read_text(encoding="utf-8"))["fixingahole"]
+            assert usage["total_walltime_sec"] > 0
+            if sys.platform != "win32":
+                assert usage["max_rss_mb"] > 0
+        totals = json.loads((output_dir / "function_stats.json").read_text(encoding="utf-8"))["total"]
+        assert totals["count"] == 2
+        assert totals["walltime"]["avg"] > 0
+        assert totals["walltime"]["unit"] == "s"
+        if sys.platform != "win32":
+            assert totals["rss_memory"]["avg"] > 0
+            assert totals["rss_memory"]["unit"] == "MB"
+        assert "heap_memory" not in totals  # CPU only profiling by default.
+        assert "Total Wall Time" in (output_dir / "function_stats.txt").read_text(encoding="utf-8")
 
     def test_profile_directory(self, mock_file: Path):
         """Test that the CLI fails to profile a directory."""

@@ -13,11 +13,12 @@
 # limitations under the License.
 """Tests for the Scalene JSON parser module."""
 
+import json
 from pathlib import Path
 
 import pytest
 
-from fixingahole.profiler.scalene_json_parser import ProfileData, ProfileStack, ProfileStackTimeline
+from fixingahole.profiler.scalene_json_parser import RESOURCE_USAGE_KEY, ProfileData, ProfileStack, ProfileStackTimeline
 from fixingahole.profiler.utils import memory_with_units
 
 
@@ -206,3 +207,44 @@ class TestProfileDataNewFormat:
         assert result.has_memory_info
         funcs_with_memory = [f for f in result.functions if f.has_memory_info]
         assert len(funcs_with_memory) > 0
+
+
+class TestProfileDataResourceUsage:
+    """Test the whole-program resource usage stored by fixing-a-hole alongside the Scalene data."""
+
+    def test_without_resource_usage(self, example_json_both: Path):
+        """Scalene JSON files without fixing-a-hole's resource usage still parse; only heap memory is known."""
+        data = ProfileData.from_file(example_json_both)
+        raw = json.loads(example_json_both.read_text(encoding="utf-8"))
+        assert data.fixingahole is None
+        assert data.total_walltime is None
+        assert data.max_rss_mb is None
+        assert data.max_heap_mb == pytest.approx(raw["max_footprint_mb"])
+
+    def test_with_resource_usage(self, example_json_both: Path):
+        """The stored total walltime and max RSS memory are exposed."""
+        raw = json.loads(example_json_both.read_text(encoding="utf-8"))
+        raw[RESOURCE_USAGE_KEY] = {"total_walltime_sec": 12.5, "max_rss_mb": 2048.0}
+        example_json_both.write_text(json.dumps(raw), encoding="utf-8")
+        data = ProfileData.from_file(example_json_both)
+        assert data.total_walltime == pytest.approx(12.5)
+        assert data.max_rss_mb == pytest.approx(2048.0)
+        assert data.fixingahole is not None
+        with pytest.raises(TypeError):
+            data.fixingahole["max_rss_mb"] = 0.0  # The stored resource usage is read-only.
+
+    def test_rss_unavailable(self, example_json_both: Path):
+        """A null max RSS (e.g. on Windows) is reported as None."""
+        raw = json.loads(example_json_both.read_text(encoding="utf-8"))
+        raw[RESOURCE_USAGE_KEY] = {"total_walltime_sec": 1.0, "max_rss_mb": None}
+        example_json_both.write_text(json.dumps(raw), encoding="utf-8")
+        data = ProfileData.from_file(example_json_both)
+        assert data.total_walltime == pytest.approx(1.0)
+        assert data.max_rss_mb is None
+
+    def test_no_heap_memory_when_cpu_only(self, example_json_both: Path):
+        """Heap memory is not reported when Scalene did not profile memory."""
+        raw = json.loads(example_json_both.read_text(encoding="utf-8"))
+        raw["memory"] = False
+        example_json_both.write_text(json.dumps(raw), encoding="utf-8")
+        assert ProfileData.from_file(example_json_both).max_heap_mb is None

@@ -285,9 +285,10 @@ class Config:
 
         If the path is not relative to root, then return the path.
         """
+        path_obj = Path(path)
         with suppress(ValueError):
-            return Path(path).resolve().relative_to(cls._settings.root)
-        return path
+            return path_obj.resolve().relative_to(cls._settings.root)
+        return path_obj
 
     @classmethod
     def relative_to_cwd(cls, path: Path | str) -> Path:
@@ -295,9 +296,10 @@ class Config:
 
         If the path is not relative to current directory, then return the path.
         """
+        path_obj = Path(path)
         with suppress(ValueError):
-            return Path(path).resolve().relative_to(Path.cwd())
-        return path
+            return path_obj.resolve().relative_to(Path.cwd())
+        return path_obj
 
     @classmethod
     def is_duration_relative(cls) -> bool:

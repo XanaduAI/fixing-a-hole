@@ -26,6 +26,9 @@ from typing import Any
 
 from fixingahole.profiler.utils import memory_with_units
 
+RESOURCE_USAGE_KEY: str = "fixingahole"
+"""Key under which `fixing-a-hole` stores its own resource measurements in the Scalene JSON output."""
+
 
 def _freeze(value: list | tuple | Mapping) -> tuple | MappingProxyType:
     """Recursively freeze lists as tuples and mappings as read-only proxies."""
@@ -238,10 +241,14 @@ class ProfileData:
     combined_stacks_timeline: list[ProfileStackTimeline] | None = None
     memory_stacks: list[tuple[list[ProfileStack], float]] | None = None
     native_allocations_mb: float | None = None
+    # Not part of Scalene's output: the resources measured by fixing-a-hole (see RESOURCE_USAGE_KEY).
+    fixingahole: dict[str, float | None] | None = None
 
     def __post_init__(self) -> None:
         """Normalize and freeze mutable nested profile data."""
         object.__setattr__(self, "args", _freeze(self.args))
+        if self.fixingahole is not None:
+            object.__setattr__(self, "fixingahole", _freeze(self.fixingahole))
         object.__setattr__(self, "samples", _freeze(self.samples))
         object.__setattr__(self, "stacks", _freeze(self.stacks))
 
@@ -283,6 +290,21 @@ class ProfileData:
     def max_memory(self) -> str:
         """The maximum footprint of the heap memory used while profiling."""
         return memory_with_units(self.max_footprint_mb, digits=3)
+
+    @property
+    def total_walltime(self) -> float | None:
+        """The total wall time in seconds of the profiling subprocess, if it was measured by fixing-a-hole."""
+        return (self.fixingahole or {}).get("total_walltime_sec")
+
+    @property
+    def max_rss_mb(self) -> float | None:
+        """The maximum resident set size (RSS) memory in MB of the profiling subprocess, if it was measured."""
+        return (self.fixingahole or {}).get("max_rss_mb")
+
+    @property
+    def max_heap_mb(self) -> float | None:
+        """The maximum footprint of the heap memory in MB, if memory was profiled."""
+        return float(self.max_footprint_mb) if self.memory else None
 
     @cached_property
     def has_memory_info(self) -> bool:

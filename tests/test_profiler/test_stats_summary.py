@@ -21,6 +21,7 @@ from typer.testing import CliRunner
 from fixingahole.cli import main as cli
 from fixingahole.profiler.profile_summary import ProfileSummary
 from fixingahole.profiler.stats_manager import (
+    TOTAL_KEY,
     StatisticsManager,
     StatsProfileDetails,
     StatsSummary,
@@ -606,3 +607,66 @@ class TestStatsCLITextFile:
         assert "Benchmark Summary" in txt_content
         # The saved .txt must not be raw JSON
         assert not txt_content.strip().startswith("{")
+
+
+class TestStatsSummaryTotals:
+    """Test that the whole-program walltime and memory totals are reported in the summary."""
+
+    @pytest.fixture
+    def totals(self) -> dict:
+        """Whole-program totals as produced by ``StatisticsManager.totals``."""
+        return {
+            "walltime": {"avg": 12.0, "std": 2.0, "unit": "s"},
+            "rss_memory": {"avg": 2048.0, "std": 0.0, "unit": "MB"},
+            "heap_memory": {"avg": 1024.0, "std": 512.0, "unit": "MB"},
+            "count": 3,
+        }
+
+    def test_totals_reported(self, minimal_stats_data: dict, totals: dict):
+        """The totals are shown with avg ± std in the summary."""
+        result = generate_stats_summary(minimal_stats_data | {TOTAL_KEY: totals})
+        assert "Total Wall Time:       12.000 \u00b1 2.000 sec" in result
+        assert "Max RSS Memory Usage:  2.000 GB" in result
+        assert "Max Heap Memory Usage: 1.000 GB \u00b1 512.000 MB" in result
+        assert "3 runs" in result
+
+    def test_partial_totals_reported(self, minimal_stats_data: dict, totals: dict):
+        """Only the measured totals are shown."""
+        totals.pop("heap_memory")
+        result = generate_stats_summary(minimal_stats_data | {TOTAL_KEY: totals})
+        assert "Total Wall Time" in result
+        assert "Max RSS Memory Usage" in result
+        assert "Max Heap Memory Usage" not in result
+
+    def test_no_totals_section_without_totals(self, minimal_stats_data: dict):
+        """Without totals, the summary does not mention them."""
+        result = generate_stats_summary(minimal_stats_data)
+        assert "Total Wall Time" not in result
+        assert "Max RSS Memory Usage" not in result
+
+    def test_totals_only_returns_sentinel(self, totals: dict):
+        """The totals are not treated as a function entry."""
+        assert "No statistics to summarize" in generate_stats_summary({TOTAL_KEY: totals})
+
+    def test_totals_not_treated_as_function(self, minimal_stats_data: dict, totals: dict):
+        """The totals entry is skipped when building the per-function details."""
+        by_file = _build_stats_details(minimal_stats_data | {TOTAL_KEY: totals})
+        assert [f.name for funcs in by_file.values() for f in funcs] == ["my_func"]
+
+    def test_stats_summary_from_file_with_totals(self, minimal_stats_data: dict, totals: dict, tmp_path: Path):
+        """StatsSummary reads the totals from a saved file and ignores them when counting runs."""
+        stats_file = tmp_path / "stats.json"
+        totals["count"] = 7  # Distinct from the function count, to check which one is used.
+        StatisticsManager.save_as_json(stats_file, {TOTAL_KEY: totals} | minimal_stats_data, sort=False, save_metadata=False)
+        ss = StatsSummary(stats_file)
+        assert ss.count == 3
+        assert "Total Wall Time" in ss.summary()
+
+    def test_manager_summary_include_totals(self, multi_run_manager: StatisticsManager):
+        """StatisticsManager.summary() only reports the totals when requested."""
+        assert multi_run_manager.summary(include_totals=True) == generate_stats_summary(
+            multi_run_manager.stats(include_totals=True)
+        )
+        # The example profiles were made with memory profiling, so the heap memory is known.
+        assert "Max Heap Memory Usage" in multi_run_manager.summary(include_totals=True)
+        assert "Max Heap Memory Usage" not in multi_run_manager.summary()

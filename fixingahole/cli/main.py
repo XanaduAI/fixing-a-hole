@@ -249,8 +249,8 @@ def profile(
         stats.insert(summary)
     if stats.count > 1:
         stats_file = profiler.output_file.with_name(output_file).with_suffix(".json")
-        stats.save_as_json(stats_file, stats.stats(), sort=sort, save_metadata=metadata)
-        summary_text = stats.summary()
+        stats.save_as_json(stats_file, stats.stats(include_totals=True), sort=sort, save_metadata=metadata)
+        summary_text = stats.summary(include_totals=True)
         Colour.info(summary_text)
         stats_file.with_suffix(".txt").write_text(summary_text, encoding="utf-8")
 
@@ -378,8 +378,8 @@ def stats(
             )
 
     stats_file = (directory / output_file).with_suffix(".json")
-    stats.save_as_json(stats_file, stats.stats(), save_metadata=metadata, sort=sort)
-    summary_text = stats.summary()
+    stats.save_as_json(stats_file, stats.stats(include_totals=True), save_metadata=metadata, sort=sort)
+    summary_text = stats.summary(include_totals=True)
     Colour.info(summary_text)
     stats_file.with_suffix(".txt").write_text(summary_text, encoding="utf-8")
     return stats

@@ -38,6 +38,16 @@ if TYPE_CHECKING:
 
     from fixingahole.profiler.profile_summary import ProfileDetails, ProfileSummary
 
+TOTAL_KEY: str = "total"
+"""Key of the whole-program statistics (as opposed to the per-function statistics) of the benchmarked runs."""
+
+# The whole-program measures that are aggregated under TOTAL_KEY, and their units.
+TOTAL_UNITS: dict[str, str] = {
+    "walltime": "s",  # Total wall time of the profiling subprocess.
+    "rss_memory": "MB",  # Max resident set size (RSS) memory of the profiling subprocess.
+    "heap_memory": "MB",  # Max heap memory footprint, as reported by Scalene.
+}
+
 
 def _get_dirty_files(repo: git.Repo) -> set[str]:
     """Check the git status and return the filenames of uncommitted changes."""
@@ -106,16 +116,34 @@ def _format_stats_duration(avg_sec: float, std_sec: float) -> str:
     return f"{val:.3f} {unit}"
 
 
-def _format_stats_memory(avg_mb: float, std_mb: float) -> str:
+def _format_stats_memory(avg_mb: float, std_mb: float, digits: int = 0) -> str:
     """Format an average ± std memory value with auto-scaled units.
 
     Uses ``memory_with_units`` for consistent unit scaling.  The ``±`` portion
     is omitted when ``std_mb`` is zero.
     """
-    avg_str = memory_with_units(avg_mb)
+    avg_str = memory_with_units(avg_mb, digits=digits)
     if std_mb > 0:
-        return f"{avg_str} \u00b1 {memory_with_units(std_mb)}"
+        return f"{avg_str} \u00b1 {memory_with_units(std_mb, digits=digits)}"
     return avg_str
+
+
+def _build_totals_section(totals: dict[str, Any]) -> list[str]:
+    """Build the lines describing the whole-program walltime and memory statistics."""
+    labels: dict[str, str] = {
+        "walltime": "Total Wall Time",
+        "rss_memory": "Max RSS Memory Usage",
+        "heap_memory": "Max Heap Memory Usage",
+    }
+    width = max(len(label) for label in labels.values()) + 1
+    lines: list[str] = []
+    for measure, label in labels.items():
+        if not isinstance(values := totals.get(measure), dict):
+            continue
+        avg, std = values["avg"], values["std"]
+        value = _format_stats_duration(avg, std) if measure == "walltime" else _format_stats_memory(avg, std, digits=3)
+        lines.append(f"{label + ':':<{width}} {value}")
+    return ["", *lines] if lines else []
 
 
 @dataclass(frozen=True)
@@ -173,7 +201,7 @@ def _build_stats_details(stats_data: dict[str, Any], threshold_sec: float = 0) -
     """
     by_file: dict[str, list[StatsProfileDetails]] = defaultdict(list)
     for key, data in stats_data.items():
-        if key == "metadata":
+        if key in {"metadata", TOTAL_KEY}:
             continue
         # Keys have the form "relative/file/path.py:function_name"
         file_path, sep, name = key.rpartition(":")
@@ -246,14 +274,15 @@ def generate_stats_summary(
     Args:
         stats_data: Mapping of `"file_path:func_name"` keys to stats dicts
             containing `user`, `system`, `memory`, and `count` sub-keys.
-            A `metadata` key is ignored if present.
+            A `metadata` key is ignored if present. A `total` key, if present,
+            is reported as the whole-program wall time and memory usage.
         top_n: Maximum number of functions to list in each ranked section.
         threshold_sec: Functions whose average total runtime (user + system)
             is below this threshold *and* have no memory data are excluded from
             the ranked lists and the module tree.
 
     """
-    function_stats = {k: v for k, v in stats_data.items() if k != "metadata"}
+    function_stats = {k: v for k, v in stats_data.items() if k not in {"metadata", TOTAL_KEY}}
     if not function_stats:
         return "No statistics to summarize.\n"
 
@@ -273,6 +302,7 @@ def generate_stats_summary(
 
     plural = f"{count} runs" if count != 1 else "1 run"
     message: list[str] = [f"\nBenchmark Summary ({plural})", "=" * width]
+    message.extend(_build_totals_section(stats_data.get(TOTAL_KEY) or {}))
 
     def fmt_runtime_line(i: int, func: StatsProfileDetails) -> str:
         file_name = Path(func.file_path).name
@@ -356,7 +386,7 @@ class StatsSummary:
             self._stats_data: dict[str, Any] = json.loads(Path(source).read_text(encoding="utf-8"))
         else:
             self._stats_data = source.stats()
-        function_data = {k: v for k, v in self._stats_data.items() if k != "metadata"}
+        function_data = {k: v for k, v in self._stats_data.items() if k not in {"metadata", TOTAL_KEY}}
         self.count: int = next(iter(function_data.values()), {}).get("count", 0)
 
     def summary(self, top_n: int = 10, threshold_sec: float = 0.001) -> str:
@@ -377,9 +407,10 @@ class StatisticsManager:
     def __init__(self) -> None:
         self.count: int = 0
         self.function_data: dict[str, list[ProfileDetails]] = defaultdict(list)
+        self.total_data: dict[str, list[float]] = defaultdict(list)
 
     def insert(self, summary: "ProfileSummary") -> None:
-        """Add additional function data to the stats manager."""
+        """Add additional function data, and whole-program walltime and memory usage, to the stats manager."""
         self.count += 1
         for f in summary.data.functions:
             try:
@@ -387,6 +418,28 @@ class StatisticsManager:
             except ValueError:  # f.file_path is not in the subpath of Config.root()
                 key = f"{Path(f.file_path)}:{f.name}"
             self.function_data[key].append(f)
+        totals: dict[str, float | None] = {
+            "walltime": summary.data.total_walltime,
+            "rss_memory": summary.data.max_rss_mb,
+            "heap_memory": summary.data.max_heap_mb,
+        }
+        for measure, value in totals.items():
+            if value is not None:
+                self.total_data[measure].append(value)
+
+    def totals(self) -> dict[str, Any]:
+        """Compute the mean and standard deviation of the whole-program walltime and memory usage.
+
+        Each measure is averaged over only the runs where it was measured (e.g. heap memory is only
+        available when profiling memory, and RSS memory is not available on Windows). Measures that
+        were never measured are omitted. Returns an empty dict if nothing was measured.
+        """
+        totals: dict[str, Any] = {
+            measure: _mean_and_std(values, None) | {"unit": unit}
+            for measure, unit in TOTAL_UNITS.items()
+            if (values := self.total_data.get(measure))
+        }
+        return totals | {"count": self.count} if totals else {}
 
     def average(self) -> dict[str, dict[str, float]]:
         """Compute the averages for each function."""
@@ -412,9 +465,15 @@ class StatisticsManager:
             for key, funcs in self.function_data.items()
         }
 
-    def stats(self) -> dict[str, dict[str, Any]]:
-        """Compute the standard deviations for each function."""
-        return {
+    def stats(self, *, include_totals: bool = False) -> dict[str, dict[str, Any]]:
+        """Compute the means and standard deviations for each function.
+
+        Args:
+            include_totals: Also include the whole-program walltime and memory usage statistics
+                (see ``totals``) under the ``"total"`` key, if any were measured.
+
+        """
+        stats: dict[str, dict[str, Any]] = {
             key: {
                 "user": _mean_and_std([f.user_time for f in funcs], self.count),
                 "system": _mean_and_std([f.system_time for f in funcs], self.count),
@@ -423,17 +482,21 @@ class StatisticsManager:
             }
             for key, funcs in self.function_data.items()
         }
+        if include_totals and (totals := self.totals()):
+            stats[TOTAL_KEY] = totals
+        return stats
 
-    def summary(self, top_n: int = 10, threshold_sec: float = 0.001) -> str:
+    def summary(self, top_n: int = 10, threshold_sec: float = 0.001, *, include_totals: bool = False) -> str:
         """Generate a human-readable benchmark summary with avg ± std statistics.
 
         Args:
             top_n: Maximum number of functions to list in each ranked section.
             threshold_sec: Functions whose average total runtime is below this
                 value (in seconds) and have no memory data are excluded.
+            include_totals: Also report the whole-program walltime and memory usage statistics.
 
         """
-        return generate_stats_summary(self.stats(), top_n=top_n, threshold_sec=threshold_sec)
+        return generate_stats_summary(self.stats(include_totals=include_totals), top_n=top_n, threshold_sec=threshold_sec)
 
     @staticmethod
     def save_as_json(filename: Path, data: dict[str, Any], *, save_metadata: bool = True, sort: bool = True) -> dict[str, Any]:
@@ -451,8 +514,8 @@ class StatisticsManager:
         )
 
         if save_metadata:
-            save_data: dict[str, Any] = save_data if sort else deepcopy(data)
-            save_data["metadata"]: dict[str, Any] = {}
+            save_data = save_data if sort else deepcopy(data)
+            save_data["metadata"] = {}
             metadata: dict[str, Callable] = {
                 "repo": lambda repo: Path(str(repo.remotes.origin.url)).stem,
                 "branch": lambda repo: repo.active_branch.name,

@@ -32,6 +32,7 @@ from sympy import nextprime
 from typer import Exit
 
 from fixingahole import Config
+from fixingahole.profiler.scalene_json_parser import RESOURCE_USAGE_KEY
 from fixingahole.profiler.utils import FileWatcher, LogLevel, PlottingLibrary, Spinner, date, memory_with_units
 
 if TYPE_CHECKING:
@@ -73,6 +74,7 @@ class ResourceUsage:
 
     def __init__(self) -> None:
         self.rss: str = ""
+        self.max_rss_mb: float | None = None
         self.walltime: float = 0.0
         self.child_rusage: struct_rusage | None = None
         self._t0: float = 0.0
@@ -88,8 +90,10 @@ class ResourceUsage:
         self._finished = True
         self.walltime = time.perf_counter() - self._t0
         if HOST is not Platform.Windows and self.child_rusage is not None:
+            # ru_maxrss is reported in kilobytes on Linux, but in bytes on macOS.
             unit = "KB" if HOST is Platform.Linux else "B"
             self.rss = memory_with_units(self.child_rusage.ru_maxrss, unit=unit, digits=3)
+            self.max_rss_mb = self.child_rusage.ru_maxrss / (1024 if unit == "KB" else 1024**2)
 
     @property
     def report(self) -> str:
@@ -102,6 +106,13 @@ class ResourceUsage:
             f"\nTotal Wall Time: {self.walltime:.3f} seconds\n" if self.walltime > 0 else "",
         ]
         return "".join(lines)
+
+    def as_dict(self) -> dict[str, float | None]:
+        """Return the measured resources in a JSON serializable form (seconds and MB)."""
+        if not self._finished:
+            msg = "ResourceUsage.as_dict accessed before context exit."
+            raise RuntimeError(msg)
+        return {"total_walltime_sec": self.walltime, "max_rss_mb": self.max_rss_mb}
 
 
 @runtime_checkable
@@ -515,6 +526,17 @@ class Profiler:
         if proc.returncode != 0:
             raise subprocess.CalledProcessError(proc.returncode, proc.args, stderr="".join(stderr_tail))
 
+    def store_resource_usage(self, usage: ResourceUsage) -> None:
+        """Save the total wall time and max RSS memory usage alongside the profile data in the Scalene JSON file.
+
+        Scalene does not measure these itself, so they are stored under a separate key so that they can be
+        aggregated later on (e.g. by `fixingahole stats`). Scalene ignores unknown keys when reading the file.
+        """
+        data: dict[str, Any] = json.loads(self.output_json.read_text(encoding="utf-8"))
+        data[RESOURCE_USAGE_KEY] = usage.as_dict()
+        # Match the formatting used by Scalene when it writes the JSON file.
+        self.output_json.write_text(json.dumps(data, sort_keys=True, indent=4) + "\n", encoding="utf-8")
+
     def json_to_tables(self) -> None:
         """Run the scalene view command to format the output."""
         if not self._json_output_exists():
@@ -538,6 +560,7 @@ class Profiler:
             msg = "Scalene JSON file is empty or unavailable."
             raise ProfilerException(msg)
 
+        self.store_resource_usage(usage)
         profile_data = ProfileSummary(self.output_json)
         self.json_to_tables()
         profile_summary = profile_data.summary()
