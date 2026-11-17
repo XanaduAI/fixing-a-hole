@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "colours",
     "gitpython>=3.1.44",
-    "scalene>=2.1.0",
+    "scalene>=2.4.0",
     "sympy>=1.14.0",
     "typer>=0.20.0",
     "watchdog>=6.0.0",
