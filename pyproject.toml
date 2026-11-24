@@ -18,6 +18,7 @@ fixingahole = "fixingahole.cli.main:app"
 
 [tool.uv.sources]
 colours = { git = "https://github.com/XanaduAI/colours.git", rev = "ea4b48a4906666fb70c49c84aa6ed8dd2c814f60" }
+scalene = { git = "https://github.com/plasma-umass/scalene.git", rev = "f42a69b921a100f924d37156f3b48879c431adee" }
 
 [dependency-groups]
 dev = [
