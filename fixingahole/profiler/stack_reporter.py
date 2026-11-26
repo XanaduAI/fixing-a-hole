@@ -19,7 +19,6 @@ results JSON file.
 
 import json
 import operator
-import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -113,7 +112,8 @@ class StackReporter:
                 # Try to normalize file path in frame if present
                 # Assume frame format: 'filename function:line;'
                 # Rearrange to: 'relative_filepath:line; function'
-                file_path, func_name, line_no = re.split(r"[ :]", frame)
+                file_path, location = frame.rsplit(" ", 1)
+                func_name, line_no = location.rsplit(":", 1)
                 norm_stack.append(f"{Config.relative_to_root(file_path)}:{line_no} {func_name}")
             current = tree
             path = []

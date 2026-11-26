@@ -16,29 +16,18 @@
 import datetime
 import importlib.metadata
 import logging
-import math
-import threading
-import warnings
-from collections.abc import Callable
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
-from types import TracebackType
-from typing import TYPE_CHECKING, Self, overload
+from typing import overload
 
 from colours import Colour
 from rich._spinners import SPINNERS  # noqa: PLC2701
 from rich.live import Live
 from rich.spinner import Spinner as rich_Spinner
-from sympy import nextprime
 from typer import Exit
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
-from watchdog.observers import Observer
 
 from fixingahole import Config
-
-if TYPE_CHECKING:
-    from watchdog.observers.api import BaseObserver
 
 # Remove the difficult to see "toggle" spinners from the available options.
 for name in set(SPINNERS):
@@ -108,17 +97,6 @@ class LogLevel(Enum):
         """Determine whether or not to capture output during profiling."""
         return self.name != "NONE"
 
-    def should_catch_warnings(self) -> bool:
-        """`should_catch_warnings` is deprecated; use `capture_output` instead."""
-        warnings.warn(
-            "should_catch_warnings() is deprecated; use capture_output() instead. "
-            "Note: capture_output() returns True for ERROR and CRITICAL, "
-            "whereas should_catch_warnings() returned False for those levels.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.capture_output()
-
 
 def date() -> str:
     """Return the current UTC date and time."""
@@ -152,31 +130,6 @@ def memory_with_units(memory: float, unit: str = "MB", digits: int = 0) -> str:
         if memory_bytes >= byte_prefix[prefix]:
             return f"{memory_bytes / byte_prefix[prefix]:>3.{digits}f} {prefix}"
     return f"{memory_bytes:.{digits}f} bytes"
-
-
-def precision_to_allocation_window(precision: float) -> int:
-    """Convert a 'precision level' into a Scalene ``--allocation-sampling-window`` size in bytes.
-
-    A positive *precision* increases sampling resolution (smaller window, slower profiling).
-    A negative *precision* decreases sampling resolution (larger window, faster profiling).
-
-    Args:
-        precision: Sampling precision level.
-
-    Returns:
-        A prime number near ``10 MB / 2 ** precision`` to pass as
-        ``--allocation-sampling-window`` in bytes.
-
-    """
-    base_threshold = 10485767  # ~ 10 MB
-    # Clamp precision to avoid underflow (2**precision -> 0) or a window of 0.
-    # Limit the range so the result stays between 1 byte and ~10 GB.
-    # Guard against NaN, which passes through max/min silently.
-    if math.isnan(precision):
-        precision = 0.0
-    precision = max(-10.0, min(precision, 23.0))
-    window = max(1, int(base_threshold / 2**precision))
-    return nextprime(window)
 
 
 class FindPathException(Exit):
@@ -315,67 +268,3 @@ class Spinner(Live):
         """Abstraction of rich.spinner.Spinner with Live context."""
         spinner = rich_Spinner(choice(sorted(SPINNERS.keys())), message, style=style, speed=speed)
         super().__init__(spinner, refresh_per_second=20)
-
-
-class FileWatcher:
-    """A file system watcher that triggers a callback when a file changes."""
-
-    def __init__(self, file_path: Path, on_change_callback: Callable) -> None:
-        """Initialize the file watcher.
-
-        Args:
-            file_path: Path to the file to watch
-            on_change_callback: Function to call when the file is modified
-
-        """
-        self.file_path = Path(file_path)
-        self.callback = on_change_callback
-        self.observer: BaseObserver | None = None
-
-    def start(self) -> None:
-        """Start watching the file for changes."""
-
-        class FileChangeHandler(FileSystemEventHandler):
-            """Handler for file system events."""
-
-            def __init__(self, target_path: str, callback: Callable):
-                self.target_path = target_path
-                self.callback = callback
-                self.debounce_timer: threading.Timer | None = None
-                self._debounce_delay: float = 0.1
-
-            def on_modified(self, event: FileSystemEvent) -> None:
-                if not event.is_directory and event.src_path == self.target_path:
-                    if self.debounce_timer is not None:
-                        self.debounce_timer.cancel()
-                    self.debounce_timer = threading.Timer(self._debounce_delay, self.callback)
-                    self.debounce_timer.daemon = True
-                    self.debounce_timer.start()
-
-        self._handler = FileChangeHandler(str(self.file_path), self.callback)
-        self.observer = Observer()
-        self.observer.schedule(self._handler, str(self.file_path.parent), recursive=False)
-        self.observer.start()
-
-    def stop(self) -> None:
-        """Stop watching the file."""
-        if (handler := getattr(self, "_handler", None)) and handler.debounce_timer is not None:
-            handler.debounce_timer.cancel()
-            handler.debounce_timer = None
-        if self.observer:
-            self.observer.stop()
-            self.observer.join(timeout=1.0)
-
-    def __enter__(self) -> Self:
-        """Start the file watcher context."""
-        self.start()
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Stop the file watcher context."""
-        self.stop()

@@ -17,30 +17,15 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
-import click
 import typer
-import typer.core
 from colours import Colour
 from typer import Exit
 
 from fixingahole import Config, LogLevel, PlottingLibrary, Profiler, ProfileSummary, StatisticsManager, StatsSummary
 from fixingahole.config import DurationOption
-from fixingahole.profiler.scalene_flags import get_scalene_help, scalene_flags_to_kwargs
-from fixingahole.profiler.utils import FindPathException, find_path
+from fixingahole.profiler.utils import find_path
 
 app = typer.Typer(epilog="\u00a9 Xanadu Quantum Technologies")
-ModuleType = type(typer)
-
-
-class _LazyEpilogCommand(typer.core.TyperCommand):
-    """TyperCommand that defers expensive epilog construction until ``--help`` is rendered."""
-
-    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
-        # Resolve lazily and memoize so subsequent --help invocations don't
-        # re-invoke the epilog builder, while keeping the initial import cheap.
-        epilog = self.epilog() if callable(self.epilog) else self.epilog
-        self.epilog = epilog
-        super().format_help(ctx, formatter)
 
 
 def profile(
@@ -54,16 +39,6 @@ def profile(
         ),
     ],
     ctx: typer.Context,
-    precision: Annotated[
-        float,
-        typer.Option(
-            "--precision",
-            "-p",
-            help="Level of memory sampling precision. (-) is faster, less precise; (+) is slower, more precise.",
-            show_default="0",
-            rich_help_panel="Profiling",
-        ),
-    ] = 0,
     log_level: Annotated[
         LogLevel,
         typer.Option(
@@ -84,16 +59,6 @@ def profile(
             case_sensitive=False,
             show_default=True,
             rich_help_panel="Preprocessing",
-        ),
-    ] = None,
-    ignore: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--ignore",
-            "-i",
-            help="Specific folders to ignore while profiling. Paths are resolved relative to the current directory.",
-            show_default=True,
-            rich_help_panel="Profiling",
         ),
     ] = None,
     output_dir: Annotated[
@@ -151,7 +116,8 @@ def profile(
 ) -> None:
     """Profile a Python script or Jupyter notebook.
 
-    Any options or arguments needed by the script can be added after these options.
+    Put fixing-a-hole options before the filename, Scalene arguments after it,
+    and script arguments after ---.
     """
     # Set some configuration.
     if repeat > 1:
@@ -167,7 +133,6 @@ def profile(
         scalene_args, script_args = all_args[:sep], all_args[sep + 1 :]
     else:
         scalene_args, script_args = all_args, []
-    scalene_kwargs = scalene_flags_to_kwargs(scalene_args)
 
     # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
@@ -179,41 +144,17 @@ def profile(
         Colour.error("Error: cannot profile a directory.")
         raise Exit(code=1)
 
-    ignore_dirs: list = []
-    if ignore is not None:
-        Colour.info("Searching for the following folders to ignore: %s", [str(p) for p in ignore])
-        any_exceptions = False
-        for p in ignore:
-            try:
-                ignore_dirs.append(find_path(p, in_dir=Config.root()))
-            except FindPathException:
-                any_exceptions = True
-        if any_exceptions:
-            Colour.error("Error: failed to find unique patterns to ignore. Please be more specific.")
-            raise Exit(code=1)
-        Colour.info("Ignoring: %s", [str(p) for p in ignore_dirs])
-
     profiler = Profiler(
         python_file,
-        python_script_args=script_args,
+        profiler_args=scalene_args,
+        script_args=script_args,
         log_level=log_level,
         no_plots=no_plots,
-        ignore_dirs=ignore_dirs,
         output_dir=output_dir,
-        precision=precision,
-        **scalene_kwargs,
     )
 
-    cli_args = sys.argv
-    cli_args[0] = Path(cli_args[0]).name
-    preamble = " ".join(cli_args) + "\n"
-
-    Colour.info(
-        "%s %s %s",
-        Colour.blue("Profiling:"),
-        Colour.green(profiler.profile_path),
-        "for speed." if profiler.cpu_only else "for memory usage.",
-    )
+    preamble = " ".join([Path(sys.argv[0]).name, *sys.argv[1:]]) + "\n"
+    Colour.info("%s %s", Colour.blue("Profiling:"), Colour.green(profiler.profile_path))
 
     stats = StatisticsManager()
     for _ in range(repeat):
@@ -228,22 +169,12 @@ def profile(
         stats_file.with_suffix(".txt").write_text(summary_text, encoding="utf-8")
 
 
-# Register the profile function as a command in this CLI.
-# The epilog embeds Scalene's own --help output; compute it lazily so that
-# importing this module (e.g. for tab-completion or --version) does not pay
-# the cost of two subprocess invocations.
-def _build_profile_epilog() -> str:
-    basic_help = get_scalene_help(["run", "--help"], append="\n\n\n")
-    adv_help = get_scalene_help(["run", "--help-advanced"], append="\n\n\n")
-    return f"{basic_help}{adv_help}\u00a9 Xanadu Quantum Technologies"
-
-
+# Register the profile function as a command in this CLI
 app.command(
     no_args_is_help=True,
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
     rich_help_panel="Utilities",
-    epilog=_build_profile_epilog,
-    cls=_LazyEpilogCommand,
+    epilog="\u00a9 Xanadu Quantum Technologies",
 )(profile)
 
 

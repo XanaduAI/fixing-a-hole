@@ -22,7 +22,6 @@ import subprocess
 import sys
 import threading
 import time
-from collections import deque
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self, TextIO, runtime_checkable
@@ -31,15 +30,12 @@ from colours import Colour
 from typer import Exit
 
 from fixingahole import Config
-from fixingahole.profiler.scalene_flags import scalene_flags_to_kwargs, scalene_kwargs_to_flags
 from fixingahole.profiler.utils import (
-    FileWatcher,
     LogLevel,
     PlottingLibrary,
     Spinner,
     date,
     memory_with_units,
-    precision_to_allocation_window,
 )
 
 if TYPE_CHECKING:
@@ -146,7 +142,7 @@ class Profiler:
     """Class for managing profiling with Scalene.
 
     This class provides a wrapper around Scalene profiling with additional
-    features like automatic output organization, live updates, and summary generation.
+    features like automatic output organization, logging, and summary generation.
 
     Attributes:
         python_file (Path): The original Python script to be profiled.
@@ -156,10 +152,9 @@ class Profiler:
         output_json (Path): Scalene JSON output file containing raw profiling data.
         output_summary (Path): Summary text file with condensed profiling insights.
         log_file (Path): Log file capturing stdout/stderr during profiling.
-        cpu_only (bool): If True, profile CPU only (no memory profiling).
         log_level (LogLevel): Logging verbosity during profiling.
-        scalene_kwargs (dict): Pass-through Scalene flags forwarded verbatim to the ``scalene run`` command.
-        ignored_folders (list[Path]): Directories to exclude from profiling.
+        profiler_args (list[str]): Arguments forwarded unchanged to ``scalene run``.
+        script_args (list[str]): Arguments forwarded unchanged to the target script.
         run_count (int): Number of times run_profiler() has been called on this instance.
 
     """
@@ -174,75 +169,17 @@ class Profiler:
 
     def __init__(
         self,
-        path_or_config: Path | ProfilerConfig,
+        path_or_config: str | Path | ProfilerConfig,
         /,
         *,
-        python_script_args: list[str] | None = None,
+        profiler_args: list[str] | None = None,
+        script_args: list[str] | None = None,
         log_level: LogLevel | str = LogLevel.NONE,
         no_plots: list[PlottingLibrary] | None = None,
-        ignore_dirs: list[Path] | None = None,
         output_dir: Path | None = None,
-        precision: float | None = None,
-        **scalene_kwargs: bool | float | str | list[str],
     ) -> None:
-        self.platform = HOST
-        self._init_scalene_kwargs(scalene_kwargs, precision)
-        self.assert_platform_os()
-        self._init_attrs(python_script_args, log_level, no_plots, ignore_dirs)
-        self._resolve_python_file(path_or_config)
-        self._init_output_paths(output_dir)
-        self._init_prepare_code_for_profiling()
-
-    def _init_scalene_kwargs(
-        self,
-        scalene_kwargs: dict[str, bool | float | str | list[str]],
-        precision: float | None,
-    ) -> None:
-        """Validate Scalene flags and apply precision.
-
-        Normalize and validate the incoming kwargs via a flags→kwargs round-trip:
-
-        1. ``scalene_kwargs_to_flags`` converts each key/value pair into its
-           canonical CLI token (e.g. ``{"stacks": True}`` → ``["--stacks"]``,
-           ``{"allocation_sampling_window": 4096}`` → ``["--allocation-sampling-window", "4096"]``).
-           It also raises ``ValueError`` for any key that is unknown to Scalene
-           or that is reserved (managed internally by fixing-a-hole), so invalid
-           kwargs surface at construction time rather than at subprocess launch.
-
-        2. ``scalene_flags_to_kwargs`` parses those tokens back into a dict whose
-           keys are Scalene's *argparse dest* names (e.g. the Python kwarg
-           ``cpu_only=True`` passed by a caller maps to the CLI flag ``--cpu-only``,
-           whose argparse dest is ``"cpu"`` — not ``"cpu_only"``).  Using the
-           canonical dest as the key is important because ``_init_scalene_kwargs``
-           reads ``"cpu"`` and ``"memory"`` by their dest names and because
-           ``scalene_kwargs_to_flags`` looks up entries in ``_META`` by dest.
-        """
-        scalene_kwargs = scalene_flags_to_kwargs(scalene_kwargs_to_flags(scalene_kwargs))
-        cpu_flag: bool = bool(scalene_kwargs.get("cpu", False))
-        memory_flag: bool = bool(scalene_kwargs.get("memory", False))
-        if cpu_flag and memory_flag:
-            Colour.warning("Warning: --memory takes priority over --cpu-only; profiling with --memory.")
-            scalene_kwargs.pop("cpu", None)
-            cpu_flag = False
-        self.cpu_only: bool = cpu_flag or not memory_flag
-        # Enforce fixing-a-hole's default of CPU-only by setting the flag explicitly
-        # when neither --cpu-only nor --memory was requested.
-        if not cpu_flag and not memory_flag:
-            scalene_kwargs["cpu"] = True
-        # Translate precision to --allocation-sampling-window, if unset.
-        if precision is not None and not self.cpu_only:
-            scalene_kwargs.setdefault("allocation_sampling_window", precision_to_allocation_window(precision))
-        self.scalene_kwargs = scalene_kwargs
-
-    def _init_attrs(
-        self,
-        python_script_args: list[str] | None,
-        log_level: LogLevel | str,
-        no_plots: list[PlottingLibrary] | str | None,
-        ignore_dirs: list[Path] | None,
-    ) -> None:
-        """Set simple instance attributes from constructor arguments."""
-        self.script_args: list[str] = python_script_args or []
+        self.profiler_args = list(profiler_args or [])
+        self.script_args = list(script_args or [])
         self.log_level: LogLevel = LogLevel(log_level.upper()) if isinstance(log_level, str) else log_level
         self.no_plots: list[PlottingLibrary] = (
             [PlottingLibrary(no_plots.lower())] if isinstance(no_plots, str) else (no_plots or [])
@@ -252,10 +189,12 @@ class Profiler:
         self._profile_file = None  # ty:ignore[invalid-assignment]
         self._output_file = None  # ty:ignore[invalid-assignment]
         self._output_name: str = "profile_results"
-        self.ignored_folders: list[Path] = ignore_dirs or []
         self.run_count: int = 0
+        self._resolve_python_file(path_or_config)
+        self._init_output_paths(output_dir)
+        self._init_prepare_code_for_profiling()
 
-    def _resolve_python_file(self, path_or_config: Path | ProfilerConfig) -> None:
+    def _resolve_python_file(self, path_or_config: str | Path | ProfilerConfig) -> None:
         """Set and validate self.python_file from a path or ProfilerConfig."""
         if isinstance(path_or_config, ProfilerConfig):
             path_or_config.setup(self)
@@ -264,7 +203,7 @@ class Profiler:
                 Colour.error("Error: %s", msg.replace("python_file", Colour.BOLD("python_file")))
                 raise ProfilerException(msg)
         else:
-            self.python_file = path_or_config
+            self.python_file = Path(path_or_config)
         self.python_file = Path(self.python_file)
         if not self.python_file.exists():
             Colour.error("Error: %s does not exist.", Colour.purple(self.python_file))
@@ -341,15 +280,6 @@ class Profiler:
 
         self._profile_file.write_text(code_to_profile, encoding="utf-8")
 
-    def assert_platform_os(self) -> None:
-        """Explain that memory profiling is not available on Windows."""
-        if not self.cpu_only and HOST is Platform.Windows:
-            Colour.error("Memory profiling is not available on Windows\nUsing --cpu-only")
-            self.cpu_only = True
-            # Remove memory-related flags so they are not forwarded to Scalene.
-            for key in ("memory", "allocation_sampling_window"):
-                self.scalene_kwargs.pop(key, None)
-
     @property
     def in_place(self) -> bool:
         """Determine whether or not to profile the script directly or profile a modified a copy.
@@ -358,16 +288,6 @@ class Profiler:
           when suppressing plotting, if the file is a Jupyter notebook, or if the log level changes.
         """
         return not (self.no_plots or self.python_file.suffix != ".py" or self.log_level.capture_output())
-
-    @property
-    def excluded_folders(self) -> set[str]:
-        """Scalene flag to exclude system python directory when profiling all modules."""
-        exclude_dir: list[Path] = [
-            Path(os.getenv("APPDATA") or sys.prefix) if HOST is Platform.Windows else Path(sys.executable).resolve().parents[1]
-        ]
-        exclude_dir.extend([folder for folder in Config.ignore() if folder != Config.output()])
-        exclude_dir.extend(self.ignored_folders)  # allow users to ignore the OUTPUT_DIR if they want to.
-        return set(map(str, exclude_dir))
 
     @property
     def profile_file(self) -> Path:
@@ -458,79 +378,55 @@ class Profiler:
             ):
                 raise ValueError("JSON file missing or empty")  # noqa: EM101, TRY003, TRY301
         except (json.JSONDecodeError, OSError, ValueError):
-            note = (
-                " Did you ignore the script's parent?"
-                if any(self.python_file.is_relative_to(d) for d in self.ignored_folders)
-                else ""
-            )
-            Colour.error("Error: Scalene JSON file is empty or unavailable.%s", note)
+            Colour.error("Error: Scalene JSON file is empty or unavailable.")
             return False
         return True
 
-    @property
-    def _scalene_run_cmd(self) -> list[str]:
-        """Build the profiling run command."""
-        scalene_flags = dict(self.scalene_kwargs)
-        # Merge any user-supplied --profile-exclude paths with the internally
-        # excluded folders so that Scalene receives a single deduplicated flag.
-        user_exclude = scalene_flags.pop("profile_exclude", None)
-        user_paths: set[str] = (
-            (set(map(str, user_exclude)) if isinstance(user_exclude, list) else {str(user_exclude)})
-            if user_exclude is not None
-            else set()
-        )
-        exclude_csv = ",".join(sorted(self.excluded_folders | user_paths))
-        cmd = [
-            sys.executable,
-            "-m",
-            "scalene",
-            "run",
-            "--program-path",
-            str(Config.root()),
-            "--outfile",
-            str(self.output_json),
-            str(self.profile_file),
-            "--profile-exclude",
-            exclude_csv,
-            *scalene_kwargs_to_flags(scalene_flags),
-        ]
-        if self.script_args:
-            cmd.append("---")
-            cmd.extend(self.script_args)
-        return cmd
-
     def _run_scalene(self, usage: ResourceUsage) -> None:
-        """Launch the Scalene subprocess, forwarding stderr while suppressing Scalene's own status lines."""
+        """Launch Scalene and measure its resource usage."""
+        self.output_json.unlink(missing_ok=True)
         ncols = max(160, len(str(self.profile_file)) + 75)
         proc = subprocess.Popen(
-            self._scalene_run_cmd,
+            [
+                sys.executable,
+                "-m",
+                "scalene",
+                "run",
+                "--program-path",
+                str(Config.root()),
+                "--outfile",
+                str(self.output_json),
+                "--profile-exclude",
+                sys.base_prefix,
+                *self.profiler_args,
+                str(self.profile_file),
+                "---",
+                *self.script_args,
+            ],
             text=True,
             stdout=subprocess.DEVNULL if self.log_level.capture_output() else None,
             stderr=subprocess.PIPE,
             env=Config.env(ncols),
         )
-        stderr_tail: deque[str] = deque(maxlen=50)
 
-        def _forward_stderr(pipe: TextIO) -> None:
-            """Forward stderr to the terminal, suppressing Scalene's own status lines."""
-            suppress = ("Scalene: profile saved", "  To view in browser:", "  To view in terminal:")
-            prev_suppressed = False
-            for line in pipe:
-                if line.startswith(suppress):
-                    prev_suppressed = True
-                elif line == "\n" and prev_suppressed:
-                    # Swallow the single blank line that Scalene emits immediately
-                    # after its status block so it doesn't clutter the terminal.
-                    # ``prev_suppressed`` is reset here so only the first blank
-                    # line is consumed; any further output is forwarded normally.
-                    prev_suppressed = False
-                else:
-                    prev_suppressed = False
-                    stderr_tail.append(line)
-                    sys.stderr.write(line)
-                    sys.stderr.flush()
+        def forward_stderr(pipe: TextIO) -> None:
+            """Forward diagnostics without Scalene's repeated save/view instructions."""
+            status = ("Scalene: profile saved to ", "  To view in browser:", "  To view in terminal:")
+            blank_lines = ""
+            with pipe:
+                for line in pipe:
+                    if line == "\n":
+                        blank_lines += line
+                    elif line.startswith(status):
+                        blank_lines = ""
+                    else:
+                        sys.stderr.write(blank_lines + line)
+                        sys.stderr.flush()
+                        blank_lines = ""
+                sys.stderr.write(blank_lines)
+                sys.stderr.flush()
 
-        stderr_thread = threading.Thread(target=_forward_stderr, args=(proc.stderr,), daemon=True)
+        stderr_thread = threading.Thread(target=forward_stderr, args=(proc.stderr,), daemon=True)
         stderr_thread.start()
         if HOST is not Platform.Windows:
             _, status, child_rusage = os.wait4(proc.pid, 0)
@@ -539,10 +435,8 @@ class Profiler:
         else:
             proc.wait()
         stderr_thread.join(timeout=2)
-        if stderr_thread.is_alive():
-            Colour.warning("Warning: stderr reader thread did not finish within timeout.\n")
         if proc.returncode != 0:
-            raise subprocess.CalledProcessError(proc.returncode, proc.args, stderr="".join(stderr_tail))
+            raise subprocess.CalledProcessError(proc.returncode, proc.args)
 
     def json_to_tables(self) -> None:
         """Run the scalene view command to format the output."""
@@ -571,7 +465,7 @@ class Profiler:
         profile_data = ProfileSummary(self.output_json)
         self.json_to_tables()
         profile_summary = profile_data.summary()
-        memory = "" if self.cpu_only else f" using {profile_data.max_memory} of heap RAM"
+        memory = f" using {profile_data.max_memory} of heap RAM" if profile_data.data.memory else ""
         finished = f"\nFinished in {profile_data.walltime or 0:,.3f} seconds{memory}"
 
         log_info = self.log_file.read_text() if self.log_file.exists() else ""
@@ -586,7 +480,7 @@ class Profiler:
         logs_colored = f"\nCheck logs {Colour.purple(self.log_path)}{Colour.ORANGE(warning_str)}\n" if log_info else ""
 
         stack_report = ""
-        show_stacks = self.scalene_kwargs.get("stacks", False)
+        show_stacks = bool(profile_data.data.stacks)
         if show_stacks:
             reporter = StackReporter(self.output_json)
             stack_report = reporter.report_stacks_for_top_functions(top_n=5)
@@ -604,26 +498,11 @@ class Profiler:
         Colour.info(f"See {Colour.purple(self.output_path)} for details.")
         try:
             # Profile the code.
-            watcher = (
-                FileWatcher(file_path=self.output_json, on_change_callback=self.json_to_tables)
-                if 0 < float(self.scalene_kwargs.get("profile_interval", float("inf"))) < float("inf")
-                else contextlib.nullcontext()
-            )
-            with Spinner(), watcher, ResourceUsage() as usage:
+            with Spinner(), ResourceUsage() as usage:
                 self._run_scalene(usage)
 
         except subprocess.CalledProcessError as exc:
-            # Catch any shell errors and display them.
-            # This includes any fatal errors in Python during execution.
-            msg = "\nExecution Error:\n "
-            for exc_output in [exc.stdout, exc.stderr]:
-                if not exc_output:
-                    continue
-                output = exc_output.decode() if isinstance(exc_output, bytes) else exc_output
-                if err := output.strip():
-                    msg += err + "\n"
-            Colour.error(msg)
-            raise ProfilerException(msg) from exc
+            raise ProfilerException(str(exc), code=exc.returncode) from exc
         except KeyboardInterrupt as ki:
             # Make sure to indicate in the profile_results.txt of the interruption.
             msg = "\n Profiling interrupted by user. \n"

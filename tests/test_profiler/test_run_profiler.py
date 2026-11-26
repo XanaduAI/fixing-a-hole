@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for the Profiler."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -26,53 +27,55 @@ from fixingahole.profiler.profiler import ProfilerException, SuccessfulExit
 class TestProfilerRunProfiler:
     """Test the run_profiler method."""
 
-    def test_run_profiler_success(self, mock_file: Path):
-        """Test successful profiler run."""
+    def test_run_profiler_success(self, mock_file: Path, capfd: pytest.CaptureFixture[str]):
+        """Periodic profiling preserves diagnostics and suppresses save/view chatter."""
         profiler = Profiler(
             mock_file,
             log_level=LogLevel.INFO,
-            profile_interval=1,
+            profiler_args=["--profile-interval", "1"],
         )
         with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler(raise_exit=True)
         assert exc_info.value.exit_code == 0
+        assert profiler.output_json.exists()
+        assert "heap RAM" in profiler.output_summary.read_text()
+        stderr = capfd.readouterr().err
+        assert "Scalene: profile saved" not in stderr
+        assert "To view in" not in stderr
+        assert "This is a warning." in stderr
 
     def test_run_profiler_cpu_only(self, mock_file: Path):
-        """Test successful profiler run using only CPU."""
-        profiler = Profiler(mock_file, cpu_only=True)
+        """Test CPU profiling of all modules with the default system Python exclusion."""
+        profiler = Profiler(mock_file, profiler_args=["--cpu-only", "--profile-all"])
         with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler(raise_exit=True)
         assert exc_info.value.exit_code == 0
+        profile = json.loads(profiler.output_json.read_text())
+        assert profile["memory"] is False
+        assert str(mock_file) in profile["files"]
+        assert not any(Path(filename).name == "encoder.py" for filename in profile["files"])
 
-    def test_run_profiler_detailed_mode(self, mock_file: Path):
-        """Test profiler run with detailed profiling enabled."""
-        profiler = Profiler(mock_file, profile_all=True)
-        with pytest.raises(SuccessfulExit) as exc_info:
-            profiler.run_profiler(raise_exit=True)
+    def test_run_profiler_subprocess_error(self, mock_file: Path, capfd: pytest.CaptureFixture[str]):
+        """Invalid arguments are rejected by Scalene when profiling starts."""
+        profiler = Profiler(mock_file, profiler_args=["--allocation-sampling-window", "invalid"])
+        with pytest.raises(ProfilerException) as exc_info:
+            profiler.run_profiler()
+        assert "--allocation-sampling-window" in exc_info.value.message
+        assert exc_info.value.exit_code == 2
+        assert "--allocation-sampling-window" in capfd.readouterr().err
 
-        assert exc_info.value.exit_code == 0
-        assert "numpy" in profiler.profile_file.read_text()
+    def test_run_profiler_does_not_summarize_stale_output(self, mock_file: Path, example_json: Path):
+        """An overridden outfile cannot turn an old profile into a successful result."""
+        alternate = mock_file.parent / "alternate.json"
+        profiler = Profiler(mock_file, profiler_args=["--cpu-only", "--no-stacks", "--outfile", str(alternate)])
+        profiler.output_json.write_bytes(example_json.read_bytes())
 
-    @patch("os.wait4")
-    @patch("subprocess.Popen")
-    def test_run_profiler_subprocess_error(self, mock_popen: MagicMock, mock_wait4: MagicMock, mock_file: Path):
-        """Test that a non-zero subprocess exit code is surfaced as a ProfilerException."""
-        mock_rusage = MagicMock()
-        mock_rusage.ru_maxrss = 1024 * 1024  # 1 MiB in bytes
-        mock_proc = MagicMock()
-        mock_proc.pid = 12345
-        mock_proc.stderr = iter(["expected stderr error message\n"])
-        mock_popen.return_value = mock_proc
-        mock_wait4.return_value = (12345, 256, mock_rusage)  # raw status 256 → exit code 1
+        with pytest.raises(ProfilerException) as exc_info:
+            profiler.run_profiler()
 
-        profiler = Profiler(mock_file, memory=True)
-
-        with pytest.raises(ProfilerException) as exc_info, patch("os.waitstatus_to_exitcode", return_value=1):
-            profiler.run_profiler(raise_exit=True)
-
-        assert exc_info.value.exit_code == 1
-        assert "stderr error message" in exc_info.value.message
-        mock_popen.assert_called_once()
+        assert "empty or unavailable" in exc_info.value.message
+        assert alternate.exists()
+        assert not profiler.output_json.exists()
 
     @patch("subprocess.Popen")
     def test_run_profiler_keyboard_interrupt(self, mock_run: MagicMock, mock_file: Path):
@@ -91,19 +94,20 @@ class TestProfilerRunProfiler:
 
     def test_run_profiler_with_script_args_and_logs(self, mock_file: Path):
         """Test profiler run with script arguments."""
-        args = ["arg1=value1", "arg2=value2"]
+        mock_file = mock_file.rename(mock_file.with_name("script with spaces.py"))
+        args = ["--repeat", "7", "--log-level", "DEBUG", "--precision", "5", "--help", "value with spaces"]
         profiler = Profiler(
             mock_file,
-            python_script_args=args,
+            script_args=args,
             log_level=LogLevel.INFO,
+            output_dir=mock_file.parent / "output with spaces",
         )
         with pytest.raises(SuccessfulExit) as exc_info:
             profiler.run_profiler(raise_exit=True)
 
         assert exc_info.value.exit_code == 0
         logs = profiler.log_file.read_text()
-        for arg in args:
-            assert arg in logs
+        assert " ".join(args) in logs
         assert all(phrase in logs for phrase in ["This is a warning.", "This is an error.", "This is critical."])
         # Check that warning count is correctly calculated and included
         final_content = profiler.output_summary.read_text()
@@ -115,7 +119,7 @@ class TestProfilerRunProfiler:
         args = ["--base", "10", "--power", "5"]
         profiler = Profiler(
             mock_file_with_argparse,
-            python_script_args=args,
+            script_args=args,
             log_level=LogLevel.INFO,
         )
         with pytest.raises(SuccessfulExit) as exc_info:
