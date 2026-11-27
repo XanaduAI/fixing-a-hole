@@ -21,6 +21,6 @@ repos:
   hooks:
     - id: ty
       name: type check
-      entry: uvx ty check . --ignore unresolved-import
-      language: python
+      entry: uvx ty@0.0.112 check . --ignore import-not-found
+      language: system
       types: [python]

@@ -287,7 +287,7 @@ class Config:
         """
         with suppress(ValueError):
             return Path(path).resolve().relative_to(cls._settings.root)
-        return path
+        return Path(path)
 
     @classmethod
     def relative_to_cwd(cls, path: Path | str) -> Path:
@@ -297,7 +297,7 @@ class Config:
         """
         with suppress(ValueError):
             return Path(path).resolve().relative_to(Path.cwd())
-        return path
+        return Path(path)
 
     @classmethod
     def is_duration_relative(cls) -> bool:
