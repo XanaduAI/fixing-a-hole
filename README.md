@@ -41,7 +41,7 @@ fixingahole profile --repeat 3 --log-level INFO script.py --cpu-only --- --size 
 | `--cpu-only`, after the filename | Scalene |
 | `--size 100`, after `---` | Your script |
 
-Fixing-a-hole options must come before the filename. Everything after `---` reaches the script,
+`fixing-a-hole` options must come before the filename. Everything after `---` reaches the script,
 including arguments named `--repeat`, `--log-level`, or `--help`.
 
 Supply a path relative to the configured root or an absolute path. A filename alone also works
@@ -55,7 +55,7 @@ fixingahole profile experiment.ipynb --cpu-only
 
 Notebook code cells are converted into a Python script before profiling.
 
-### Fixing-a-hole options
+### fixing-a-hole options
 
 | Option | Purpose |
 | --- | --- |
@@ -67,7 +67,7 @@ Notebook code cells are converted into a Python script before profiling.
 Without log capture, script output goes to the terminal. With log capture, stderr remains
 visible; existing logging handlers may also continue writing to it.
 
-For all fixing-a-hole options:
+For all `fixing-a-hole` options:
 
 ```bash
 fixingahole profile --help
@@ -86,7 +86,7 @@ uv run -m scalene run --help-advanced
 ```
 
 
-The fixing-a-hole supplies these defaults before your arguments:
+`fixing-a-hole` supplies these defaults before your arguments:
 
 - `--program-path`: the configured root.
 - `--outfile`: the run's `profile_results.json` path.
@@ -99,9 +99,9 @@ fixingahole profile script.py --cpu-only --profile-all --profile-exclude=
 ```
 
 Every argument is passed through, including ones that override output paths or prevent summary
-generation. The fixing-a-hole still expects JSON at its configured result path.
+generation. `fixing-a-hole` still expects JSON at its configured result path.
 
-`--profile-interval` controls Scalene's periodic JSON writes. Fixing-a-hole tables and summaries are
+`--profile-interval` controls Scalene's periodic JSON writes. `fixing-a-hole` tables and summaries are
 rendered when the run finishes.
 
 ## Python usage

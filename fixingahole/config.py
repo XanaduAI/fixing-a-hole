@@ -200,7 +200,7 @@ def _env_config_data() -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class Settings:
-    """Resolved Fixing-A-Hole settings."""
+    """Resolved fixing-a-hole settings."""
 
     root: Path
     output: Path

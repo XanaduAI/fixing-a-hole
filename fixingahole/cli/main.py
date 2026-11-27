@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Command-line entrypoints integrated Scalene profiler Fixing-a-Hole."""
+"""Command-line entrypoints integrated Scalene profiler fixing-a-hole."""
 
 import sys
 from pathlib import Path
@@ -314,7 +314,7 @@ def main(
         bool | None,
         typer.Option(
             "--version",
-            help="Show the current version of Fixing-A-Hole.",
+            help="Show the current version of fixing-a-hole.",
             callback=version_callback,
             is_eager=True,
         ),

@@ -30,7 +30,7 @@ except PackageNotFoundError:
 
 
 def about() -> None:
-    """About info for Fixing-A-Hole."""
+    """About info for fixing-a-hole."""
     try:
         scalene_version = version("scalene")
     except PackageNotFoundError:
@@ -38,7 +38,7 @@ def about() -> None:
 
     ignored_dirs = "".join(["\n   " + str(path) for path in Config.ignore()])
     _Colour.print(
-        _Colour.blue("Fixing-A-Hole: an integrated Scalene profiler and parser."),
+        _Colour.blue("fixing-a-hole: an integrated Scalene profiler and parser."),
         f"\n Version: {__version__}",
         f"\n Scalene Version: {scalene_version}",
         _Colour.blue("\nSettings:"),

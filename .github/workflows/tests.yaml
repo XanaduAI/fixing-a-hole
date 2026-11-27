@@ -34,7 +34,7 @@ jobs:
           version: "0.11.14"
           python-version: ${{ matrix.python_version }}
 
-      - name: Install Fixing-A-Hole and dependencies
+      - name: Install fixing-a-hole and dependencies
         run: uv sync
 
       - name: Run python tests
