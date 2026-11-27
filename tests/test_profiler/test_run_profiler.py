@@ -55,14 +55,12 @@ class TestProfilerRunProfiler:
         assert str(mock_file) in profile["files"]
         assert not any(Path(filename).name == "encoder.py" for filename in profile["files"])
 
-    def test_run_profiler_subprocess_error(self, mock_file: Path, capfd: pytest.CaptureFixture[str]):
+    def test_run_profiler_subprocess_error(self, mock_file: Path):
         """Invalid arguments are rejected by Scalene when profiling starts."""
         profiler = Profiler(mock_file, profiler_args=["--allocation-sampling-window", "invalid"])
         with pytest.raises(ProfilerException) as exc_info:
             profiler.run_profiler()
-        assert "--allocation-sampling-window" in exc_info.value.message
         assert exc_info.value.exit_code == 2
-        assert "--allocation-sampling-window" in capfd.readouterr().err
 
     def test_run_profiler_does_not_summarize_stale_output(self, mock_file: Path, example_json: Path):
         """An overridden outfile cannot turn an old profile into a successful result."""

@@ -8,7 +8,7 @@ and collects the results.
 
 ## Install and run
 
-Requires Python 3.11 or newer. Install into the project you want to profile:
+Requires Python 3.12 or newer. Install into the project you want to profile:
 
 ```bash
 uv add git+https://github.com/XanaduAI/fixing-a-hole.git
