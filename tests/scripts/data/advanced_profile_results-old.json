@@ -373,7 +373,7 @@
             ],
             "percent_cpu_time": 99.65046092120004
         },
-        "/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core/_methods.py": {
+        "/home/ubuntu/fixing-a-hole/.venv/lib/python3.12/site-packages/numpy/_core/_methods.py": {
             "functions": [
                 {
                     "cpu_samples_list": [],
@@ -544,7 +544,7 @@
     "gpu": false,
     "gpu_device": "",
     "growth_rate": 1.0559640890201978,
-    "max_footprint_fname": "/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/fft/_pocketfft.py",
+    "max_footprint_fname": "/home/ubuntu/fixing-a-hole/.venv/lib/python3.12/site-packages/numpy/fft/_pocketfft.py",
     "max_footprint_lineno": 101,
     "max_footprint_mb": 950.7153148651123,
     "max_footprint_python_fraction": 0.0,
@@ -578,8 +578,8 @@
                 "/home/ubuntu/fixing-a-hole/performance/advanced.py <module>:216;",
                 "/home/ubuntu/fixing-a-hole/performance/advanced.py main:206;",
                 "/home/ubuntu/fixing-a-hole/performance/advanced.py data_serialization:155;",
-                "/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core/fromnumeric.py prod:3445;",
-                "/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core/fromnumeric.py _wrapreduction:86;"
+                "/home/ubuntu/fixing-a-hole/.venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py prod:3445;",
+                "/home/ubuntu/fixing-a-hole/.venv/lib/python3.12/site-packages/numpy/_core/fromnumeric.py _wrapreduction:86;"
             ],
             {
                 "c_time": 7.977784071654976e-248,

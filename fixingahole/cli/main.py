@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Command-line entrypoints integrated Scalene profiler Fixing-a-Hole."""
+"""Command-line entrypoints integrated Scalene profiler fixing-a-hole."""
 
 import sys
 from pathlib import Path
@@ -23,13 +23,9 @@ from typer import Exit
 
 from fixingahole import Config, LogLevel, PlottingLibrary, Profiler, ProfileSummary, StatisticsManager, StatsSummary
 from fixingahole.config import DurationOption
-from fixingahole.profiler.utils import FindPathException, find_path
+from fixingahole.profiler.utils import find_path
 
-app = typer.Typer(
-    rich_markup_mode="markdown",
-    epilog=":copyright: Xanadu Quantum Technologies",
-)
-ModuleType = type(typer)
+app = typer.Typer(epilog="\u00a9 Xanadu Quantum Technologies")
 
 
 def profile(
@@ -42,49 +38,7 @@ def profile(
             rich_help_panel="Profiling",
         ),
     ],
-    python_script_args: typer.Context,
-    cpu_only: Annotated[
-        bool,
-        typer.Option(
-            "--cpu/--memory",
-            "-c/-m",
-            help="Profile only the CPU runtime or both CPU and memory usage of the script or notebook.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = True,
-    detailed: Annotated[
-        bool,
-        typer.Option(
-            "--detailed",
-            "-d",
-            help="Also profile how external libraries and modules are used.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = False,
-    precision: Annotated[
-        int,
-        typer.Option(
-            "--precision",
-            "-p",
-            help="Level of memory sampling precision. -10 is fastest, least precise; 10 is slowest, most precise.",
-            show_default="0",
-            min=-10,
-            max=10,
-            rich_help_panel="Profiling",
-        ),
-    ] = 0,
-    trace: Annotated[
-        bool,
-        typer.Option(
-            "--trace/--no-trace",
-            "-t/-nt",
-            help="Capture the stack traces for the most expensive function calls.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = True,
+    ctx: typer.Context,
     log_level: Annotated[
         LogLevel,
         typer.Option(
@@ -107,25 +61,6 @@ def profile(
             rich_help_panel="Preprocessing",
         ),
     ] = None,
-    live: Annotated[
-        float,
-        typer.Option(
-            help="Update the profile output every so many seconds as the profiling happens.",
-            show_default=True,
-            min=1,
-            rich_help_panel="Profiling",
-        ),
-    ] = float("inf"),
-    ignore: Annotated[
-        list[str] | None,
-        typer.Option(
-            "--ignore",
-            "-i",
-            help="Specific folders to ignore while profiling. Paths are resolved relative to the current directory.",
-            show_default=True,
-            rich_help_panel="Profiling",
-        ),
-    ] = None,
     output_dir: Annotated[
         Path | None,
         typer.Option(
@@ -137,12 +72,12 @@ def profile(
         ),
     ] = None,
     duration: Annotated[
-        DurationOption,
+        DurationOption | None,
         typer.Option(
             help="Temporarily set whether the summary shows duration times as 'absolute' or 'relative' values.",
             hidden=True,
         ),
-    ] = DurationOption.relative,
+    ] = None,
     repeat: Annotated[
         int,
         typer.Option(
@@ -181,7 +116,8 @@ def profile(
 ) -> None:
     """Profile a Python script or Jupyter notebook.
 
-    Any options or arguments needed by the script can be added after these options.
+    Put fixing-a-hole options before the filename, Scalene arguments after it,
+    and script arguments after ---.
     """
     # Set some configuration.
     if repeat > 1:
@@ -190,57 +126,35 @@ def profile(
             output_dir if output_dir is not None else Config.output(),
         )
         Colour.set_log_level("warning")
-    Config.update_duration(duration.value)
+    Config.update_duration(duration.value if duration is not None else Config.settings().duration.value)
+    all_args = ctx.args
+    if "---" in all_args:
+        sep = all_args.index("---")
+        scalene_args, script_args = all_args[:sep], all_args[sep + 1 :]
+    else:
+        scalene_args, script_args = all_args, []
 
     # Find and Prepare script for profiling.
     Colour.blue.info("Initializing...")
     full_path = (Config.root() / filename).resolve()
-    if full_path.exists() and not full_path.is_dir():
-        python_file = full_path
-    else:
-        python_file: Path = find_path(filename, Config.root(), exclude=[*Config.ignore(), ".venv", ".git"])
-        if python_file.is_dir():
-            Colour.error("Error: cannot profile a directory.")
-            raise Exit(code=1)
-
-    ignore_dirs: list = []
-    if ignore is not None:
-        Colour.info("Searching for the following folders to ignore: %s", [str(p) for p in ignore])
-        any_exceptions = False
-        for p in ignore:
-            try:
-                ignore_dirs.append(find_path(p, in_dir=Config.root()))
-            except FindPathException:
-                any_exceptions = True
-        if any_exceptions:
-            Colour.error("Error: failed to find unique patterns to ignore. Please be more specific.")
-            raise Exit(code=1)
-        Colour.info("Ignoring: %s", [str(p) for p in ignore_dirs])
+    python_file = (
+        full_path if full_path.is_file() else find_path(filename, Config.root(), exclude=[*Config.ignore(), ".venv", ".git"])
+    )
+    if python_file.is_dir():
+        Colour.error("Error: cannot profile a directory.")
+        raise Exit(code=1)
 
     profiler = Profiler(
         python_file,
-        python_script_args=python_script_args.args,
-        cpu_only=cpu_only,
-        precision=precision,
-        detailed=detailed,
+        profiler_args=scalene_args,
+        script_args=script_args,
         log_level=log_level,
         no_plots=no_plots,
-        trace=trace,
-        live_update=live,
-        ignore_dirs=ignore_dirs,
         output_dir=output_dir,
     )
 
-    cli_args = sys.argv
-    cli_args[0] = Path(cli_args[0]).name
-    preamble = " ".join(cli_args) + "\n"
-
-    Colour.info(
-        "%s %s %s",
-        Colour.blue("Profiling:"),
-        Colour.green(profiler.profile_path),
-        "for speed." if profiler.cpu_only else "for memory usage.",
-    )
+    preamble = " ".join([Path(sys.argv[0]).name, *sys.argv[1:]]) + "\n"
+    Colour.info("%s %s", Colour.blue("Profiling:"), Colour.green(profiler.profile_path))
 
     stats = StatisticsManager()
     for _ in range(repeat):
@@ -258,16 +172,16 @@ def profile(
 # Register the profile function as a command in this CLI
 app.command(
     no_args_is_help=True,
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
     rich_help_panel="Utilities",
-    epilog=":copyright: Xanadu Quantum Technologies",
+    epilog="\u00a9 Xanadu Quantum Technologies",
 )(profile)
 
 
 @app.command(
     no_args_is_help=True,
     rich_help_panel="Utilities",
-    epilog=":copyright: Xanadu Quantum Technologies",
+    epilog="\u00a9 Xanadu Quantum Technologies",
 )
 def summarize(
     filename: Annotated[
@@ -314,7 +228,7 @@ def summarize(
 @app.command(
     no_args_is_help=True,
     rich_help_panel="Utilities",
-    epilog=":copyright: Xanadu Quantum Technologies",
+    epilog="\u00a9 Xanadu Quantum Technologies",
 )
 def stats(
     folder: Annotated[
@@ -400,7 +314,7 @@ def main(
         bool | None,
         typer.Option(
             "--version",
-            help="Show the current version of Fixing-A-Hole.",
+            help="Show the current version of fixing-a-hole.",
             callback=version_callback,
             is_eager=True,
         ),

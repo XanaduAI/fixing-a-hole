@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python_version: ['3.11', '3.12', '3.13', '3.14']
+        python_version: ['3.12', '3.13', '3.14']
 
     env:
       COVERAGE_FLAGS: "--cov=fixingahole --cov-report=xml --cov-report=term-missing  --cov-fail-under=90"
@@ -34,7 +34,7 @@ jobs:
           version: "0.11.14"
           python-version: ${{ matrix.python_version }}
 
-      - name: Install Fixing-A-Hole and dependencies
+      - name: Install fixing-a-hole and dependencies
         run: uv sync
 
       - name: Run python tests

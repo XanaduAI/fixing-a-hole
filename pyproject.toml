@@ -1,23 +1,18 @@
 [project]
 name = "FixingAHole"
-version = "0.6.0"
+version = "0.7.0"
 description = "Integrating Scalene into Python projects."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
-    "colours",
+    "colours>=0.3.0",
     "gitpython>=3.1.44",
-    "scalene>=2.1.0",
-    "sympy>=1.14.0",
+    "scalene>=2.4.0",
     "typer>=0.20.0",
-    "watchdog>=6.0.0",
 ]
 
 [project.scripts]
 fixingahole = "fixingahole.cli.main:app"
-
-[tool.uv.sources]
-colours = { git = "https://github.com/XanaduAI/colours.git", rev = "ea4b48a4906666fb70c49c84aa6ed8dd2c814f60" }
 
 [dependency-groups]
 dev = [
@@ -29,6 +24,9 @@ dev = [
 [tool.uv]
 default-groups = ["dev"]
 
+[tool.uv.sources]
+colours = { git = "https://github.com/XanaduAI/colours.git" }
+
 [tool.pytest.ini_options]
 addopts = "--cov-report term-missing --ignore=performance/"
 
@@ -37,6 +35,7 @@ line-length = 128
 
 [tool.ruff.format]
 docstring-code-format = true
+preview = true
 
 [tool.ruff.lint]
 preview = true
@@ -122,6 +121,9 @@ mypy-init-return = true
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["fixingahole"]

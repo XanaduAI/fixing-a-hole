@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the Fixing-A-Hole CLI tools."""
+"""Tests for fixing-a-hole CLI tools."""
 
-import subprocess
+import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -99,14 +99,29 @@ class TestProfilerRunProfiler:
     """Test the run_profiler method."""
 
     def test_profiler_cli_call(self, mock_file: Path):
-        """Test how the CLI invokes the profiler."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file)])
+        """Scalene handles contradictory flags and repeated filters."""
+        result = runner.invoke(
+            cli.app,
+            [
+                "profile",
+                str(mock_file),
+                "--cpu-only",
+                "--memory",
+                "--no-stacks",
+                "--profile-only=--worker",
+                "--profile-only",
+                mock_file.stem,
+            ],
+        )
         assert result.exit_code == 0, print_error(result)
+        profile = json.loads(next((mock_file.parent / "performance").rglob("profile_results.json")).read_text())
+        assert profile["memory"] is True
+        assert str(mock_file) in profile["files"]
 
     @pytest.mark.parametrize("n_runs", [2, 3])
     def test_profiler_repeat(self, n_runs: int, mock_file: Path, root_dir: Path):
         """Test how the profiler handles repeated profilings."""
-        result = runner.invoke(cli.app, ["profile", str(mock_file), "--repeat", str(n_runs), "-l", "info"])
+        result = runner.invoke(cli.app, ["profile", "--repeat", str(n_runs), "-l", "info", str(mock_file), "--cpu-only"])
         assert result.exit_code == 0, print_error(result)
         output_files: list[Path] = sorted(file for file in (root_dir / "performance").rglob("*") if file.is_file())
         assert len(output_files) == (4 + 3 * n_runs)
@@ -131,18 +146,8 @@ class TestProfilerRunProfiler:
         nested_dir = Path(root_dir / "nested" / "deeply")
         nested_dir.mkdir(parents=True, exist_ok=True)
         path = mock_file.rename(nested_dir / mock_file.name)
-        result = runner.invoke(cli.app, ["profile", path.name])
+        script_args = ["--repeat", "7", "--log-level", "DEBUG", "--help", "value with spaces"]
+        result = runner.invoke(cli.app, ["profile", "--log-level", "INFO", path.name, "--cpu-only", "---", *script_args])
         assert result.exit_code == 0, print_error(result)
-
-    def test_version_call(self):
-        """Test how the CLI invokes the --version flag."""
-        cmd: list[str] = ["python", str(Path(__file__).parents[2] / "fixingahole" / "cli" / "main.py"), "--version"]
-        result = subprocess.run(cmd, check=False, text=True, capture_output=True)
-        assert result.returncode == 0, result.stdout
-
-    def test_profiler_cli_call_ignore_files_fail(self, mock_file: Path, root_dir: Path):
-        """Test that the CLI invocation fails when the dynamic file ignore fails."""
-        name = "find_me_here"
-        (root_dir / name / name).mkdir(parents=True, exist_ok=True)
-        result = runner.invoke(cli.app, ["profile", str(mock_file), "--ignore", name])
-        assert result.exit_code == 1, print_error(result)
+        logs = next((root_dir / "performance").rglob("*.log")).read_text()
+        assert f"This is info: {' '.join(script_args)}\n" in logs

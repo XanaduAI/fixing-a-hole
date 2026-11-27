@@ -20,7 +20,7 @@ from contextlib import suppress
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from colours import Colour
 
@@ -200,7 +200,7 @@ def _env_config_data() -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class Settings:
-    """Resolved Fixing-A-Hole settings."""
+    """Resolved fixing-a-hole settings."""
 
     root: Path
     output: Path
@@ -254,7 +254,7 @@ class Config:
 
     _settings: Settings = Settings.defaults()
 
-    def __new__(cls) -> "Config":
+    def __new__(cls) -> Self:
         """Prevent instantiation — :class:`Config` is a class-only namespace."""
         msg = f"{cls.__name__} cannot be instantiated."
         raise TypeError(msg)
@@ -287,7 +287,7 @@ class Config:
         """
         with suppress(ValueError):
             return Path(path).resolve().relative_to(cls._settings.root)
-        return path
+        return Path(path)
 
     @classmethod
     def relative_to_cwd(cls, path: Path | str) -> Path:
@@ -297,7 +297,7 @@ class Config:
         """
         with suppress(ValueError):
             return Path(path).resolve().relative_to(Path.cwd())
-        return path
+        return Path(path)
 
     @classmethod
     def is_duration_relative(cls) -> bool:
@@ -373,6 +373,15 @@ class Config:
                 settings = Settings.defaults()
         cls._settings = settings
         return settings
+
+    @staticmethod
+    def env(ncols: int = 160) -> dict[str, str]:
+        """Clean the environment variables."""
+        # With Python 3.12, pytest-cov sets `COV_CORE` environment variables which will inject coverage.py into the
+        #  Scalene profiler subprocess, where both tracing tools fight over sys.settrace().
+        # This conflict is due to changes in CPython's internal tracing infrastructure and causes significant slowdown.
+        clean_env: dict[str, str] = {k: v for k, v in os.environ.items() if not k.startswith("COV_CORE")}
+        return clean_env | {"LINES": "320", "COLUMNS": f"{ncols}", "FIXINGAHOLE_PROFILE": "1"}
 
 
 Config.configure()

@@ -108,7 +108,7 @@ class TestGetFunctionsByFile:
         result = profile_data.functions_by_file
         expected_filenames = [
             "/home/ubuntu/fixing-a-hole/performance/advanced.py",
-            "/home/ubuntu/fixing-a-hole/.venv/lib/python3.11/site-packages/numpy/_core/_methods.py",
+            "/home/ubuntu/fixing-a-hole/.venv/lib/python3.12/site-packages/numpy/_core/_methods.py",
         ]
         assert len(result) == 2
         assert list(result.keys()) == expected_filenames

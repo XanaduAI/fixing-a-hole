@@ -161,22 +161,22 @@ class ProfileDetails:
 
     @cached_property
     def total_percentage(self) -> float:
-        """Return the total percentage of the runtime."""
+        """The total percentage of the runtime."""
         return self.python_percentage + self.native_percentage + self.system_percentage
 
     @cached_property
     def total_time(self) -> float:
-        """Return the absolute value of the amount of runtime this function took (in seconds)."""
+        """The absolute value of the amount of runtime this function took (in seconds)."""
         return self.total_percentage * self.walltime / 100.0
 
     @cached_property
     def user_time(self) -> float:
-        """Return the absolute value of the amount of user runtime this function took (in seconds)."""
+        """The absolute value of the amount of user runtime this function took (in seconds)."""
         return (self.python_percentage + self.native_percentage) * self.walltime / 100.0
 
     @cached_property
     def system_time(self) -> float:
-        """Return the absolute value of the amount of system runtime this function took (in seconds)."""
+        """The absolute value of the amount of system runtime this function took (in seconds)."""
         return self.system_percentage * self.walltime / 100.0
 
 
@@ -198,12 +198,12 @@ class FileDetails:
         object.__setattr__(
             self,
             "functions",
-            tuple(ProfileDetails(**(func_details | meta_details)) for func_details in self.functions),  # type:ignore[ty:unsupported-operator]
+            tuple(ProfileDetails(**(func_details | meta_details)) for func_details in self.functions),  # ty:ignore[unsupported-operator]
         )
         object.__setattr__(
             self,
             "lines",
-            tuple(ProfileDetails(**(line_details | meta_details)) for line_details in self.lines),  # type:ignore[ty:unsupported-operator]
+            tuple(ProfileDetails(**(line_details | meta_details)) for line_details in self.lines),  # ty:ignore[unsupported-operator]
         )
         object.__setattr__(self, "imports", _freeze(self.imports))
         object.__setattr__(self, "leaks", _freeze(self.leaks))
@@ -248,7 +248,7 @@ class ProfileData:
         files: dict[str, FileDetails] = {}
         for file_path, value in self.files.items():
             meta_details: dict[str, Any] = {"file_path": file_path, "walltime": self.elapsed_time_sec}
-            files[file_path] = FileDetails(**(value | meta_details))  # type:ignore[ty:unsupported-operator]
+            files[file_path] = FileDetails(**(value | meta_details))  # ty:ignore[unsupported-operator]
         object.__setattr__(self, "files", MappingProxyType(files))
 
         if self.combined_stacks is not None:

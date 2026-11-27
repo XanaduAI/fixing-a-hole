@@ -56,7 +56,7 @@ class TestGitDiffHelperFunctions:
         staged_change.a_path = "file2.py"
 
         # Set up diff method to return appropriate changes
-        mock_repo.index.diff.side_effect: list[list[MagicMock]] = [[unstaged_change], [staged_change]]
+        mock_repo.index.diff.side_effect = [[unstaged_change], [staged_change]]
 
         result = _get_dirty_files(mock_repo)
         assert result == {"file1.py", "file2.py"}
@@ -70,7 +70,7 @@ class TestGitDiffHelperFunctions:
         # Mock dirty files
         dirty_change = MagicMock()
         dirty_change.a_path = "fixingahole/profiler/stats_manager.py"
-        mock_repo.index.diff.side_effect: list[list[MagicMock]] = [[dirty_change], []]
+        mock_repo.index.diff.side_effect = [[dirty_change], []]
 
         # Mock profiling data with files
         data: dict[str, dict[str, float]] = {
@@ -165,9 +165,9 @@ class TestStatisticsManagerStd:
         assert len(std) > 0
         # With a single run, std should be 0
         for values in std.values():
-            assert values["user_std"] == 0.0
-            assert values["system_std"] == 0.0
-            assert values["memory_std"] == 0.0
+            assert values["user_std"] == pytest.approx(0.0, rel=0, abs=0)
+            assert values["system_std"] == pytest.approx(0.0, rel=0, abs=0)
+            assert values["memory_std"] == pytest.approx(0.0, rel=0, abs=0)
 
     def test_std_identical_runs(self, profile_summary_obj: ProfileSummary):
         """Test computing std with multiple identical runs."""
@@ -219,7 +219,7 @@ class TestStatisticsManagerStats:
         first_key = next(iter(stats))
         assert isinstance(stats[first_key], dict)
         assert isinstance(stats[first_key]["user"], dict)
-        assert stats[first_key]["user"]["std"] == 0.0  # Identical runs
+        assert stats[first_key]["user"]["std"] == pytest.approx(0.0, rel=0, abs=0)  # Identical runs
 
 
 class TestStatisticsManagerSaveAsJson:

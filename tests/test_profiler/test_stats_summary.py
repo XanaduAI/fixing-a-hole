@@ -269,16 +269,14 @@ class TestBuildStatsDetails:
 
     def test_skips_malformed_key_no_colon(self):
         """Keys with no ':' separator are skipped."""
-        result = _build_stats_details(
-            {
-                "no_colon_at_all": {
-                    "user": {"avg": 1.0, "std": 0.0},
-                    "system": {"avg": 0.0, "std": 0.0},
-                    "memory": {"avg": 0.0, "std": 0.0},
-                    "count": 1,
-                }
+        result = _build_stats_details({
+            "no_colon_at_all": {
+                "user": {"avg": 1.0, "std": 0.0},
+                "system": {"avg": 0.0, "std": 0.0},
+                "memory": {"avg": 0.0, "std": 0.0},
+                "count": 1,
             }
-        )
+        })
         assert result == {}
 
     def test_resolves_relative_paths(self):

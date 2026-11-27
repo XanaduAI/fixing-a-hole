@@ -11,19 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the Fixing-A-Hole utilities."""
+"""Tests for fixing-a-hole utilities."""
 
-import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
 from fixingahole.profiler.utils import (
-    FileWatcher,
     FindPathException,
     LogLevel,
-    Spinner,
     date,
     find_path,
     format_time,
@@ -55,12 +52,6 @@ class TestLogLevel:
     def test_capture_output(self, level: LogLevel, should_catch: bool):
         """Test capture_output returns correct value for each level."""
         assert level.capture_output() == should_catch
-
-    def test_should_catch_warnings_emits_deprecation(self):
-        """should_catch_warnings() emits DeprecationWarning and delegates to capture_output()."""
-        with pytest.warns(DeprecationWarning, match="should_catch_warnings.*deprecated"):
-            result = LogLevel.WARNING.should_catch_warnings()
-        assert result == LogLevel.WARNING.capture_output()
 
 
 class TestFormatTime:
@@ -149,73 +140,3 @@ class TestInstalledModules:
             modules = installed_modules()
             # Should return empty set since no valid modules
             assert modules == set()
-
-
-class TestSpinner:
-    """Test the Spinner class."""
-
-    def test_spinner_normal_creation(self, monkeypatch: pytest.MonkeyPatch):
-        """Test that Spinner creates normally when COLOURS_DISABLE_PRINT is not set."""
-        monkeypatch.delenv("COLOURS_DISABLE_PRINT", raising=False)
-        with Spinner("Testing", style="blue", speed=0.5) as spinner:
-            assert spinner is not None
-
-
-class TestFileWatcher:
-    """Test the FileWatcher class."""
-
-    def test_file_watcher_start_and_stop(self, tmp_path: Path):
-        """Test starting and stopping the file watcher."""
-        test_file = tmp_path / "watch_me.txt"
-        test_file.write_text("initial content")
-
-        callback_called: list[bool] = []
-
-        def callback() -> None:
-            callback_called.append(True)
-
-        watcher = FileWatcher(test_file, callback)
-        watcher.start()
-
-        # Give the observer time to start
-        time.sleep(0.1)
-
-        # Modify the file
-        test_file.write_text("modified content")
-
-        # Wait for the callback to be triggered
-        time.sleep(0.5)
-
-        watcher.stop()
-
-        # Callback should have been called
-        assert len(callback_called) > 0
-
-    def test_file_watcher_ignores_directory_events(self, tmp_path: Path):
-        """Test that file watcher ignores directory modification events."""
-        test_file = tmp_path / "watch_dir" / "file.txt"
-        test_file.parent.mkdir()
-        test_file.write_text("content")
-        # Wait for file contents to be written.
-        time.sleep(0.1)
-
-        callback_called: list[bool] = []
-
-        def callback() -> None:
-            callback_called.append(True)
-
-        watcher = FileWatcher(test_file, callback)
-        watcher.start()
-
-        time.sleep(0.1)
-
-        # Modify the directory (not the file)
-        (test_file.parent / "other_file.txt").write_text("other")
-
-        time.sleep(0.3)
-        watcher.stop()
-
-        # Callback should not be called for other files
-        # (It might be called if the test environment monitors all changes, but ideally shouldn't)
-        # The main test is that it doesn't crash
-        assert len(callback_called) == 0

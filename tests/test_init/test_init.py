@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the Fixing-A-Hole config and init."""
+"""Tests for fixing-a-hole config and init."""
 
 import tomllib
 from collections.abc import Generator
@@ -25,7 +25,7 @@ from fixingahole.config import Config, ConfigParseError, ConfigValueError, Durat
 
 
 class TestConfig:
-    """Test Fixing-A-Hole config."""
+    """Test fixing-a-hole config."""
 
     def test_detect_virtualenv(self):
         """Test detecting the virtual env."""

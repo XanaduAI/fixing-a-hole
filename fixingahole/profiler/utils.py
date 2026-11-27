@@ -16,32 +16,24 @@
 import datetime
 import importlib.metadata
 import logging
-import warnings
-from collections.abc import Callable
 from enum import Enum
 from pathlib import Path, PurePath
 from random import choice
-from types import TracebackType
-from typing import TYPE_CHECKING, overload
+from typing import overload
 
 from colours import Colour
 from rich._spinners import SPINNERS  # noqa: PLC2701
 from rich.live import Live
 from rich.spinner import Spinner as rich_Spinner
 from typer import Exit
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
-from watchdog.observers import Observer
 
 from fixingahole import Config
-
-if TYPE_CHECKING:
-    from watchdog.observers.api import BaseObserver
 
 # Remove the difficult to see "toggle" spinners from the available options.
 for name in set(SPINNERS):
     if "toggle" in name:
         SPINNERS.pop(name, None)
-# Add a custom XanaduAI spinner.
+# Add some custom XanaduAI spinners.
 SPINNERS["xanaduai"] = {
     "interval": 120,
     "frames": [
@@ -53,6 +45,21 @@ SPINNERS["xanaduai"] = {
         "|   XanaduAI |",
         "|  XanaduAI  |",
         "| XanaduAI   |",
+    ],
+}
+SPINNERS["xanaduai_ticker"] = {
+    "interval": 100,
+    "frames": [
+        "|XNDU      |",
+        "| XNDU     |",
+        "|  XNDU    |",
+        "|   XNDU   |",
+        "|    XNDU  |",
+        "|     XNDU |",
+        "|      XNDU|",
+        "|U      XND|",
+        "|DU      XN|",
+        "|NDU      X|",
     ],
 }
 
@@ -77,7 +84,7 @@ class LogLevel(Enum):
 
     @property
     def level(self) -> int:
-        """Return the numeric logging level corresponding to this log level.
+        """The numeric logging level corresponding to this log level.
 
         LogLevel.NONE is a sentinel meaning "do not capture output".
         It has no stdlib equivalent but is considered to be level 100.
@@ -89,17 +96,6 @@ class LogLevel(Enum):
     def capture_output(self) -> bool:
         """Determine whether or not to capture output during profiling."""
         return self.name != "NONE"
-
-    def should_catch_warnings(self) -> bool:
-        """`should_catch_warnings` is deprecated; use `capture_output` instead."""
-        warnings.warn(
-            "should_catch_warnings() is deprecated; use capture_output() instead. "
-            "Note: capture_output() returns True for ERROR and CRITICAL, "
-            "whereas should_catch_warnings() returned False for those levels.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.capture_output()
 
 
 def date() -> str:
@@ -272,58 +268,3 @@ class Spinner(Live):
         """Abstraction of rich.spinner.Spinner with Live context."""
         spinner = rich_Spinner(choice(sorted(SPINNERS.keys())), message, style=style, speed=speed)
         super().__init__(spinner, refresh_per_second=20)
-
-
-class FileWatcher:
-    """A file system watcher that triggers a callback when a file changes."""
-
-    def __init__(self, file_path: Path, on_change_callback: Callable) -> None:
-        """Initialize the file watcher.
-
-        Args:
-            file_path: Path to the file to watch
-            on_change_callback: Function to call when the file is modified
-
-        """
-        self.file_path = Path(file_path)
-        self.callback = on_change_callback
-        self.observer: BaseObserver | None = None
-
-    def start(self) -> None:
-        """Start watching the file for changes."""
-
-        class FileChangeHandler(FileSystemEventHandler):
-            """Handler for file system events."""
-
-            def __init__(self, target_path: str, callback: Callable):
-                self.target_path = target_path
-                self.callback = callback
-
-            def on_modified(self, event: FileSystemEvent) -> None:
-                if not event.is_directory and event.src_path == self.target_path:
-                    self.callback()
-
-        handler = FileChangeHandler(str(self.file_path), self.callback)
-        self.observer = Observer()
-        self.observer.schedule(handler, str(self.file_path.parent), recursive=False)
-        self.observer.start()
-
-    def stop(self) -> None:
-        """Stop watching the file."""
-        if self.observer:
-            self.observer.stop()
-            self.observer.join(timeout=1.0)
-
-    def __enter__(self) -> "FileWatcher":
-        """Start the file watcher context."""
-        self.start()
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Stop the file watcher context."""
-        self.stop()
